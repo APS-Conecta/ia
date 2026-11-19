@@ -20,8 +20,9 @@ use Throwable;
 
 /**
  * Where TaskProcessing hands back «IA»'s tasks, success or failure: each to the Run its custom
- * id names, and a task no Run claims is deleted. Nothing here fails the worker, and nothing it logs carries a document's text or the
- * Model's answer: only the Run's id and the error's message.
+ * id names, and a task no Run claims is deleted. A failure reaches the person in Spanish; its own
+ * error stays in Nextcloud's log. Nothing here fails the worker, and nothing it logs carries a
+ * document's text or the Model's answer: only the Run's id and the error's message.
  *
  * @template-implements IEventListener<Event>
  */
@@ -46,7 +47,7 @@ class TaskListener implements IEventListener {
 		try {
 			$run = $this->runs->byId((int)$task->getCustomId());
 			if ($run?->getKind() === Run::REVIEW) {
-				$this->reviews->finish($run, $task, $event instanceof TaskFailedEvent ? ($event->getErrorMessage() ?: 'El modelo no respondió.') : null);
+				$this->reviews->finish($run, $task, $event instanceof TaskFailedEvent ? 'El modelo no respondió.' : null);
 			} else {
 				$this->model->forget($task);
 			}

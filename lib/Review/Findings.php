@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace OCA\Ia\Review;
 
+use OCA\Ia\Model\ModelGateway;
 use OCA\Ia\ResponseDefinitions;
 
 /**
@@ -33,14 +34,14 @@ final class Findings {
 	public static function from(array $lines, string $text, array $kinds): array {
 		$findings = [];
 		foreach ($lines as $fields) {
-			$kind = self::KINDS[self::fold($fields['TIPO'] ?? '')] ?? null;
+			$kind = self::KINDS[ModelGateway::fold($fields['TIPO'] ?? '')] ?? null;
 			$problem = trim($fields['PROBLEMA'] ?? '');
 			$fix = trim($fields['ARREGLO'] ?? '');
 			if (!in_array($kind, $kinds, true) || $problem === '' || $fix === '') {
 				continue;
 			}
-			$quote = trim($fields['CITA'] ?? '', " \t\"'«»“”‘’");
-			if (in_array(self::fold($quote), self::NO_QUOTE, true)) {
+			$quote = (string)preg_replace('/^[\s"\'«»“”‘’]+|[\s"\'«»“”‘’]+$/u', '', $fields['CITA'] ?? '');
+			if (in_array(ModelGateway::fold($quote), self::NO_QUOTE, true)) {
 				if ($kind !== self::MISSING) {
 					continue;
 				}
@@ -55,7 +56,7 @@ final class Findings {
 			}
 			$findings[] = $finding + ['text' => $problem, 'fix' => $fix];
 		}
-		return array_values(array_unique($findings, SORT_REGULAR));
+		return $findings;
 	}
 
 	/**
@@ -65,16 +66,11 @@ final class Findings {
 	 * @return array{0: string, 1: int}|null
 	 */
 	private static function find(string $quote, string $text): ?array {
-		$words = preg_split('/\s+/u', rtrim($quote, '.,;:…'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+		$words = preg_split('/\s+/u', (string)preg_replace('/[.,;:…]+$/u', '', $quote), -1, PREG_SPLIT_NO_EMPTY) ?: [];
 		if ($words === []) {
 			return null;
 		}
 		$pattern = '/' . implode('\s+', array_map(static fn (string $word): string => preg_quote($word, '/'), $words)) . '/iu';
 		return preg_match($pattern, $text, $match, PREG_OFFSET_CAPTURE) === 1 ? [$match[0][0], $match[0][1]] : null;
-	}
-
-	private static function fold(string $value): string {
-		$value = strtr(mb_strtoupper(trim($value, " \t.*")), ['Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U']);
-		return (string)preg_replace('/\s+/u', ' ', $value);
 	}
 }

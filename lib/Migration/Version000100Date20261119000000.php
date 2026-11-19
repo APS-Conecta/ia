@@ -14,7 +14,7 @@ use OCP\Migration\SimpleMigrationStep;
 
 /**
  * The Runs and the Reviews' reports (gestion-aio#162, Schema). Later tickets add the other
- * tables and the report columns their origins need.
+ * tables and the columns their work needs.
  */
 class Version000100Date20261119000000 extends SimpleMigrationStep {
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
@@ -30,10 +30,8 @@ class Version000100Date20261119000000 extends SimpleMigrationStep {
 			$runs->addColumn('step', Types::INTEGER, ['notnull' => true, 'default' => 0]);
 			$runs->addColumn('steps', Types::INTEGER, ['notnull' => true, 'default' => 0]);
 			$runs->addColumn('task_id', Types::BIGINT, ['notnull' => false, 'unsigned' => true]);
-			$runs->addColumn('attempts', Types::INTEGER, ['notnull' => true, 'default' => 0]);
 			$runs->addColumn('last_error', Types::TEXT, ['notnull' => false]);
 			$runs->addColumn('actor', Types::STRING, ['notnull' => false, 'length' => 64]);
-			$runs->addColumn('rule_id', Types::BIGINT, ['notnull' => false, 'unsigned' => true]);
 			$runs->addColumn('results', Types::TEXT, ['notnull' => false]);
 			$runs->addColumn('updated_at', Types::BIGINT, ['notnull' => true, 'unsigned' => true]);
 			$runs->setPrimaryKey(['id']);

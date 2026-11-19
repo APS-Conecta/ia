@@ -16,9 +16,11 @@ use OCA\Ia\Model\ModelGateway;
 use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
+use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\File;
 use OCP\Files\NotFoundException;
+use OCP\IDBConnection;
 use OCP\Notification\IManager as INotificationManager;
 use OCP\TaskProcessing\Task;
 use Throwable;
@@ -39,6 +41,8 @@ use Throwable;
  * @psalm-import-type IaReviewItem from ResponseDefinitions
  */
 class Reviews {
+	use TTransactional;
+
 	/** A short document, reviewed at once: about 10 pages. */
 	public const SHORT_PAGES = 10;
 
@@ -52,7 +56,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	private const CLOSE = 'Al terminar, escribe una última línea con la palabra ' . ModelGateway::END . '.';
 
 	private const SINGLE = 'Revisa el documento de un centro de salud que está entre las marcas <<< y >>>. ' . self::KINDS . "\n" . self::MISSING . "\n\n"
-		. self::FORMAT . ' En una Falta escribe CITA: -' . "\n"
+		. self::FORMAT . ' En una Falta escribe CITA: - y agrega | DONDE: sección donde debería ir' . "\n"
 		. 'Escribe solo los hallazgos, sin títulos ni explicaciones. ' . self::CLOSE;
 	private const CHUNK = 'Revisa la parte %d de %d de un documento de un centro de salud; la parte está entre las marcas <<< y >>>. ' . self::KINDS . "\n\n"
 		. "Primero escribe una línea con un resumen de la parte, así:\nRESUMEN: qué dice esta parte, en dos o tres oraciones\nDespués:\n"
@@ -70,6 +74,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		private RunMapper $runs,
 		private INotificationManager $notifications,
 		private ITimeFactory $time,
+		private IDBConnection $db,
 	) {
 	}
 
@@ -161,7 +166,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			return;
 		}
 		try {
-			$text = $this->reader->read($file);
+			$text = $this->readShort($file);
 		} catch (Refused $e) {
 			$this->fail($run, $e->getMessage());
 			$this->model->forget($task);
@@ -214,19 +219,24 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$chunks = self::chunks($text);
 		$run->setStep(1);
 		$run->setSteps(count($chunks) === 1 ? 1 : count($chunks) + 1);
-		$run->setAttempts(0);
 		$run->setLastError(null);
 		$run->setResults(null);
 		$this->ask($run, $this->prompt($run, $chunks, []));
 	}
 
+	/**
+	 * Asks the Model the Run's current step. The task and the Run that names it are saved in one
+	 * transaction, so the worker never finishes a task before its Run expects it.
+	 */
 	private function ask(Run $run, string $prompt): void {
 		try {
-			$run->setTaskId($this->model->ask($run->getId(), $prompt));
-			$run->setState(Run::WORKING);
-			$this->save($run);
-		} catch (Throwable $e) {
-			$this->fail($run, $e->getMessage());
+			$this->atomic(function () use ($run, $prompt): void {
+				$run->setTaskId($this->model->ask($run->getId(), $prompt));
+				$run->setState(Run::WORKING);
+				$this->save($run);
+			}, $this->db);
+		} catch (Throwable) {
+			$this->fail($run, 'El modelo no está disponible.');
 		}
 	}
 
@@ -252,13 +262,12 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	private function prompt(Run $run, array $chunks, array $summaries): string {
 		$step = $run->getStep();
 		$n = count($chunks);
-		return match (true) {
-			$run->getSteps() === 1 => self::SINGLE . "\n\n<<<\n" . $chunks[0] . "\n>>>",
-			$step <= $n => sprintf(self::CHUNK, $step, $n) . "\n\n<<<\n" . $chunks[$step - 1] . "\n>>>",
-			default => sprintf(self::GAPS, $n) . "\n\n<<<\n"
-				. implode("\n", array_map(static fn (int $i, string $summary): string => 'Parte ' . ($i + 1) . ': ' . $summary, array_keys($summaries), $summaries))
-				. "\n>>>",
+		[$instruction, $body] = match (true) {
+			$run->getSteps() === 1 => [self::SINGLE, $chunks[0]],
+			$step <= $n => [sprintf(self::CHUNK, $step, $n), $chunks[$step - 1]],
+			default => [sprintf(self::GAPS, $n), implode("\n", array_map(static fn (int $i, string $summary): string => 'Parte ' . ($i + 1) . ': ' . $summary, array_keys($summaries), $summaries))],
 		};
+		return $instruction . "\n\n<<<\n" . $body . "\n>>>";
 	}
 
 	/** @param list<array<string, string>> $lines a chunk step's lines, whose RESUMEN sums it up */

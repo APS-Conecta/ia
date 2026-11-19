@@ -90,7 +90,7 @@ class ModelGateway {
 			$fields = [];
 			foreach (explode('|', (string)preg_replace('/^(?:[-*•]|\d+[.)])\s*/u', '', $line)) as $part) {
 				if (preg_match('/^\s*\**\s*([\p{L} ]+?)\s*\**\s*:\s*(.*)$/u', $part, $field) === 1) {
-					$fields[self::key($field[1])] = trim($field[2], " \t*");
+					$fields[self::fold($field[1])] = trim($field[2], " \t*");
 				}
 			}
 			if ($fields !== []) {
@@ -100,7 +100,8 @@ class ModelGateway {
 		return $maps;
 	}
 
-	private static function key(string $name): string {
-		return strtoupper(strtr(trim($name), ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U']));
+	/** $value upper-cased, without accents or surrounding marks, its spaces collapsed: how a key or a kind is matched. */
+	public static function fold(string $value): string {
+		return (string)preg_replace('/\s+/u', ' ', strtr(mb_strtoupper(trim($value, " \t.*")), ['Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U']));
 	}
 }
