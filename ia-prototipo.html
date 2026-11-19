@@ -1,0 +1,872 @@
+<title>Prototipo de «IA»</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap">
+<style>
+/* PROTOTYPE, throwaway. Hybrid layout chosen 2026-11-19: menu by section, everyone starts on «Para ti», editors also get «Documentos».
+   Mirrors Nextcloud 34 + @nextcloud/vue 9 (NcContent > NcAppNavigation > NcAppContent > NcAppSidebar) with the APS Conecta theme. Example data; nothing is saved. */
+/* Layout: Nextcloud shell = violet ground, 50px header, 12px-rounded white container. Light only (enforce_theme=light). Tokens follow Nextcloud's own variable names. */
+:root{
+  --color-background-plain:#5315a8; --color-main-background:#ffffff; --color-main-text:#101828; --color-text-maxcontrast:#485363;
+  --color-background-hover:#f5f5f5; --color-background-dark:#ededed; --color-background-darker:#dbdbdb;
+  --color-border:#ededed; --color-border-dark:#dbdbdb; --color-border-maxcontrast:#7d7d7d;
+  --color-primary-element:#7f21fe; --color-primary-element-hover:#6d12e8; --color-primary-element-text:#ffffff;
+  --color-primary-element-light:#f0e6ff; --color-primary-element-light-hover:#e5d4ff; --color-primary-element-light-text:#4a109c;
+  --color-error:#ea003e; --color-text-error:#b4002f; --color-error-bg:#fdeaf0;
+  --color-warning:#e06f00; --color-warning-text:#9a4c00; --color-warning-bg:#fff3e6;
+  --color-success:#2d7b41; --color-success-text:#1f6a34; --color-success-bg:#e8f4ec;
+  --color-info:#0071ad; --color-info-text:#005b8c; --color-info-bg:#e6f1f7;
+  --color-box-shadow:rgba(16,24,40,.22); --color-header-text:#ffffff;
+  --border-radius-element:8px; --border-radius-large:10px; --border-radius-container:12px; --border-radius-container-large:16px; --border-radius-pill:100px;
+  --default-clickable-area:34px; --default-grid-baseline:4px; --header-height:50px; --app-navigation-width:300px; --sidebar-width:400px;
+  --font-face:"Nunito Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display:"Fraunces", Georgia, "Times New Roman", serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{margin:0;background:var(--color-background-plain);color:var(--color-main-text);font-family:var(--font-face);font-size:15px;line-height:1.5;display:flex;flex-direction:column;box-sizing:border-box;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:0 70px}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--color-primary-element);outline-offset:2px}
+.mdi{display:inline-flex;flex:none;align-items:center;justify-content:center}
+.mdi svg{display:block;fill:currentColor}
+h1,h2,h3{font-family:var(--font-display);font-weight:600;margin:0;line-height:1.25;text-wrap:balance}
+h2{font-size:20px} h3{font-size:16px}
+.muted{color:var(--color-text-maxcontrast)} .small{font-size:13px} .bold{font-weight:700}
+.tab-num{font-variant-numeric:tabular-nums}
+
+/* Header (NC 34 + side_menu + suite short name) */
+#header{flex:0 0 var(--header-height);height:var(--header-height);display:flex;align-items:center;gap:4px;color:var(--color-header-text);min-width:0;position:relative;z-index:20}
+.header-btn{background:transparent;border:0;color:var(--color-header-text);height:40px;min-width:40px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 8px;border-radius:var(--border-radius-pill);cursor:pointer}
+.header-btn:hover,.header-btn[aria-expanded=true]{background:rgba(255,255,255,.16)}
+.logo{font-family:var(--font-display);font-weight:600;font-size:19px;white-space:nowrap;padding:0 8px 0 4px}
+.estab{font-family:var(--font-display);font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:10px;border-left:1px solid rgba(255,255,255,.35)}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:2px}
+.header-dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--color-warning);box-shadow:0 0 0 2px var(--color-background-plain)}
+.avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:12px;flex:none;background:#fff;color:var(--color-background-plain)}
+
+/* Popovers (NcPopover / NcActions menu) */
+.popover{position:absolute;background:var(--color-main-background);color:var(--color-main-text);border-radius:var(--border-radius-large);box-shadow:0 2px 14px var(--color-box-shadow);z-index:40;padding:4px;min-width:220px}
+.pop-anchor{position:relative;display:inline-flex}
+.menu-item{display:flex;align-items:center;gap:10px;width:100%;min-height:var(--default-clickable-area);padding:0 12px 0 8px;border:0;background:none;border-radius:var(--border-radius-element);cursor:pointer;text-align:left;white-space:nowrap}
+.menu-item:hover{background:var(--color-background-hover)}
+.menu-item.error{color:var(--color-text-error)}
+.menu-sep{height:1px;background:var(--color-border);margin:4px 0}
+.notif-panel{right:0;top:46px;width:min(380px, calc(100vw - 32px));padding:0;overflow:hidden}
+.notif-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--color-border)}
+.notif{display:flex;gap:10px;padding:12px 14px;border-bottom:1px solid var(--color-border)}
+.notif:last-child{border-bottom:0}
+.notif .mdi{color:var(--color-text-maxcontrast);margin-top:2px}
+.apps-panel{left:0;top:46px;width:min(420px, calc(100vw - 32px));padding:10px}
+.apps-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:4px}
+.app-tile{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border:0;background:none;border-radius:var(--border-radius-large);cursor:pointer;text-align:center;font-size:14px}
+.app-tile:hover{background:var(--color-background-hover)}
+.app-tile .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--color-primary-element-light);color:var(--color-primary-element-light-text)}
+.app-tile.current .ic{background:var(--color-primary-element);color:#fff}
+
+/* Container */
+#content{flex:1;min-height:0;display:flex;background:var(--color-main-background);border-radius:var(--border-radius-container);overflow:hidden;position:relative;margin-bottom:8px}
+
+/* NcAppNavigation */
+.app-navigation{flex:0 0 var(--app-navigation-width);width:var(--app-navigation-width);box-sizing:border-box;border-right:1px solid var(--color-border);display:flex;flex-direction:column;background:var(--color-main-background);overflow:hidden}
+.app-navigation.collapsed{display:none}
+.nav-list{flex:1;overflow:auto;padding:var(--default-grid-baseline);display:flex;flex-direction:column;gap:2px}
+.nav-new{padding:8px 8px 4px}
+.nav-new .button{width:100%}
+.nav-entry{display:flex;align-items:center;min-height:var(--default-clickable-area);border-radius:var(--border-radius-element);border:0;background:none;cursor:pointer;width:100%;padding:0 8px 0 0;text-align:left;color:var(--color-main-text)}
+.nav-entry:hover{background:var(--color-background-hover)}
+.nav-entry .mdi{width:var(--default-clickable-area);height:var(--default-clickable-area)}
+.nav-entry .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-entry.active{background:var(--color-primary-element);color:var(--color-primary-element-text)}
+.nav-entry.active:hover{background:var(--color-primary-element-hover)}
+.nav-entry.sub{padding-left:22px;min-height:32px;font-size:14px}
+.nav-entry.sub:not(:has(.mdi:first-child)){padding-left:34px}
+.nav-caption{font-weight:700;font-size:14px;color:var(--color-text-maxcontrast);padding:12px 10px 2px}
+.counter{min-width:18px;height:20px;padding:0 6px;border-radius:var(--border-radius-pill);display:inline-grid;place-items:center;font-size:12px;font-weight:800;background:var(--color-primary-element-light);color:var(--color-primary-element-light-text);box-sizing:border-box}
+.nav-entry.active .counter{background:var(--color-primary-element-text);color:var(--color-primary-element)}
+.counter.highlighted{background:var(--color-primary-element);color:#fff}
+.nav-footer{padding:var(--default-grid-baseline);border-top:1px solid var(--color-border)}
+
+/* NcAppContent */
+.app-content{flex:1;min-width:0;overflow:auto;display:flex;flex-direction:column;position:relative}
+.content-bar{position:sticky;top:0;z-index:4;background:var(--color-main-background);display:flex;align-items:center;gap:8px;min-height:50px;padding:6px 16px 6px 8px;box-sizing:border-box;border-bottom:1px solid var(--color-border);flex-wrap:wrap}
+.content-bar .titles{flex:1;min-width:180px;padding-left:2px}
+.content-bar h2{font-size:19px}
+.content-bar .sub{font-size:13px;color:var(--color-text-maxcontrast)}
+.content-bar .acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.page{padding:20px 24px 48px;display:flex;flex-direction:column;gap:26px;max-width:900px;width:100%;box-sizing:border-box}
+.page.wide{max-width:none}
+.section{display:flex;flex-direction:column;gap:8px;min-width:0}
+.section-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.prose{max-width:68ch;margin:0}
+
+/* NcButton */
+.button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:var(--default-clickable-area);padding:0 14px;border-radius:var(--border-radius-element);border:0;font-weight:700;cursor:pointer;white-space:nowrap;box-sizing:border-box}
+.button.has-icon{padding-left:8px}
+.button.icon-only{width:var(--default-clickable-area);padding:0}
+.button .mdi svg{width:20px;height:20px}
+.button.primary{background:var(--color-primary-element);color:var(--color-primary-element-text)}
+.button.primary:hover{background:var(--color-primary-element-hover)}
+.button.secondary{background:var(--color-primary-element-light);color:var(--color-primary-element-light-text)}
+.button.secondary:hover{background:var(--color-primary-element-light-hover)}
+.button.tertiary{background:transparent;color:var(--color-main-text)}
+.button.tertiary:hover{background:var(--color-background-hover)}
+.button.small{min-height:28px;font-size:14px;padding:0 10px}
+
+/* NcListItem */
+.list{display:flex;flex-direction:column;gap:2px}
+.list-item{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:var(--border-radius-element);min-height:56px;box-sizing:border-box;position:relative}
+.list-item.clickable{cursor:pointer}
+.list-item.clickable:hover{background:var(--color-background-hover)}
+.list-item .lead{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--color-background-dark);color:var(--color-main-text)}
+.list-item .lead.primary{background:var(--color-primary-element-light);color:var(--color-primary-element-light-text)}
+.list-item .lead.warning{background:var(--color-warning-bg);color:var(--color-warning-text)}
+.list-item .lead.error{background:var(--color-error-bg);color:var(--color-text-error)}
+.list-item .lead.success{background:var(--color-success-bg);color:var(--color-success-text)}
+.list-item .body{flex:1;min-width:0}
+.list-item .line-one{display:flex;gap:8px;align-items:baseline;justify-content:space-between}
+.list-item .name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.list-item .details{font-size:13px;color:var(--color-text-maxcontrast);white-space:nowrap;flex:none}
+.list-item .subname{font-size:14px;color:var(--color-text-maxcontrast);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list-item .extra{font-size:14px;margin-top:2px}
+.list-item .tail{display:flex;gap:4px;align-items:center;flex:none}
+.list-item.wrap .name,.list-item.wrap .subname{white-space:normal}
+.list-item.status-row{background:var(--color-primary-element-light)}
+
+/* NcChip, NcNoteCard, NcEmptyContent, NcLoadingIcon */
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 10px;border-radius:var(--border-radius-pill);font-size:13px;font-weight:700;background:var(--color-background-dark);color:var(--color-main-text);white-space:nowrap;box-sizing:border-box}
+.chip .mdi svg{width:16px;height:16px}
+.chip.primary{background:var(--color-primary-element-light);color:var(--color-primary-element-light-text)}
+.chip.warning{background:var(--color-warning-bg);color:var(--color-warning-text)}
+.chip.error{background:var(--color-error-bg);color:var(--color-text-error)}
+.chip.success{background:var(--color-success-bg);color:var(--color-success-text)}
+.note-card{display:flex;gap:12px;padding:12px 14px;border-radius:var(--border-radius-large);border-left:4px solid var(--note);background:var(--note-bg);--note:var(--color-info);--note-bg:var(--color-info-bg);--note-text:var(--color-info-text)}
+.note-card > .mdi{color:var(--note-text)}
+.note-card.warning{--note:var(--color-warning);--note-bg:var(--color-warning-bg);--note-text:var(--color-warning-text)}
+.note-card.error{--note:var(--color-error);--note-bg:var(--color-error-bg);--note-text:var(--color-text-error)}
+.note-card.success{--note:var(--color-success);--note-bg:var(--color-success-bg);--note-text:var(--color-success-text)}
+.note-card .body{flex:1;min-width:0;font-size:14px}
+.note-card .title{font-weight:800}
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:48px 16px;color:var(--color-text-maxcontrast)}
+.empty > .mdi svg{width:64px;height:64px;opacity:.5}
+.empty h2{color:var(--color-main-text)}
+.loading{width:20px;height:20px;border-radius:50%;border:2px solid var(--color-primary-element-light-hover);border-top-color:var(--color-primary-element);animation:spin .9s linear infinite;flex:none;box-sizing:border-box}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.loading{animation:none}}
+
+/* Edition */
+.edition-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--color-text-maxcontrast)}
+.foryou{border-radius:var(--border-radius-container);background:var(--color-primary-element-light);padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.foryou h3{color:var(--color-primary-element-light-text)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px}
+.col h4{margin:0 0 6px;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--color-text-maxcontrast)}
+.foryou .col h4{color:var(--color-primary-element-light-text)}
+.col ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.col li{font-size:14px}
+.when{font-weight:800;font-variant-numeric:tabular-nums;display:block}
+.linklike{border:0;background:none;padding:0;text-align:left;cursor:pointer;font-weight:700;color:inherit;text-decoration:underline;text-decoration-color:var(--color-border-maxcontrast);text-underline-offset:3px}
+.finding{display:flex;flex-direction:column;gap:6px;padding:12px 0;border-bottom:1px solid var(--color-border)}
+.finding:last-child{border-bottom:0}
+.suggestion{display:flex;gap:8px;align-items:flex-start;background:var(--color-background-hover);border-radius:var(--border-radius-element);padding:8px 10px;font-size:14px}
+.suggestion .mdi{color:var(--color-success-text);margin-top:1px}
+
+/* Table (Files-like) */
+.table-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:780px;font-size:14px}
+th{text-align:left;font-weight:600;color:var(--color-text-maxcontrast);padding:0 10px;height:44px;border-bottom:1px solid var(--color-border);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--color-border);vertical-align:middle;height:34px}
+tr.row{cursor:pointer}
+tr.row:hover td{background:var(--color-background-hover)}
+tr.row.selected td{background:var(--color-primary-element-light)}
+.file-name{display:flex;align-items:center;gap:10px;min-width:0}
+.file-ic{flex:none;width:32px;height:32px;display:grid;place-items:center;border-radius:6px}
+.file-ic.pdf{color:#c8001e} .file-ic.doc,.file-ic.odt{color:#2a5699} .file-ic.xls{color:#1d6f42} .file-ic.folder{color:var(--color-primary-element)}
+.segmented{display:inline-flex;flex-wrap:wrap;gap:4px}
+.segmented button{border:0;background:var(--color-background-hover);border-radius:var(--border-radius-element);min-height:30px;padding:0 12px;font-weight:700;font-size:14px;cursor:pointer}
+.segmented button[aria-pressed=true]{background:var(--color-primary-element-light);color:var(--color-primary-element-light-text)}
+
+/* NcAppSidebar */
+.app-sidebar{flex:0 0 var(--sidebar-width);width:var(--sidebar-width);box-sizing:border-box;border-left:1px solid var(--color-border);overflow:auto;background:var(--color-main-background);display:flex;flex-direction:column}
+.sidebar-header{display:flex;gap:4px;align-items:flex-start;padding:14px 10px 10px 16px}
+.sidebar-header .titles{flex:1;min-width:0}
+.sidebar-header h2{font-size:19px;overflow-wrap:anywhere}
+.sidebar-tabs{display:flex;gap:4px;padding:0 10px 8px;border-bottom:1px solid var(--color-border);overflow-x:auto}
+.sidebar-tab{flex:1;min-width:84px;display:flex;flex-direction:column;align-items:center;gap:2px;border:0;background:none;border-radius:var(--border-radius-element);padding:6px 8px;cursor:pointer;font-size:13px;font-weight:700;color:var(--color-text-maxcontrast)}
+.sidebar-tab:hover{background:var(--color-background-hover)}
+.sidebar-tab[aria-selected=true]{background:var(--color-primary-element-light);color:var(--color-primary-element-light-text)}
+.sidebar-body{padding:16px;display:flex;flex-direction:column;gap:18px}
+.sidebar-foot{margin-top:auto;padding:12px 16px;border-top:1px solid var(--color-border);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+/* Forms (NcTextField, NcSelect, NcCheckboxRadioSwitch) */
+.field{display:flex;flex-direction:column;gap:6px}
+.field-label{font-weight:700;font-size:14px}
+.hint{font-size:13px;color:var(--color-text-maxcontrast)}
+.input,.select,.textarea{width:100%;box-sizing:border-box;min-height:var(--default-clickable-area);border:2px solid var(--color-border-maxcontrast);border-radius:var(--border-radius-element);padding:4px 10px;background:var(--color-main-background);color:var(--color-main-text)}
+.textarea{min-height:84px;resize:vertical;padding:8px 10px}
+.input:hover,.select:hover,.textarea:hover{border-color:var(--color-primary-element)}
+.input:focus,.select:focus,.textarea:focus{border-color:var(--color-primary-element);outline:none;box-shadow:0 0 0 2px var(--color-primary-element-light)}
+.inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.inline .input{width:auto}
+.radio{display:flex;gap:6px;align-items:flex-start;border:0;background:none;padding:4px 6px;border-radius:var(--border-radius-element);cursor:pointer;text-align:left;width:100%}
+.radio:hover{background:var(--color-background-hover)}
+.radio .mdi{color:var(--color-primary-element)}
+.radio .lbl{padding-top:2px}
+.source-row{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 4px 0 8px;border-radius:var(--border-radius-element)}
+.source-row:hover{background:var(--color-background-hover)}
+.source-row .grow{flex:1;min-width:0;overflow-wrap:anywhere}
+
+/* Dialog (NcDialog / FilePicker) */
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);display:grid;place-items:center;z-index:50;padding:16px}
+.dialog{background:var(--color-main-background);border-radius:var(--border-radius-container-large);width:min(760px,100%);max-height:84vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.35);overflow:hidden}
+.dialog-head{display:flex;align-items:center;gap:10px;padding:14px 12px 10px 20px}
+.dialog-head h2{flex:1}
+.dialog-main{display:flex;min-height:0;flex:1}
+.dialog-nav{flex:0 0 190px;padding:4px 8px;border-right:1px solid var(--color-border)}
+.dialog-content{flex:1;min-width:0;overflow:auto;padding:0 12px 12px}
+.breadcrumbs{display:flex;align-items:center;gap:2px;min-height:44px;flex-wrap:wrap;font-weight:700}
+.breadcrumbs .crumb{border:0;background:none;padding:4px 8px;border-radius:var(--border-radius-element);cursor:pointer;display:inline-flex;align-items:center}
+.breadcrumbs .crumb:hover{background:var(--color-background-hover)}
+.breadcrumbs .sep{color:var(--color-text-maxcontrast)}
+.dialog-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--color-border)}
+
+/* Settings (NcSettingsSection) */
+.settings-section{padding:24px 28px;border-bottom:1px solid var(--color-border);display:flex;flex-direction:column;gap:12px;max-width:900px}
+.settings-section:last-child{border-bottom:0}
+.settings-section > .desc{color:var(--color-text-maxcontrast);margin:0;max-width:72ch;font-size:14px}
+.kv{display:grid;grid-template-columns:minmax(170px,auto) 1fr;gap:6px 18px;font-size:14px;margin:0}
+.kv dt{color:var(--color-text-maxcontrast)}
+.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.status{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--color-success);flex:none}
+.flow-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.flow-card{border:2px solid var(--color-border);border-radius:var(--border-radius-large);padding:14px;display:flex;flex-direction:column;gap:6px}
+.flow-card.ours{border-color:var(--color-primary-element)}
+.flow-card > .mdi{color:var(--color-primary-element);justify-content:flex-start}
+.flow-rule{border:1px solid var(--color-border-dark);border-radius:var(--border-radius-large);padding:14px 16px;display:grid;grid-template-columns:110px 1fr;gap:8px 12px;font-size:14px;max-width:640px;margin:0}
+.flow-rule dt{font-weight:800;color:var(--color-text-maxcontrast)}
+.flow-rule dd{margin:0}
+
+/* Dashboard */
+.dash{padding:28px 24px 48px;display:flex;flex-direction:column;align-items:center;gap:22px;overflow:auto;flex:1}
+.dash h1{font-size:30px;text-align:center}
+.widgets{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,320px));gap:16px;justify-content:center;width:100%}
+.widget{background:var(--color-main-background);border-radius:var(--border-radius-container-large);padding:14px 10px 10px;display:flex;flex-direction:column;gap:4px;border:1px solid var(--color-border);min-width:0}
+.widget-title{display:flex;align-items:center;gap:8px;font-weight:800;padding:0 8px 6px;font-size:16px}
+.widget .list-item{min-height:48px}
+.widget-foot{display:flex;justify-content:center;padding-top:6px}
+
+/* Prototype bar: not part of the design */
+.protobar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom, 0px));z-index:60;background:#101828;color:#fff;border-radius:16px;padding:6px 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;box-shadow:0 10px 28px rgba(0,0,0,.45);width:max-content;max-width:calc(100% - 32px);font-size:13px;box-sizing:border-box}
+.pb-tag{background:var(--color-warning);color:#101828;font-weight:800;border-radius:var(--border-radius-pill);padding:2px 10px;white-space:nowrap}
+.pb-seg{display:inline-flex;background:rgba(255,255,255,.12);border-radius:var(--border-radius-pill);padding:2px;flex-wrap:wrap}
+.pb-seg button{background:none;border:0;color:#fff;padding:3px 10px;border-radius:var(--border-radius-pill);cursor:pointer;font-weight:700}
+.pb-seg button[aria-pressed=true]{background:#fff;color:#101828}
+.toast{position:fixed;top:calc(56px + env(safe-area-inset-top, 0px));right:max(24px, env(safe-area-inset-right, 0px));background:#101828;color:#fff;padding:10px 14px;border-radius:var(--border-radius-large);z-index:70;max-width:min(380px, calc(100vw - 48px));font-size:14px;box-shadow:0 8px 24px rgba(16,24,40,.3);display:flex;gap:12px;align-items:center}
+
+@media (max-width: 1180px){
+  .app-sidebar{position:absolute;top:0;right:0;bottom:0;width:min(var(--sidebar-width),100%);box-shadow:-10px 0 28px rgba(16,24,40,.2);z-index:8}
+}
+@media (max-width: 800px){
+  html,body{height:auto}
+  body{display:block;padding-block:0 120px}
+  #content{min-height:calc(100vh - 140px);flex-direction:column;overflow:visible}
+  .app-navigation{width:auto;flex:none;border-right:0;border-bottom:1px solid var(--color-border)}
+  .app-navigation:not(.open){display:none}
+  .content-bar{position:static;padding:6px 10px}
+  .page{padding:16px 16px 40px}
+  .estab,.hide-sm{display:none}
+  .app-sidebar{position:fixed;inset:0;width:auto;z-index:45;padding-top:env(safe-area-inset-top, 0px);padding-bottom:env(safe-area-inset-bottom, 0px)}
+  .kv,.flow-rule{grid-template-columns:1fr}
+  .dialog-nav{display:none}
+  .settings-section{padding:18px 16px}
+}
+</style>
+
+<div id="header"></div>
+<main id="content"></main>
+<div id="layer"></div>
+<div class="protobar" id="protobar" role="toolbar" aria-label="Controles del prototipo"></div>
+
+<script>
+/* ---------- Material Design Icons (the set Nextcloud uses), only the ones needed ---------- */
+const MDI = {"mdiAccountGroupOutline":"M12,5A3.5,3.5 0 0,0 8.5,8.5A3.5,3.5 0 0,0 12,12A3.5,3.5 0 0,0 15.5,8.5A3.5,3.5 0 0,0 12,5M12,7A1.5,1.5 0 0,1 13.5,8.5A1.5,1.5 0 0,1 12,10A1.5,1.5 0 0,1 10.5,8.5A1.5,1.5 0 0,1 12,7M5.5,8A2.5,2.5 0 0,0 3,10.5C3,11.44 3.53,12.25 4.29,12.68C4.65,12.88 5.06,13 5.5,13C5.94,13 6.35,12.88 6.71,12.68C7.08,12.47 7.39,12.17 7.62,11.81C6.89,10.86 6.5,9.7 6.5,8.5C6.5,8.41 6.5,8.31 6.5,8.22C6.2,8.08 5.86,8 5.5,8M18.5,8C18.14,8 17.8,8.08 17.5,8.22C17.5,8.31 17.5,8.41 17.5,8.5C17.5,9.7 17.11,10.86 16.38,11.81C16.5,12 16.63,12.15 16.78,12.3C16.94,12.45 17.1,12.58 17.29,12.68C17.65,12.88 18.06,13 18.5,13C18.94,13 19.35,12.88 19.71,12.68C20.47,12.25 21,11.44 21,10.5A2.5,2.5 0 0,0 18.5,8M12,14C9.66,14 5,15.17 5,17.5V19H19V17.5C19,15.17 14.34,14 12,14M4.71,14.55C2.78,14.78 0,15.76 0,17.5V19H3V17.07C3,16.06 3.69,15.22 4.71,14.55M19.29,14.55C20.31,15.22 21,16.06 21,17.07V19H24V17.5C24,15.76 21.22,14.78 19.29,14.55M12,16C13.53,16 15.24,16.5 16.23,17H7.77C8.76,16.5 10.47,16 12,16Z","mdiAccountMultipleOutline":"M13.07 10.41A5 5 0 0 0 13.07 4.59A3.39 3.39 0 0 1 15 4A3.5 3.5 0 0 1 15 11A3.39 3.39 0 0 1 13.07 10.41M5.5 7.5A3.5 3.5 0 1 1 9 11A3.5 3.5 0 0 1 5.5 7.5M7.5 7.5A1.5 1.5 0 1 0 9 6A1.5 1.5 0 0 0 7.5 7.5M16 17V19H2V17S2 13 9 13 16 17 16 17M14 17C13.86 16.22 12.67 15 9 15S4.07 16.31 4 17M15.95 13A5.32 5.32 0 0 1 18 17V19H22V17S22 13.37 15.94 13Z","mdiAccountOutline":"M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,6A2,2 0 0,0 10,8A2,2 0 0,0 12,10A2,2 0 0,0 14,8A2,2 0 0,0 12,6M12,13C14.67,13 20,14.33 20,17V20H4V17C4,14.33 9.33,13 12,13M12,14.9C9.03,14.9 5.9,16.36 5.9,17V18.1H18.1V17C18.1,16.36 14.97,14.9 12,14.9Z","mdiAlertCircleOutline":"M11,15H13V17H11V15M11,7H13V13H11V7M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20Z","mdiAlertOutline":"M12,2L1,21H23M12,6L19.53,19H4.47M11,10V14H13V10M11,16V18H13V16","mdiApps":"M16,20H20V16H16M16,14H20V10H16M10,8H14V4H10M16,8H20V4H16M10,14H14V10H10M4,14H8V10H4M4,20H8V16H4M10,20H14V16H10M4,8H8V4H4V8Z","mdiArrowLeft":"M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z","mdiBellOutline":"M10 21H14C14 22.1 13.1 23 12 23S10 22.1 10 21M21 19V20H3V19L5 17V11C5 7.9 7 5.2 10 4.3V4C10 2.9 10.9 2 12 2S14 2.9 14 4V4.3C17 5.2 19 7.9 19 11V17L21 19M17 11C17 8.2 14.8 6 12 6S7 8.2 7 11V18H17V11Z","mdiCalendarClock":"M15,13H16.5V15.82L18.94,17.23L18.19,18.53L15,16.69V13M19,8H5V19H9.67C9.24,18.09 9,17.07 9,16A7,7 0 0,1 16,9C17.07,9 18.09,9.24 19,9.67V8M5,21C3.89,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H6V1H8V3H16V1H18V3H19A2,2 0 0,1 21,5V11.1C22.24,12.36 23,14.09 23,16A7,7 0 0,1 16,23C14.09,23 12.36,22.24 11.1,21H5M16,11.15A4.85,4.85 0 0,0 11.15,16C11.15,18.68 13.32,20.85 16,20.85A4.85,4.85 0 0,0 20.85,16C20.85,13.32 18.68,11.15 16,11.15Z","mdiCalendarOutline":"M12 12H17V17H12V12M19 3H18V1H16V3H8V1H6V3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3M19 5V7H5V5H19M5 19V9H19V19H5Z","mdiCheck":"M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z","mdiCheckCircleOutline":"M12 2C6.5 2 2 6.5 2 12S6.5 22 12 22 22 17.5 22 12 17.5 2 12 2M12 20C7.59 20 4 16.41 4 12S7.59 4 12 4 20 7.59 20 12 16.41 20 12 20M16.59 7.58L10 14.17L7.41 11.59L6 13L10 17L18 9L16.59 7.58Z","mdiClockOutline":"M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C6.47,22 2,17.5 2,12A10,10 0 0,1 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z","mdiClose":"M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z","mdiCogOutline":"M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10M10,22C9.75,22 9.54,21.82 9.5,21.58L9.13,18.93C8.5,18.68 7.96,18.34 7.44,17.94L4.95,18.95C4.73,19.03 4.46,18.95 4.34,18.73L2.34,15.27C2.21,15.05 2.27,14.78 2.46,14.63L4.57,12.97L4.5,12L4.57,11L2.46,9.37C2.27,9.22 2.21,8.95 2.34,8.73L4.34,5.27C4.46,5.05 4.73,4.96 4.95,5.05L7.44,6.05C7.96,5.66 8.5,5.32 9.13,5.07L9.5,2.42C9.54,2.18 9.75,2 10,2H14C14.25,2 14.46,2.18 14.5,2.42L14.87,5.07C15.5,5.32 16.04,5.66 16.56,6.05L19.05,5.05C19.27,4.96 19.54,5.05 19.66,5.27L21.66,8.73C21.79,8.95 21.73,9.22 21.54,9.37L19.43,11L19.5,12L19.43,13L21.54,14.63C21.73,14.78 21.79,15.05 21.66,15.27L19.66,18.73C19.54,18.95 19.27,19.04 19.05,18.95L16.56,17.95C16.04,18.34 15.5,18.68 14.87,18.93L14.5,21.58C14.46,21.82 14.25,22 14,22H10M11.25,4L10.88,6.61C9.68,6.86 8.62,7.5 7.85,8.39L5.44,7.35L4.69,8.65L6.8,10.2C6.4,11.37 6.4,12.64 6.8,13.8L4.68,15.36L5.43,16.66L7.86,15.62C8.63,16.5 9.68,17.14 10.87,17.38L11.24,20H12.76L13.13,17.39C14.32,17.14 15.37,16.5 16.14,15.62L18.57,16.66L19.32,15.36L17.2,13.81C17.6,12.64 17.6,11.37 17.2,10.2L19.31,8.65L18.56,7.35L16.15,8.39C15.38,7.5 14.32,6.86 13.12,6.62L12.75,4H11.25Z","mdiCreation":"M19,1L17.74,3.75L15,5L17.74,6.26L19,9L20.25,6.26L23,5L20.25,3.75M9,4L6.5,9.5L1,12L6.5,14.5L9,20L11.5,14.5L17,12L11.5,9.5M19,15L17.74,17.74L15,19L17.74,20.25L19,23L20.25,20.25L23,19L20.25,17.74","mdiDeleteOutline":"M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19M8,9H16V19H8V9M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z","mdiDotsHorizontal":"M16,12A2,2 0 0,1 18,10A2,2 0 0,1 20,12A2,2 0 0,1 18,14A2,2 0 0,1 16,12M10,12A2,2 0 0,1 12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12M4,12A2,2 0 0,1 6,10A2,2 0 0,1 8,12A2,2 0 0,1 6,14A2,2 0 0,1 4,12Z","mdiDownload":"M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z","mdiEyeOffOutline":"M2,5.27L3.28,4L20,20.72L18.73,22L15.65,18.92C14.5,19.3 13.28,19.5 12,19.5C7,19.5 2.73,16.39 1,12C1.69,10.24 2.79,8.69 4.19,7.46L2,5.27M12,9A3,3 0 0,1 15,12C15,12.35 14.94,12.69 14.83,13L11,9.17C11.31,9.06 11.65,9 12,9M12,4.5C17,4.5 21.27,7.61 23,12C22.18,14.08 20.79,15.88 19,17.19L17.58,15.76C18.94,14.82 20.06,13.54 20.82,12C19.17,8.64 15.76,6.5 12,6.5C10.91,6.5 9.84,6.68 8.84,7L7.3,5.47C8.74,4.85 10.33,4.5 12,4.5M3.18,12C4.83,15.36 8.24,17.5 12,17.5C12.69,17.5 13.37,17.43 14,17.29L11.72,15C10.29,14.85 9.15,13.71 9,12.28L5.6,8.87C4.61,9.72 3.78,10.78 3.18,12Z","mdiFileDocumentCheckOutline":"M23.5 17L18.5 22L15 18.5L16.5 17L18.5 19L22 15.5L23.5 17M6 2C4.89 2 4 2.9 4 4V20C4 21.11 4.89 22 6 22H13.81C13.45 21.38 13.2 20.7 13.08 20H6V4H13V9H18V13.08C18.33 13.03 18.67 13 19 13C19.34 13 19.67 13.03 20 13.08V8L14 2M8 12V14H16V12M8 16V18H13V16Z","mdiFileDocumentMultipleOutline":"M16 0H8C6.9 0 6 .9 6 2V18C6 19.1 6.9 20 8 20H20C21.1 20 22 19.1 22 18V6L16 0M20 18H8V2H15V7H20V18M4 4V22H20V24H4C2.9 24 2 23.1 2 22V4H4M10 10V12H18V10H10M10 14V16H15V14H10Z","mdiFileDocumentOutline":"M6,2A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2H6M6,4H13V9H18V20H6V4M8,12V14H16V12H8M8,16V18H13V16H8Z","mdiFileExcelBox":"M16.2,17H14.2L12,13.2L9.8,17H7.8L11,12L7.8,7H9.8L12,10.8L14.2,7H16.2L13,12M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3Z","mdiFilePdfBox":"M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3M9.5 11.5C9.5 12.3 8.8 13 8 13H7V15H5.5V9H8C8.8 9 9.5 9.7 9.5 10.5V11.5M14.5 13.5C14.5 14.3 13.8 15 13 15H10.5V9H13C13.8 9 14.5 9.7 14.5 10.5V13.5M18.5 10.5H17V11.5H18.5V13H17V15H15.5V9H18.5V10.5M12 10.5H13V13.5H12V10.5M7 10.5H8V11.5H7V10.5Z","mdiFileTableBoxOutline":"M19 3H5C3.89 3 3 3.89 3 5V19C3 20.11 3.89 21 5 21H19C20.11 21 21 20.11 21 19V5C21 3.89 20.11 3 19 3M19 19H5V5H19V19M9 18H6V16H9V18M13 18H10V16H13V18M9 15H6V13H9V15M13 15H10V13H13V15M9 12H6V10H9V12M13 12H10V10H13V12Z","mdiFileWordBox":"M15.5,17H14L12,9.5L10,17H8.5L6.1,7H7.8L9.34,14.5L11.3,7H12.7L14.67,14.5L16.2,7H17.9M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3Z","mdiFolder":"M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z","mdiFolderAccountOutline":"M15 14C16.33 14 19 14.67 19 16V17H11V16C11 14.67 13.67 14 15 14M15 13C16.11 13 17 12.11 17 11S16.11 9 15 9C13.9 9 13 9.89 13 11C13 12.11 13.9 13 15 13M22 8V18C22 19.11 21.11 20 20 20H4C2.9 20 2 19.11 2 18V6C2 4.89 2.9 4 4 4H10L12 6H20C21.11 6 22 6.9 22 8M20 8H4V18H20V8Z","mdiFolderOutline":"M20,18H4V8H20M20,6H12L10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6Z","mdiFormatListBulleted":"M7,5H21V7H7V5M7,13V11H21V13H7M4,4.5A1.5,1.5 0 0,1 5.5,6A1.5,1.5 0 0,1 4,7.5A1.5,1.5 0 0,1 2.5,6A1.5,1.5 0 0,1 4,4.5M4,10.5A1.5,1.5 0 0,1 5.5,12A1.5,1.5 0 0,1 4,13.5A1.5,1.5 0 0,1 2.5,12A1.5,1.5 0 0,1 4,10.5M7,19V17H21V19H7M4,16.5A1.5,1.5 0 0,1 5.5,18A1.5,1.5 0 0,1 4,19.5A1.5,1.5 0 0,1 2.5,18A1.5,1.5 0 0,1 4,16.5Z","mdiHistory":"M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3","mdiHomeOutline":"M12 5.69L17 10.19V18H15V12H9V18H7V10.19L12 5.69M12 3L2 12H5V20H11V14H13V20H19V12H22","mdiInformationOutline":"M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z","mdiLightningBoltOutline":"M11 9.47V11H14.76L13 14.53V13H9.24L11 9.47M13 1L6 15H11V23L18 9H13V1Z","mdiLogout":"M17 7L15.59 8.41L18.17 11H8V13H18.17L15.59 15.58L17 17L22 12M4 5H12V3H4C2.9 3 2 3.9 2 5V19C2 20.1 2.9 21 4 21H12V19H4V5Z","mdiMagnify":"M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z","mdiMenu":"M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z","mdiMessageOutline":"M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2M20 16H5.2L4 17.2V4H20V16Z","mdiNewspaperVariantOutline":"M20 5L20 19L4 19L4 5H20M20 3H4C2.89 3 2 3.89 2 5V19C2 20.11 2.89 21 4 21H20C21.11 21 22 20.11 22 19V5C22 3.89 21.11 3 20 3M18 15H6V17H18V15M10 7H6V13H10V7M12 9H18V7H12V9M18 11H12V13H18V11Z","mdiOpenInNew":"M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z","mdiPauseCircleOutline":"M13,16V8H15V16H13M9,16V8H11V16H9M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z","mdiPencilOutline":"M14.06,9L15,9.94L5.92,19H5V18.08L14.06,9M17.66,3C17.41,3 17.15,3.1 16.96,3.29L15.13,5.12L18.88,8.87L20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18.17,3.09 17.92,3 17.66,3M14.06,6.19L3,17.25V21H6.75L17.81,9.94L14.06,6.19Z","mdiPlus":"M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z","mdiPulse":"M3,13H5.79L10.1,4.79L11.28,13.75L14.5,9.66L17.83,13H21V15H17L14.67,12.67L9.92,18.73L8.94,11.31L7,15H3V13Z","mdiRadioboxBlank":"M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z","mdiRadioboxMarked":"M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7Z","mdiRefresh":"M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z","mdiShareVariantOutline":"M18 16.08C17.24 16.08 16.56 16.38 16.04 16.85L8.91 12.7C8.96 12.47 9 12.24 9 12S8.96 11.53 8.91 11.3L15.96 7.19C16.5 7.69 17.21 8 18 8C19.66 8 21 6.66 21 5S19.66 2 18 2 15 3.34 15 5C15 5.24 15.04 5.47 15.09 5.7L8.04 9.81C7.5 9.31 6.79 9 6 9C4.34 9 3 10.34 3 12S4.34 15 6 15C6.79 15 7.5 14.69 8.04 14.19L15.16 18.34C15.11 18.55 15.08 18.77 15.08 19C15.08 20.61 16.39 21.91 18 21.91S20.92 20.61 20.92 19C20.92 17.39 19.61 16.08 18 16.08M18 4C18.55 4 19 4.45 19 5S18.55 6 18 6 17 5.55 17 5 17.45 4 18 4M6 13C5.45 13 5 12.55 5 12S5.45 11 6 11 7 11.45 7 12 6.55 13 6 13M18 20C17.45 20 17 19.55 17 19S17.45 18 18 18 19 18.45 19 19 18.55 20 18 20Z","mdiStarOutline":"M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.13L12,6.09L13.71,10.13L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.63L12,2L9.19,8.63L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z","mdiTagOutline":"M21.41 11.58L12.41 2.58A2 2 0 0 0 11 2H4A2 2 0 0 0 2 4V11A2 2 0 0 0 2.59 12.42L11.59 21.42A2 2 0 0 0 13 22A2 2 0 0 0 14.41 21.41L21.41 14.41A2 2 0 0 0 22 13A2 2 0 0 0 21.41 11.58M13 20L4 11V4H11L20 13M6.5 5A1.5 1.5 0 1 1 5 6.5A1.5 1.5 0 0 1 6.5 5Z","mdiTimerSand":"M6,2H18V8H18V8L14,12L18,16V16H18V22H6V16H6V16L10,12L6,8V8H6V2M16,16.5L12,12.5L8,16.5V20H16V16.5M12,11.5L16,7.5V4H8V7.5L12,11.5M10,6H14V6.75L12,8.75L10,6.75V6Z","mdiViewDashboardOutline":"M19,5V7H15V5H19M9,5V11H5V5H9M19,13V19H15V13H19M9,17V19H5V17H9M21,3H13V9H21V3M11,3H3V13H11V3M21,11H13V21H21V11M11,15H3V21H11V15Z"};
+const ic = (n, s = 20) => `<span class="mdi" aria-hidden="true"><svg viewBox="0 0 24 24" width="${s}" height="${s}"><path d="${MDI[n] || ''}"/></svg></span>`;
+
+/* ---------- example data ---------- */
+const ESTAB = 'CESFAM Ejemplo';
+const PEOPLE = {
+  lectora: { name: 'Daniela Rojas', first: 'Daniela', initials: 'DR', cargo: 'Enfermera/o', groups: ['Clínicos'], label: 'Lectora' },
+  editora: { name: 'Marcela Pino', first: 'Marcela', initials: 'MP', cargo: 'Enfermera/o', groups: ['Jefaturas', 'Calidad', 'Clínicos'], label: 'Editora' },
+  admin: { name: 'Jorge Muñoz', first: 'Jorge', initials: 'JM', cargo: 'Administrativo/a', groups: ['Jefaturas', 'Administrativos'], label: 'Admin' },
+};
+const EDITOR_GROUPS = ['Jefaturas', 'Calidad', 'Farmacia'];
+const BULLETINS = [
+  { id: 'clinico', name: 'Boletín clínico semanal', group: 'Jefaturas', readers: ['Clínicos', 'Técnicos'], schedule: 'Semanal · los lunes', sched: 'semanal',
+    sources: [['folder', 'Carpetas de equipo/Protocolos'], ['folder', 'Carpetas de equipo/Calidad/Circulares'], ['calendar', 'Reuniones CESFAM']],
+    readersOk: 312, readersOut: 4, editions: ['c23', 'c16'] },
+  { id: 'farmacia', name: 'Novedades de Farmacia', group: 'Farmacia', readers: ['Todo el personal'], schedule: 'Cuando cambian sus fuentes', sched: 'cambios',
+    sources: [['folder', 'Carpetas de equipo/Farmacia/Arsenal']], readersOk: 418, readersOut: 0, editions: ['f20'] },
+  { id: 'calidad', name: 'Resumen mensual de calidad', group: 'Calidad', readers: ['Jefaturas'], schedule: 'Mensual · el día 1', sched: 'mensual',
+    sources: [['folder', 'Carpetas de equipo/Calidad'], ['folder', 'Carpetas de equipo/Calidad/Auditorías'], ['calendar', 'Comité de calidad']],
+    readersOk: 14, readersOut: 0, editions: ['q1'], writing: 'La edición de diciembre se está escribiendo fuera de horario: paso 37 de 80. Se publica al terminar.' },
+];
+const DOCS = {
+  heridas: { name: 'Protocolo de curación avanzada de heridas v3.pdf', type: 'pdf', folder: 'Protocolos', size: '1,8 MB', mod: 'hace 2 días', summary: 'Reemplaza la versión 2024: control cada 72 horas y registro fotográfico en cada curación.', cargos: ['Enfermera/o', 'TENS'], expires: 'noviembre de 2028', reading: 'Leído anoche', week: true, review: 'r2' },
+  hta: { name: 'Protocolo de manejo de hipertensión 2026.docx', type: 'doc', folder: 'Protocolos', size: '640 KB', mod: 'hace 3 días', summary: 'Agrega metas de control para personas mayores de 80 años y un flujo de derivación.', cargos: ['Médico/a', 'Enfermera/o'], nodate: true, reading: 'Leído anoche', week: true, review: 'r1' },
+  circ14: { name: 'Circular 14 · Consentimiento informado.pdf', type: 'pdf', folder: 'Calidad/Circulares', size: '320 KB', mod: 'ayer', summary: 'Formulario único de consentimiento informado desde el 1 de diciembre.', cargos: ['Todos los cargos'], expires: 'sin vencimiento (circular)', reading: 'Leído anoche', week: true, review: 'r3' },
+  smental: { name: 'Flujo de derivación a salud mental.odt', type: 'odt', folder: 'Protocolos', size: '210 KB', mod: 'hace 4 días', summary: 'Ordena la derivación desde morbilidad y fija plazos según el nivel de riesgo.', cargos: ['Psicólogo/a', 'Médico/a', 'Trabajador/a social'], expires: 'octubre de 2028', reading: 'Leído anoche', week: true },
+  vacunas: { name: 'Guía de vacunación de invierno 2027.docx', type: 'doc', folder: 'Protocolos', size: '980 KB', mod: 'hace 5 días', summary: 'Actualiza el calendario de la campaña y sus grupos objetivo.', cargos: ['Enfermera/o', 'TENS'], expires: 'septiembre de 2027', reading: 'Leído el 15 nov', week: true },
+  ester: { name: 'Protocolo de esterilización.pdf', type: 'pdf', folder: 'Protocolos', size: '1,1 MB', mod: '2 oct', summary: 'Esterilización del material clínico y su registro.', cargos: ['TENS', 'Enfermera/o'], expires: '5 de diciembre de 2026', days: 12, reading: 'Leído el 2 oct' },
+  caidas: { name: 'Protocolo de prevención de caídas.docx', type: 'doc', folder: 'Protocolos', size: '450 KB', mod: '2 oct', summary: 'Evaluación del riesgo de caídas en personas mayores y medidas en sala.', cargos: ['Kinesiólogo/a', 'Enfermera/o', 'TENS'], expires: '18 de diciembre de 2026', days: 25, reading: 'Leído el 2 oct' },
+  muestras: { name: 'Protocolo de toma de muestras.pdf', type: 'pdf', folder: 'Protocolos', size: '760 KB', mod: '2 oct', summary: 'Toma, rotulado y traslado de muestras al laboratorio.', cargos: ['TENS'], nodate: true, reading: 'Leído el 2 oct' },
+  flujotbc: { name: 'Flujograma TBC.pdf', type: 'pdf', folder: 'Protocolos', size: '2,4 MB', mod: 'hace 6 días', summary: null, cargos: [], reading: 'Escaneado: sin texto', scan: true },
+  arsenal: { name: 'Arsenal farmacológico 2026.xlsx', type: 'xls', folder: 'Farmacia/Arsenal', size: '88 KB', mod: '20 nov', summary: 'Lista vigente de medicamentos del establecimiento.', cargos: ['Químico/a farmacéutico/a', 'Médico/a'], reading: 'Leído el 20 nov' },
+  audit: { name: 'Informe de auditoría interna de octubre.pdf', type: 'pdf', folder: 'Calidad/Auditorías', size: '1,3 MB', mod: '1 nov', summary: 'Resultados de dos auditorías y cuatro planes de mejora.', cargos: ['Jefaturas'], reading: 'Leído el 1 nov', restricted: true },
+};
+const EDITIONS = {
+  c23: { b: 'clinico', date: 'Lunes 23 de noviembre de 2026', short: '23 nov', published: 'Publicada el lunes 23 de noviembre a las 05:41',
+    summary: 'Esta semana se publicaron tres protocolos nuevos y se actualizaron dos. El cambio con más efecto en la atención es el protocolo de curación avanzada de heridas, que reemplaza la versión 2024 y fija el control cada 72 horas. Calidad publicó la circular 14: desde diciembre se usa un formulario único de consentimiento informado.',
+    docs: [['heridas', 'Nuevo'], ['hta', 'Actualizado'], ['circ14', 'Nuevo'], ['smental', 'Nuevo'], ['vacunas', 'Actualizado']], expiring: ['ester', 'caidas', 'muestras'], unread: ['flujotbc'] },
+  c16: { b: 'clinico', date: 'Lunes 16 de noviembre de 2026', short: '16 nov', published: 'Publicada el lunes 16 de noviembre a las 04:58',
+    summary: 'Semana tranquila: se actualizó la guía de vacunación de invierno y se recordó el plazo del registro mensual de curaciones.', docs: [['vacunas', 'Actualizado']], expiring: ['ester'], unread: [] },
+  f20: { b: 'farmacia', date: 'Viernes 20 de noviembre de 2026', short: '20 nov', published: 'Publicada el viernes 20 de noviembre a las 23:15',
+    summary: 'El arsenal farmacológico se actualizó: entran tres presentaciones nuevas y sale una. Farmacia pide revisar las equivalencias antes de recetar.', docs: [['arsenal', 'Actualizado']], expiring: [], unread: [] },
+  q1: { b: 'calidad', date: 'Domingo 1 de noviembre de 2026', short: '1 nov', published: 'Publicada el domingo 1 de noviembre a las 05:12',
+    summary: 'En octubre se cerraron dos auditorías internas y quedaron cuatro planes de mejora abiertos, dos de ellos con plazo en noviembre.', docs: [['audit', 'Nuevo']], expiring: ['ester', 'caidas'], unread: [] },
+};
+const REPORTS = {
+  r1: { doc: 'hta', kind: 'manual', who: 'Pedida por ti', when: 'Hoy, 10:14', findings: [
+    { k: 'Error', where: 'Sección 4.2 y tabla 2', text: 'La sección 4.2 indica control cada 3 meses; la tabla 2 dice cada 6 meses.', fix: 'Usar el mismo plazo en ambos lugares, por ejemplo: «Control cada 3 meses hasta lograr la meta; luego cada 6 meses».' },
+    { k: 'Falta', where: 'Portada', text: 'No indica fecha de vigencia ni de próxima revisión.', fix: 'Agregar «Vigencia: diciembre de 2026 a diciembre de 2028».' },
+    { k: 'Poco claro', where: 'Sección 6, primer párrafo', text: '«Se derivará oportunamente» no dice a quién ni en qué plazo.', fix: '«Derivar al médico o médica del sector dentro de 7 días hábiles».' } ] },
+  r2: { doc: 'heridas', kind: 'auto', action: 'a1', who: 'Pedro Soto subió el archivo', when: 'Anoche, 23:52', findings: [
+    { k: 'Falta', where: 'Sección 2', text: 'No nombra a los responsables de cada etapa, y las instrucciones del grupo lo piden.', fix: 'Agregar una tabla «Etapa · Responsable · Cargo».' },
+    { k: 'Poco claro', where: 'Sección 5.1', text: '«Registro fotográfico cuando corresponda» no dice cuándo corresponde.', fix: '«Registro fotográfico en la primera curación y luego una vez por semana».' } ] },
+  r3: { doc: 'circ14', kind: 'auto', action: 'a2', who: 'Marcela Pino subió el archivo', when: 'Anoche, 22:31', findings: [
+    { k: 'Error', where: 'Párrafo 3', text: 'Dice «a partir del 1 de noviembre», pero la circular está fechada el 16 de noviembre y el resto del texto habla de diciembre.', fix: 'Confirmar la fecha y escribir «a partir del 1 de diciembre».' } ] },
+};
+const ACTIONS = {
+  a1: { name: 'Protocolos en borrador', folder: 'Carpetas de equipo/Calidad/Protocolos/Borradores', group: 'Calidad', instructions: 'Revisa que tenga fecha de vigencia y responsables.', last: 'Anoche: 4 archivos revisados', next: '2 archivos esperan la noche', origin: 'ia' },
+  a2: { name: 'Circulares entrantes', folder: 'Carpetas de equipo/Calidad/Circulares', group: 'Jefaturas', instructions: '', last: 'Anoche: 1 archivo revisado', next: 'Nada en espera', origin: 'ia' },
+  a3: { name: 'PDF que llegan a Recepción', folder: 'Carpetas de equipo/Recepción', group: 'Administración', instructions: 'Indica si falta firma o timbre.', last: 'Anoche: 3 archivos revisados', next: '1 archivo espera la noche', origin: 'flow' },
+};
+const PARATI = {
+  lectora: { meetings: [['Mié 25 nov · 14:00', 'Reunión del sector Verde'], ['Jue 26 nov · 08:30', 'Capacitación en prevención de infecciones']] },
+  editora: { meetings: [['Mar 24 nov · 09:00', 'Comité de calidad'], ['Mié 25 nov · 14:00', 'Reunión del sector Verde']] },
+  admin: { meetings: [['Jue 26 nov · 11:00', 'Revisión de respaldos con informática']] },
+};
+const FAILS = [{ id: 'x1', what: 'Novedades de Farmacia · edición del 17 nov', why: 'El modelo no respondió en 15 minutos: el servidor quedó sin luz durante la noche.' }];
+const FILES_FOLDER = ['heridas', 'hta', 'smental', 'vacunas', 'ester', 'caidas', 'muestras', 'flujotbc'];
+const PAGES = { heridas: 18, hta: 6, smental: 4, vacunas: 34, ester: 9, caidas: 7, muestras: 5, flujotbc: 2 };
+const DAY_PAGES = 10; /* longer manual reviews wait for Off hours */
+
+/* ---------- state ---------- */
+const S = { screen: 'ia', view: { s: 'parati' }, role: 'editora', side: null, tab: null, pop: null, modal: null, navOpen: false, navCollapsed: false,
+  pending: null, done: [], correcting: null, corrected: {}, withdrawn: {}, retried: {}, read: {}, filter: 'all', settings: 'ia', sched: {} };
+
+const P = () => PEOPLE[S.role];
+const isEditor = () => S.role !== 'lectora';
+const isAdmin = () => S.role === 'admin';
+const receives = (b) => b.readers.includes('Todo el personal') || b.readers.some((g) => P().groups.includes(g));
+const canManage = (b) => isEditor() && P().groups.includes(b.group);
+const visibleBulletins = () => BULLETINS.filter((b) => receives(b) || canManage(b));
+const bOf = (id) => BULLETINS.find((b) => b.id === id);
+const docOk = (id) => !(DOCS[id].restricted && S.role === 'lectora');
+const forCargo = (d) => d.cargos.includes(P().cargo) || d.cargos.includes('Todos los cargos');
+const myActions = () => Object.entries(ACTIONS).filter(([, a]) => isEditor() && (P().groups.includes(a.group) || a.origin === 'flow'));
+const canEditAction = (a) => a.origin === 'ia' && P().groups.includes(a.group);
+const fileIcon = (t) => t === 'pdf' ? 'mdiFilePdfBox' : t === 'xls' ? 'mdiFileExcelBox' : 'mdiFileWordBox';
+const kindChip = (k) => `<span class="chip ${k === 'Error' ? 'error' : k === 'Falta' ? 'warning' : 'primary'}">${k}</span>`;
+const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+
+/* ---------- component helpers, named after @nextcloud/vue ---------- */
+const NcButton = (type, label, act, icon = '', aria = '') => `<button class="button ${type} ${icon ? 'has-icon' : ''} ${label ? '' : 'icon-only'}" data-act="${act}" ${label ? '' : `aria-label="${aria}" title="${aria}"`}>${icon ? ic(icon) : ''}${label ? `<span>${label}</span>` : ''}</button>`;
+function NcActions(key, items, label = 'Acciones') {
+  const open = S.pop === 'act:' + key;
+  return `<span class="pop-anchor" data-keep>${NcButton('tertiary', '', 'pop:act:' + key, 'mdiDotsHorizontal', label)}
+    ${open ? `<div class="popover" role="menu" style="right:0;top:38px">${items.map((it) => it === '-' ? '<div class="menu-sep"></div>' :
+      `<button class="menu-item ${it.error ? 'error' : ''}" role="menuitem" data-act="${it.act}">${ic(it.icon)}<span>${it.label}</span></button>`).join('')}</div>` : ''}</span>`;
+}
+const NcChip = (text, type = '', icon = '') => `<span class="chip ${type}">${icon ? ic(icon, 16) : ''}${text}</span>`;
+const NOTE_ICON = { warning: 'mdiAlertOutline', error: 'mdiAlertCircleOutline', success: 'mdiCheckCircleOutline', info: 'mdiInformationOutline' };
+const NcNoteCard = (type, html, title = '') => `<div class="note-card ${type}" role="note">${ic(NOTE_ICON[type])}<div class="body">${title ? `<div class="title">${title}</div>` : ''}${html}</div></div>`;
+function NcListItem({ icon, lead = '', name, sub = '', details = '', extra = '', act = '', tail = '', wrap = false, cls = '' }) {
+  return `<div class="list-item ${act ? 'clickable' : ''} ${wrap ? 'wrap' : ''} ${cls}" ${act ? `data-act="${act}" role="button" tabindex="0"` : ''}>
+    <span class="lead ${lead}">${ic(icon)}</span><div class="body"><div class="line-one"><span class="name">${name}</span>${details ? `<span class="details">${details}</span>` : ''}</div>
+    ${sub ? `<div class="subname">${sub}</div>` : ''}${extra ? `<div class="extra">${extra}</div>` : ''}</div>${tail ? `<div class="tail" data-keep>${tail}</div>` : ''}</div>`;
+}
+const navEntry = (act, name, icon, active, counter = '', cls = '') =>
+  `<button class="nav-entry ${cls} ${active ? 'active' : ''}" data-act="${act}" ${active ? 'aria-current="page"' : ''}>${icon ? ic(icon) : ''}<span class="name">${name}</span>${counter}</button>`;
+const contentBar = (title, sub = '', acts = '', back = '') => `<div class="content-bar">${NcButton('tertiary', '', 'toggle-nav', 'mdiMenu', 'Abrir o cerrar la navegación')}${back}
+    <div class="titles"><h2>${title}</h2>${sub ? `<div class="sub">${sub}</div>` : ''}</div><div class="acts">${acts}</div></div>`;
+const backBtn = (act) => NcButton('tertiary', '', act, 'mdiArrowLeft', 'Volver');
+
+/* ---------- «IA»: navigation ---------- */
+function iaNavigation() {
+  const v = S.view;
+  const unread = (b) => receives(b) && !S.read[b.editions[0]];
+  return `<nav class="app-navigation ${S.navCollapsed ? 'collapsed' : ''} ${S.navOpen ? 'open' : ''}" aria-label="«IA»">
+    <div class="nav-new">${NcButton('primary', 'Revisar un documento', 'open-picker:doc', 'mdiPlus')}</div>
+    <div class="nav-list">
+      ${navEntry('view:parati', 'Para ti', 'mdiStarOutline', v.s === 'parati')}
+      ${navEntry('view:bulletins', 'Boletines', 'mdiNewspaperVariantOutline', v.s === 'bulletins')}
+      ${visibleBulletins().map((b) => navEntry('edition:' + b.editions[0], b.name, '', v.s === 'edition' && EDITIONS[v.e].b === b.id,
+        unread(b) ? '<span class="counter highlighted" title="Edición sin leer">1</span>' : b.writing && canManage(b) ? `<span title="Escribiendo la próxima edición">${ic('mdiTimerSand', 18)}</span>` : '', 'sub')).join('')}
+      ${navEntry('view:reviews', 'Revisiones', 'mdiFileDocumentCheckOutline', v.s === 'reviews' || v.s === 'report', S.pending ? '<span class="loading" title="Revisión en curso"></span>' : '')}
+      ${isEditor() ? `<div class="nav-caption">Para editores</div>
+        ${navEntry('view:docs', 'Documentos', 'mdiFileDocumentMultipleOutline', v.s === 'docs', `<span class="counter">${Object.keys(DOCS).filter(docOk).length}</span>`)}
+        ${navEntry('view:actions', 'Acciones automáticas', 'mdiLightningBoltOutline', v.s === 'actions', `<span class="counter">${myActions().length}</span>`)}` : ''}
+    </div>
+    <div class="nav-footer">${isAdmin() ? navEntry('goto:settings:ia', 'Estado y ajustes (administración)', 'mdiPulse', false) : ''}${navEntry('toast:Ajustes personales de «IA»: qué avisos recibes por boletines y revisiones.', 'Ajustes de «IA»', 'mdiCogOutline', false)}</div>
+  </nav>`;
+}
+
+/* ---------- «IA»: pages ---------- */
+function personalCols(docIds, inEdition) {
+  const pt = PARATI[S.role];
+  const docs = docIds.filter((id) => docOk(id) && forCargo(DOCS[id]));
+  const li = (w, t) => `<li><span class="when">${w}</span>${t}</li>`;
+  return `<div class="cols">
+    <div class="col"><h4>Reuniones</h4><ul>${pt.meetings.map(([w, t]) => li(w, t)).join('') || '<li class="muted">Sin reuniones en el período.</li>'}</ul></div>
+    <div class="col"><h4>Para tu cargo · ${P().cargo}</h4><ul>${docs.map((id) => `<li><button class="linklike" data-act="side-doc:${id}">${DOCS[id].name}</button></li>`).join('') || `<li class="muted">${inEdition ? 'Nada nuevo para tu cargo en esta edición.' : 'Nada nuevo para tu cargo.'}</li>`}</ul></div>
+  </div>`;
+}
+const expiringItem = (d) => { const x = DOCS[d];
+  return NcListItem({ icon: 'mdiClockOutline', lead: x.nodate ? 'error' : 'warning', name: x.name, sub: x.nodate ? 'La IA no encontró fecha de vigencia en el documento' : 'Vence el ' + x.expires, act: 'side-doc:' + d,
+    tail: x.nodate ? NcChip('Sin fecha', 'error') : NcChip(x.days + ' días', 'warning') }); };
+
+function pageParaTi() {
+  const latest = BULLETINS.filter(receives).map((b) => [b, b.editions[0]]);
+  const docIds = [...new Set(latest.flatMap(([, e]) => EDITIONS[e].docs.map(([d]) => d)))];
+  const expiring = [...new Set(latest.flatMap(([, e]) => EDITIONS[e].expiring))].filter(docOk);
+  const writing = BULLETINS.filter((b) => canManage(b) && b.writing);
+  return contentBar('Para ti', `Semana del 23 al 29 de noviembre · ${P().name}, ${P().cargo}`) + `<div class="page">
+    <div class="section">${personalCols(docIds, false)}<div class="hint">Esta parte sale directo de tu calendario y de tu cargo, sin IA.</div></div>
+    ${expiring.length ? `<div class="section"><h3>Protocolos por vencer</h3><div class="list">${expiring.map(expiringItem).join('')}</div></div>` : ''}
+    <div class="section"><h3>Últimas ediciones</h3><div class="list">${latest.map(([b, eid]) => { const e = EDITIONS[eid];
+      return NcListItem({ icon: 'mdiNewspaperVariantOutline', lead: 'primary', name: b.name, details: e.short, sub: e.summary, act: 'edition:' + eid, tail: S.read[eid] ? '' : NcChip('Nueva', 'primary') }); }).join('')}</div></div>
+    ${writing.length ? NcNoteCard('info', writing.map((b) => `<strong>${b.name}.</strong> ${b.writing}`).join('<br>'), 'En tu grupo') : ''}
+  </div>`;
+}
+
+function pageBulletins() {
+  return contentBar('Boletines', isEditor() ? 'Los boletines que recibes y los de tus grupos editores.' : 'Los boletines que recibes.',
+    isEditor() ? NcButton('primary', 'Nuevo boletín', 'side-config:nuevo', 'mdiPlus') : '') + `<div class="page"><div class="list">${visibleBulletins().map((b) => {
+      const e = EDITIONS[b.editions[0]];
+      const tail = canManage(b) ? NcActions('b-' + b.id, [{ icon: 'mdiCogOutline', label: 'Configurar', act: 'side-config:' + b.id }, { icon: 'mdiHistory', label: 'Ediciones anteriores', act: 'edition:' + b.editions[b.editions.length - 1] }]) : '';
+      return NcListItem({ icon: 'mdiNewspaperVariantOutline', lead: 'primary', name: b.name, details: 'Última: ' + e.short, act: 'edition:' + b.editions[0], tail, wrap: true,
+        sub: `${b.schedule}${canManage(b) ? ' · Grupo ' + b.group : ''}${receives(b) ? '' : ' · No la recibes'}`, extra: b.writing && canManage(b) ? `<span class="muted">${b.writing}</span>` : '' });
+    }).join('')}</div>
+    ${isEditor() ? NcNoteCard('info', 'Un boletín pertenece a su grupo editor: cualquier editor del grupo lo cambia, y sigue funcionando aunque alguien se vaya.') : ''}</div>`;
+}
+
+function pageEdition(eid) {
+  const e = EDITIONS[eid]; const b = bOf(e.b); const manage = canManage(b);
+  if (!receives(b) && !manage) return pageBulletins();
+  S.read[eid] = true;
+  const correcting = S.correcting === eid;
+  const summary = S.corrected[eid] || e.summary;
+  const acts = manage && !S.withdrawn[eid] ? (correcting ? NcButton('tertiary', 'Cancelar', 'cancel-correct') + NcButton('primary', 'Guardar corrección', 'save-correct:' + eid, 'mdiCheck') :
+    NcButton('secondary', 'Configurar', 'side-config:' + b.id, 'mdiCogOutline') + NcActions('ed-' + eid, [{ icon: 'mdiPencilOutline', label: 'Corregir el resumen', act: 'correct:' + eid }, '-', { icon: 'mdiEyeOffOutline', label: 'Retirar esta edición', act: 'withdraw:' + eid, error: true }])) : '';
+  const others = b.editions.filter((x) => x !== eid);
+  return contentBar(b.name, e.date, acts) + `<div class="page">
+    ${S.withdrawn[eid] ? NcNoteCard('error', `Los lectores ya no la ven. ${NcButton('tertiary small', 'Deshacer', 'undo-withdraw:' + eid)}`, 'Retiraste esta edición') : ''}
+    ${b.writing && manage ? NcNoteCard('info', b.writing, 'Próxima edición') : ''}
+    <div class="edition-meta">${NcChip('Escrito por IA', 'primary', 'mdiCreation')}${NcChip(b.schedule)}${S.corrected[eid] ? NcChip('Corregida por ' + P().name, 'success', 'mdiCheck') : ''}<span>${e.published}</span></div>
+    ${manage ? `<div class="edition-meta">${ic('mdiAccountGroupOutline', 18)} ${b.readersOk} lectores pueden abrir todos los documentos que leyó${b.readersOut ? ` · ${b.readersOut} no pueden y no la reciben` : ''}</div>` : ''}
+    <div class="section"><h3>Resumen</h3>${correcting ? `<textarea class="textarea" id="correct-text" rows="6" aria-label="Corregir el resumen">${summary}</textarea>` : `<p class="prose">${summary}</p>`}</div>
+    ${receives(b) ? `<div class="foryou"><div class="section-head"><h3>Para ti</h3><span class="small" style="color:var(--color-primary-element-light-text)">Solo tú ves esta parte. Sale de tu calendario y de tu cargo, sin IA.</span></div>${personalCols(e.docs.map(([d]) => d), true)}</div>`
+      : NcNoteCard('info', 'No recibes este boletín, así que ves solo la parte común. Cada lector ve además su lista «Para ti».')}
+    <div class="section"><h3>Documentos nuevos y cambiados</h3><div class="list">${e.docs.filter(([d]) => docOk(d)).map(([d, ch]) => { const x = DOCS[d];
+      return NcListItem({ icon: fileIcon(x.type), lead: ch === 'Nuevo' ? 'success' : '', name: x.name, details: ch, sub: x.summary, wrap: true, act: 'side-doc:' + d,
+        extra: `<div class="chips" style="margin-top:4px">${x.cargos.map((c) => NcChip(c)).join('')}</div>` }); }).join('')}</div></div>
+    ${e.expiring.length ? `<div class="section"><div class="section-head"><h3>Protocolos por vencer</h3><span class="hint">En los próximos 30 días. La fecha la lee la IA desde cada documento.</span></div><div class="list">${e.expiring.filter(docOk).map(expiringItem).join('')}</div></div>` : ''}
+    ${e.unread.length ? NcNoteCard('warning', e.unread.map((d) => `${DOCS[d].name}: escaneado, sin texto. La primera versión de «IA» no lee escaneos.`).join('<br>') + (manage ? ' El grupo editor recibió un aviso.' : ''), 'Fuentes que no se pudieron leer') : ''}
+    <div class="hint">Fuentes: ${b.sources.map(([, n]) => n.replace('Carpetas de equipo/', '')).join(' · ')}</div>
+    ${others.length ? `<div class="section"><h3>Ediciones anteriores</h3><div class="list">${others.map((x) => NcListItem({ icon: 'mdiHistory', name: EDITIONS[x].date, sub: EDITIONS[x].summary, act: 'edition:' + x })).join('')}</div><div class="hint">Se guardan 12 meses.</div></div>` : ''}
+  </div>`;
+}
+
+function reportList(ids) {
+  if (!ids.length) return `<div class="empty">${ic('mdiFileDocumentCheckOutline')}<h2>Sin revisiones</h2><div>Elige un documento para que la IA lo revise.</div></div>`;
+  return `<div class="list">${ids.map((id) => { const r = REPORTS[id]; const d = DOCS[r.doc];
+    return NcListItem({ icon: fileIcon(d.type), name: d.name, details: r.when, act: 'report:' + id,
+      sub: r.kind === 'auto' ? 'Acción «' + ACTIONS[r.action].name + '» · ' + r.who : r.who, tail: NcChip(plural(r.findings.length, 'hallazgo', 'hallazgos'), r.findings.some((f) => f.k === 'Error') ? 'error' : 'warning') }); }).join('')}</div>`;
+}
+
+function pageReviews() {
+  const p = S.pending;
+  return contentBar('Revisiones', 'La IA revisa un documento y te dice qué corregir. El documento no se modifica.') + `<div class="page">
+    ${p ? `<div class="list-item status-row" role="status"><span class="loading"></span><div class="body"><div class="name">${DOCS[p.doc].name}</div>
+      <div class="subname">${p.stage === 'queued' ? 'En la fila del modelo. En este servidor suele tardar de 1 a 3 minutos.' : 'Leyendo el documento y escribiendo la revisión…'}</div></div></div>` : ''}
+    ${(S.night || []).map((d) => `<div class="list-item status-row" role="status"><span class="lead primary">${ic('mdiClockOutline')}</span><div class="body"><div class="name">${DOCS[d].name}</div><div class="subname">${PAGES[d]} páginas: se revisa esta noche, fuera de horario. Te avisaremos cuando esté lista.</div></div></div>`).join('')}
+    <div class="section"><div class="section-head"><h3>Tus revisiones</h3><span class="hint">Solo tú las ves. Se borran a los 90 días.</span></div>${reportList([...S.done, 'r1'])}</div>
+    <div class="section"><div class="section-head"><h3>Revisiones automáticas</h3><span class="hint">De archivos que puedes abrir, en carpetas con una acción automática.</span></div>${reportList(['r2', 'r3'])}</div>
+    ${NcNoteCard('info', 'También desde Archivos: en el menú <strong>⋯</strong> de un documento, <strong>«Revisar con IA»</strong>.')}
+  </div>`;
+}
+
+function pageReport(id) {
+  const r = REPORTS[id]; const d = DOCS[r.doc]; const a = r.action ? ACTIONS[r.action] : null;
+  const count = (k) => r.findings.filter((f) => f.k === k).length;
+  return contentBar(d.name, `${r.kind === 'manual' ? 'Revisión pedida por ti' : 'Revisión automática'} · ${r.when}`,
+    NcButton('secondary', 'Abrir el documento', 'goto:files', 'mdiOpenInNew') + NcActions('rep-' + id, [{ icon: 'mdiRefresh', label: 'Revisar de nuevo', act: 'rereview:' + r.doc }]), backBtn('view:reviews')) + `<div class="page">
+    <div class="chips">${NcChip('Escrito por IA', 'primary', 'mdiCreation')}${count('Error') ? NcChip(plural(count('Error'), 'error', 'errores'), 'error') : ''}${count('Falta') ? NcChip(plural(count('Falta'), 'falta', 'faltas'), 'warning') : ''}${count('Poco claro') ? NcChip(count('Poco claro') + ' poco claro', 'primary') : ''}</div>
+    ${a ? NcNoteCard('info', `${r.who}. Puede leer esta revisión cualquiera que pueda abrir el archivo.${a.instructions ? `<br>Instrucciones del grupo ${a.group}: «${a.instructions}»` : ''}`, `Acción «${a.name}»`) : NcNoteCard('info', 'Solo tú ves esta revisión, mientras puedas abrir el archivo. Se borra a los 90 días.')}
+    <div class="section">${r.findings.map((f) => `<div class="finding"><div class="chips">${kindChip(f.k)}<span class="small muted">${f.where}</span></div><p class="prose">${f.text}</p>
+      <div class="suggestion">${ic('mdiCheckCircleOutline', 18)}<div><strong>Sugerencia:</strong> ${f.fix}</div></div></div>`).join('')}</div>
+    <div class="hint">El documento no se modificó. Aplica los cambios tú en el editor.</div>
+  </div>`;
+}
+
+const FILTERS = [['all', 'Todos'], ['week', 'Nuevos y cambiados'], ['expiring', 'Por vencer'], ['findings', 'Con hallazgos'], ['mine', 'Para mi cargo']];
+function docsFor(f) {
+  return Object.keys(DOCS).filter(docOk).filter((id) => { const d = DOCS[id];
+    if (f === 'week') return d.week; if (f === 'expiring') return d.days <= 30 || d.nodate; if (f === 'findings') return !!d.review; if (f === 'mine') return forCargo(d); return true; });
+}
+function pageDocs() {
+  const ids = docsFor(S.filter); const sel = S.side && S.side[0] === 'doc' ? S.side[1] : null;
+  return contentBar('Documentos', 'De las fuentes de tus boletines y de las carpetas con acciones automáticas.') + `<div class="page wide">
+    <div class="segmented" role="group" aria-label="Filtrar documentos">${FILTERS.map(([k, l]) => `<button data-act="filter:${k}" aria-pressed="${S.filter === k}">${l} <span class="tab-num muted">${docsFor(k).length}</span></button>`).join('')}</div>
+    <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Lectura</th><th>Vigencia</th><th>Le concierne a</th><th>Revisión</th></tr></thead><tbody>
+    ${ids.map((id) => { const d = DOCS[id]; const r = d.review ? REPORTS[d.review] : null;
+      return `<tr class="row ${sel === id ? 'selected' : ''}" data-act="side-doc:${id}" tabindex="0"><td><div class="file-name"><span class="file-ic ${d.type}">${ic(fileIcon(d.type), 28)}</span><div style="min-width:0"><div class="bold">${d.name}</div><div class="small muted">${d.folder}</div></div></div></td>
+        <td>${d.scan ? NcChip('Escaneado', 'warning') : `<span class="small">${d.reading}</span>`}</td>
+        <td>${d.nodate ? NcChip('Sin fecha', 'error') : d.days ? NcChip(d.days + ' días', 'warning') : `<span class="small">${d.expires || '—'}</span>`}</td>
+        <td><div class="chips">${d.cargos.slice(0, 2).map((c) => NcChip(c)).join('')}${d.cargos.length > 2 ? `<span class="small muted">+${d.cargos.length - 2}</span>` : ''}</div></td>
+        <td>${r ? NcChip(plural(r.findings.length, 'hallazgo', 'hallazgos'), r.findings.some((x) => x.k === 'Error') ? 'error' : 'warning') : '<span class="muted">—</span>'}</td></tr>`; }).join('')}
+    </tbody></table></div>
+    <div class="hint">La lectura de cada documento (resumen, vigencia y cargos) se hace una vez por versión, fuera de horario, y la usan todos los boletines.</div></div>`;
+}
+
+function pageActions() {
+  return contentBar('Acciones automáticas', 'Cuando llega o cambia un archivo en la carpeta, «IA» lo revisa fuera de horario (22:00–06:00).', NcButton('primary', 'Nueva acción', 'side-action:nueva', 'mdiPlus')) + `<div class="page">
+    <div class="list">${myActions().map(([id, a]) => NcListItem({ icon: 'mdiLightningBoltOutline', lead: a.origin === 'flow' ? 'warning' : 'primary', name: a.name, details: a.last, wrap: true,
+      act: canEditAction(a) ? 'side-action:' + id : (a.origin === 'flow' && isAdmin() ? 'goto:settings:flow' : ''),
+      sub: `${a.folder.replace('Carpetas de equipo/', '')} · ${a.origin === 'flow' ? 'Regla de Flujo (administración)' : 'Grupo ' + a.group} · ${a.next}`,
+      extra: a.instructions ? `<span class="muted">Instrucciones: «${a.instructions}»</span>` : '',
+      tail: canEditAction(a) ? NcActions('a-' + id, [{ icon: 'mdiCogOutline', label: 'Configurar', act: 'side-action:' + id }, { icon: 'mdiPauseCircleOutline', label: 'Pausar', act: 'toast:Prototipo: la acción no se pausa.' }]) : '' })).join('')}</div>
+    ${NcNoteCard('info', 'Quien sube o cambia el archivo recibe un aviso, y cualquiera que pueda abrir el archivo puede leer su revisión. Si un archivo cambia varias veces en el día, esa noche se revisa una vez su última versión.')}
+  </div>`;
+}
+
+/* ---------- «IA»: sidebars ---------- */
+function sidebar(title, sub, tabs, body, foot = '', actions = '') {
+  return `<aside class="app-sidebar" aria-label="${title}"><div class="sidebar-header"><div class="titles"><h2>${title}</h2>${sub ? `<div class="small muted">${sub}</div>` : ''}</div>${actions}${NcButton('tertiary', '', 'close-side', 'mdiClose', 'Cerrar la barra lateral')}</div>
+    ${tabs ? `<div class="sidebar-tabs" role="tablist">${tabs.map(([k, l, i]) => `<button class="sidebar-tab" role="tab" aria-selected="${S.tab === k}" data-act="tab:${k}">${ic(i)}<span>${l}</span></button>`).join('')}</div>` : ''}
+    <div class="sidebar-body">${body}</div>${foot ? `<div class="sidebar-foot">${foot}</div>` : ''}</aside>`;
+}
+const radio = (current, value, label, hint = '') => { const on = current === value;
+  return `<button class="radio" role="radio" aria-checked="${on}" data-act="sched:${value}">${ic(on ? 'mdiRadioboxMarked' : 'mdiRadioboxBlank')}<span class="lbl"><strong>${label}</strong>${hint ? `<br><span class="hint">${hint}</span>` : ''}</span></button>`; };
+
+function sideConfig(id) {
+  const isNew = id === 'nuevo';
+  const b = isNew ? { name: '', group: P().groups.find((g) => EDITOR_GROUPS.includes(g)), readers: [], sources: [], sched: 'semanal', readersOk: 0, readersOut: 0 } : bOf(id);
+  const tab = S.tab || 'fuentes'; const sched = S.sched[id] || b.sched;
+  let body;
+  if (tab === 'fuentes') {
+    body = `${isNew ? `<div class="field"><label class="field-label" for="b-name">Nombre</label><input class="input" id="b-name" placeholder="Por ejemplo: Boletín del sector Verde"></div>` : ''}
+      <div class="field"><span class="field-label">Grupo editor</span><div class="chips">${NcChip(b.group, 'primary', 'mdiAccountGroupOutline')}</div><span class="hint">Cualquier editor del grupo lo cambia. Sigue funcionando aunque alguien se vaya.</span></div>
+      <div class="field"><span class="field-label">Fuentes</span>
+        ${b.sources.length ? `<div>${b.sources.map(([t, n]) => `<div class="source-row">${ic(t === 'calendar' ? 'mdiCalendarOutline' : 'mdiFolderOutline')}<span class="grow">${n}</span>${NcButton('tertiary', '', 'toast:Prototipo: no se quita nada.', 'mdiClose', 'Quitar ' + n)}</div>`).join('')}</div>` : '<div class="hint">Sin fuentes todavía.</div>'}
+        <div>${NcButton('secondary', 'Agregar carpeta, documento o calendario', 'open-picker:source', 'mdiPlus')}</div>
+        <span class="hint">Solo fuentes que todo el grupo ${b.group} puede abrir.</span></div>
+      ${b.writing ? NcNoteCard('info', b.writing, 'Próxima edición') : ''}
+      ${NcNoteCard('info', 'Cada edición cubre todas las fuentes; los documentos que no cambiaron reutilizan su lectura. Si no cabe en una noche, sigue la noche siguiente y se publica al terminar; si pasa su fecha, aparece como «atrasada».')}`;
+  } else if (tab === 'horario') {
+    body = `<div class="field" role="radiogroup" aria-label="Cada cuánto"><span class="field-label">Cada cuánto</span>
+      ${radio(sched, 'diaria', 'Diaria')}${radio(sched, 'semanal', 'Semanal', 'Los lunes')}${radio(sched, 'mensual', 'Mensual', 'El día 1')}${radio(sched, 'cambios', 'Cuando cambian sus fuentes', 'Se revisa cada noche; si nada cambió, no hay edición.')}</div>
+      ${NcNoteCard('info', 'La IA la escribe fuera de horario (22:00–06:00) y se publica al terminar, sin aprobación y marcada como escrita por IA. Si el servidor estaba apagado, se escribe una sola vez la noche siguiente.')}
+      <div class="hint">Las listas cubren el período del boletín: mañana si es diario, la semana que viene si es semanal, el mes que viene si es mensual. «Por vencer» son los próximos 30 días.</div>`;
+  } else {
+    body = `<div class="field"><span class="field-label">Grupos lectores</span><div class="chips">${b.readers.map((r) => NcChip(r, '', 'mdiAccountGroupOutline')).join('') || '<span class="hint">Sin lectores todavía.</span>'}</div>
+      <input class="input" id="b-readers" placeholder="Agregar un grupo" aria-label="Agregar un grupo lector"></div>
+      ${b.readersOk ? NcNoteCard(b.readersOut ? 'warning' : 'success', b.readersOut ? `${b.readersOut} personas de esos grupos no pueden abrir algún documento que la edición leyó, y no la recibirán: así el resumen no muestra lo que no pueden ver.` : 'Todos los lectores pueden abrir todo lo que la edición lee.', `${b.readersOk} personas recibirán cada edición`) : ''}
+      ${b.readersOut ? `<div class="field"><span class="field-label">No la reciben</span><div class="list">${NcListItem({ icon: 'mdiAccountOutline', name: 'Laura Díaz', sub: 'No puede abrir Calidad/Circulares' })}${NcListItem({ icon: 'mdiAccountMultipleOutline', name: 'Camila Fuentes y 2 más', sub: 'No pueden abrir el calendario Reuniones CESFAM' })}</div></div>` : ''}
+      <div class="hint">Cada lector recibe un aviso de Nextcloud y ve la edición en «IA» y en su Panel.</div>`;
+  }
+  return sidebar(isNew ? 'Nuevo boletín' : b.name, isNew ? 'Boletín' : 'Configuración del boletín', [['fuentes', 'Fuentes', 'mdiFolderOutline'], ['horario', 'Horario', 'mdiCalendarClock'], ['lectores', 'Lectores', 'mdiAccountGroupOutline']], body,
+    NcButton('tertiary', 'Cancelar', 'close-side') + NcButton('primary', 'Guardar', 'save'));
+}
+
+function sideAction(id) {
+  const isNew = id === 'nueva';
+  const a = isNew ? { name: '', folder: '', group: P().groups.find((g) => EDITOR_GROUPS.includes(g)), instructions: '' } : ACTIONS[id];
+  const groups = P().groups.filter((g) => EDITOR_GROUPS.includes(g));
+  const body = `<div class="field"><label class="field-label" for="a-name">Nombre</label><input class="input" id="a-name" value="${a.name}" placeholder="Por ejemplo: Protocolos en borrador"></div>
+    <div class="field"><span class="field-label">Carpeta</span>${a.folder ? `<div class="source-row">${ic('mdiFolderOutline')}<span class="grow">${a.folder}</span></div>` : ''}
+      <div>${NcButton('secondary', a.folder ? 'Cambiar carpeta' : 'Elegir carpeta', 'open-picker:folder', 'mdiFolderOutline')}</div><span class="hint">Una carpeta que todo el grupo puede abrir.</span></div>
+    <div class="field"><span class="field-label">Qué hace</span><div>Revisa los archivos nuevos, los que cambian y los que se mueven o copian a la carpeta, fuera de horario.</div></div>
+    <div class="field"><label class="field-label" for="a-instr">Instrucciones del grupo <span class="muted">(opcional)</span></label><textarea class="textarea" id="a-instr" placeholder="Por ejemplo: revisa que tenga fecha de vigencia y responsables.">${a.instructions}</textarea><span class="hint">Se suman a la revisión normal.</span></div>
+    <div class="field"><label class="field-label" for="a-group">Grupo editor</label><select class="select" id="a-group">${groups.map((g) => `<option ${g === a.group ? 'selected' : ''}>${g}</option>`).join('')}</select></div>
+    ${NcNoteCard('info', 'Quien sube o cambia un archivo recibe un aviso cuando su revisión está lista. Los administradores también pueden crear esta acción como regla en Flujo de Nextcloud.')}`;
+  return sidebar(isNew ? 'Nueva acción automática' : a.name, 'Acción automática', null, body, NcButton('tertiary', 'Cancelar', 'close-side') + NcButton('primary', 'Guardar', 'save'));
+}
+
+function sideDoc(id) {
+  const d = DOCS[id]; const tab = S.tab || 'lectura';
+  let body;
+  if (tab === 'lectura') {
+    body = d.scan ? NcNoteCard('warning', 'Escaneado, sin texto. La primera versión de «IA» no lee escaneos.') :
+      `<div class="hint">Lo que la IA sacó una vez de la versión actual. Se reutiliza hasta que el documento cambie.</div>
+       <dl class="kv"><dt>Resumen</dt><dd>${d.summary}</dd>
+       <dt>Vigencia</dt><dd>${d.nodate ? NcChip('No encontró fecha de vigencia', 'error') : (d.expires || '—') + (d.days ? ' ' + NcChip(d.days + ' días', 'warning') : '')}</dd>
+       <dt>Le concierne a</dt><dd><div class="chips">${d.cargos.map((c) => NcChip(c)).join('')}</div></dd>
+       <dt>Lectura</dt><dd>${d.reading}</dd><dt>Carpeta</dt><dd>${d.folder}</dd></dl>`;
+  } else if (tab === 'revision') {
+    const r = d.review ? REPORTS[d.review] : null;
+    body = r ? `<div class="hint">${r.kind === 'auto' ? 'Revisión automática' : 'Tu revisión'} · ${r.when}</div>
+      <div>${r.findings.map((f) => `<div class="finding"><div class="chips">${kindChip(f.k)}<span class="small muted">${f.where}</span></div><div class="small">${f.text}</div></div>`).join('')}</div>
+      <div>${NcButton('secondary', 'Ver la revisión completa', 'report:' + d.review)}</div>`
+      : `<div class="empty" style="padding:24px 8px">${ic('mdiFileDocumentCheckOutline')}<h2>Sin revisión</h2><div>Este documento no está en una carpeta con acción automática.</div></div><div>${NcButton('primary', 'Revisar ahora', 'rereview:' + id, 'mdiCreation')}</div>`;
+  } else {
+    const ins = Object.entries(EDITIONS).filter(([, e]) => e.docs.some(([x]) => x === id) || e.expiring.includes(id)).filter(([, e]) => { const b = bOf(e.b); return receives(b) || canManage(b); });
+    body = ins.length ? `<div class="list">${ins.map(([eid, e]) => NcListItem({ icon: 'mdiNewspaperVariantOutline', lead: 'primary', name: bOf(e.b).name, sub: e.date, act: 'edition:' + eid })).join('')}</div>` : '<div class="hint">No aparece en ningún boletín que puedas ver.</div>';
+  }
+  return sidebar(d.name, `${d.folder} · ${d.size} · modificado ${d.mod}`, [['lectura', 'Lectura', 'mdiCreation'], ['revision', 'Revisión', 'mdiFileDocumentCheckOutline'], ['aparece', 'Aparece en', 'mdiNewspaperVariantOutline']], body, '',
+    NcButton('tertiary', '', 'goto:files', 'mdiOpenInNew', 'Abrir en Archivos'));
+}
+
+function renderSidebar() {
+  if (!S.side) return '';
+  const [t, id] = S.side;
+  return t === 'config' ? sideConfig(id) : t === 'action' ? sideAction(id) : sideDoc(id);
+}
+
+function screenIA() {
+  const v = S.view; let page;
+  if (v.s === 'bulletins') page = pageBulletins();
+  else if (v.s === 'edition') page = pageEdition(v.e);
+  else if (v.s === 'reviews') page = pageReviews();
+  else if (v.s === 'report') page = pageReport(v.r);
+  else if (v.s === 'docs' && isEditor()) page = pageDocs();
+  else if (v.s === 'actions' && isEditor()) page = pageActions();
+  else page = pageParaTi();
+  return iaNavigation() + `<section class="app-content">${page}</section>` + renderSidebar();
+}
+
+/* ---------- other Nextcloud screens where «IA» appears ---------- */
+function screenFiles() {
+  const nav = `<nav class="app-navigation ${S.navOpen ? 'open' : ''}" aria-label="Archivos"><div class="nav-new">${NcButton('primary', 'Nuevo', 'toast:Menú «Nuevo» de Archivos.', 'mdiPlus')}</div><div class="nav-list">
+    ${navEntry('toast:Vista de Archivos.', 'Todos los archivos', 'mdiFolderOutline', false)}${navEntry('toast:Vista de Archivos.', 'Recientes', 'mdiHistory', false)}${navEntry('toast:Vista de Archivos.', 'Favoritos', 'mdiStarOutline', false)}
+    ${navEntry('toast:Vista de Archivos.', 'Compartidos', 'mdiShareVariantOutline', false)}${navEntry('noop', 'Carpetas de equipo', 'mdiFolderAccountOutline', true)}</div></nav>`;
+  const rows = FILES_FOLDER.map((id) => { const d = DOCS[id];
+    const menu = NcActions('f-' + id, [{ icon: 'mdiStarOutline', label: 'Agregar a favoritos', act: 'toast:Acción de Archivos.' }, { icon: 'mdiInformationOutline', label: 'Abrir detalles', act: 'toast:Acción de Archivos.' }, { icon: 'mdiPencilOutline', label: 'Renombrar', act: 'toast:Acción de Archivos.' }, { icon: 'mdiDownload', label: 'Descargar', act: 'toast:Acción de Archivos.' }, '-',
+      { icon: 'mdiCreation', label: 'Revisar con IA', act: 'files-review:' + id }, '-', { icon: 'mdiDeleteOutline', label: 'Eliminar', act: 'toast:Acción de Archivos.', error: true }], 'Acciones para ' + d.name);
+    return `<tr><td><div class="file-name"><span class="file-ic ${d.type}">${ic(fileIcon(d.type), 28)}</span><span class="bold" style="min-width:0">${d.name}</span></div></td><td style="width:44px">${menu}</td><td class="muted small tab-num">${d.size}</td><td class="muted small">${d.mod}</td></tr>`; }).join('');
+  return nav + `<section class="app-content"><div class="content-bar">${NcButton('tertiary', '', 'toggle-nav', 'mdiMenu', 'Abrir o cerrar la navegación')}
+    <div class="breadcrumbs"><span class="crumb">${ic('mdiFolderAccountOutline', 18)}</span><span class="sep">›</span><span class="crumb">Carpetas de equipo</span><span class="sep">›</span><span class="crumb">Protocolos</span></div></div>
+    <div class="page wide">${NcNoteCard('info', 'Prototipo: así aparece la acción de «IA» en Archivos. Abre el menú <strong>⋯</strong> de un documento y elige <strong>«Revisar con IA»</strong>.')}
+    <div class="table-wrap"><table><thead><tr><th>Nombre</th><th></th><th>Tamaño</th><th>Modificado</th></tr></thead><tbody>
+    <tr><td><div class="file-name"><span class="file-ic folder">${ic('mdiFolder', 28)}</span><span class="bold">Borradores</span></div></td><td></td><td class="muted small">3,2 MB</td><td class="muted small">ayer</td></tr>${rows}</tbody></table></div></div></section>`;
+}
+
+function screenDashboard() {
+  const received = BULLETINS.filter(receives); const pt = PARATI[S.role];
+  return `<section class="app-content"><div class="dash"><h1>Buenos días, ${P().first}</h1>
+    <div class="widgets">
+      <div class="widget"><div class="widget-title">${ic('mdiNewspaperVariantOutline')} Boletines</div>
+        ${received.map((b) => NcListItem({ icon: 'mdiNewspaperVariantOutline', lead: 'primary', name: b.name, sub: EDITIONS[b.editions[0]].date, act: 'goto:ia:edition:' + b.editions[0], tail: S.read[b.editions[0]] ? '' : NcChip('Nueva', 'primary') })).join('')}
+        ${NcListItem({ icon: 'mdiStarOutline', name: 'Para ti esta semana', sub: plural(pt.meetings.length, 'reunión', 'reuniones'), act: 'goto:ia:parati' })}
+        <div class="widget-foot">${NcButton('tertiary', 'Abrir «IA»', 'goto:ia:parati')}</div></div>
+      <div class="widget"><div class="widget-title">${ic('mdiCalendarOutline')} Próximos eventos</div>
+        ${pt.meetings.map(([w, t]) => NcListItem({ icon: 'mdiCalendarOutline', name: t, sub: w })).join('') || '<div class="hint" style="padding:8px">Sin eventos.</div>'}
+        <div class="widget-foot">${NcButton('tertiary', 'Más eventos', 'toast:Widget de Calendario.')}</div></div>
+      <div class="widget"><div class="widget-title">${ic('mdiFileDocumentOutline')} Archivos recomendados</div>
+        ${['heridas', 'circ14', 'hta'].map((d) => NcListItem({ icon: fileIcon(DOCS[d].type), name: DOCS[d].name, sub: DOCS[d].mod })).join('')}
+        <div class="widget-foot">${NcButton('tertiary', 'Más archivos', 'toast:Widget de Archivos.')}</div></div>
+    </div>${NcNoteCard('info', 'Prototipo: el widget «Boletines» es de «IA»; los otros dos son de Calendario y Archivos.')}</div></section>`;
+}
+
+function screenSettings() {
+  const page = S.settings;
+  const nav = `<nav class="app-navigation ${S.navOpen ? 'open' : ''}" aria-label="Configuración"><div class="nav-list">
+    <div class="nav-caption">Personal</div>${navEntry('toast:Página de Nextcloud.', 'Información personal', 'mdiAccountOutline', false)}${navEntry('toast:Página de Nextcloud.', 'Notificaciones', 'mdiBellOutline', false)}
+    <div class="nav-caption">Administración</div>${navEntry('toast:Página de Nextcloud.', 'Información general', 'mdiInformationOutline', false)}
+    ${navEntry('settings:ai', 'Inteligencia artificial', 'mdiCreation', page === 'ai')}${navEntry('settings:flow', 'Flujo', 'mdiLightningBoltOutline', page === 'flow')}${navEntry('settings:ia', '«IA»', 'mdiPulse', page === 'ia')}
+  </div></nav>`;
+  let body;
+  if (page === 'ia') {
+    const fails = FAILS.map((f) => NcListItem({ icon: 'mdiAlertCircleOutline', lead: S.retried[f.id] ? 'success' : 'error', name: f.what, wrap: true, sub: S.retried[f.id] ? 'Reintento programado para la próxima noche (22:00).' : f.why,
+      tail: S.retried[f.id] ? NcChip('Programado', 'success') : NcChip('Atrasada', 'warning') + NcButton('secondary', 'Reintentar', 'retry:' + f.id, 'mdiRefresh') })).join('');
+    body = `<div class="settings-section"><h2>Modelo</h2>
+        <div class="status"><span class="dot"></span><strong>Disponible</strong><span class="muted">· gemma4:e2b en «IA local», en este servidor · respondió hace 2 minutos</span></div>
+        <p class="desc">«IA» pide todo a través de la IA de Nextcloud y su conector estándar (Configuración › Inteligencia artificial). Si el modelo no responde durante 30 minutos seguidos, los administradores reciben un aviso y la página de información general muestra una advertencia. El respaldo nocturno no cuenta como caída.</p></div>
+      <div class="settings-section"><h2>Fuera de horario</h2><p class="desc">Los boletines y las acciones automáticas corren solo en este horario, para no hacer esperar a quienes usan el Asistente de día. Si el servidor se apaga de noche, muévelo, por ejemplo a 13:00–14:00.</p>
+        <div class="inline"><label class="field-label" for="off-from">Desde</label><input class="input" type="time" id="off-from" value="22:00"><label class="field-label" for="off-to">hasta</label><input class="input" type="time" id="off-to" value="06:00"><span class="hint">hora de Chile</span></div></div>
+      <div class="settings-section"><h2>Grupos editores</h2><p class="desc">Sus miembros crean boletines y acciones automáticas. Esta página se puede delegar a un grupo que no sea administrador.</p>
+        <div class="chips">${EDITOR_GROUPS.map((g) => `<span class="chip primary">${ic('mdiAccountGroupOutline', 16)}${g}<button aria-label="Quitar ${g}" data-act="toast:Prototipo: no se quita nada." style="border:0;background:none;cursor:pointer;padding:0 0 0 2px;color:inherit;display:inline-flex">${ic('mdiClose', 16)}</button></span>`).join('')}</div>
+        <div class="inline"><select class="select" id="add-group" aria-label="Agregar un grupo editor" style="max-width:320px"><option>Agregar un grupo…</option><option>SOME</option><option>Dirección</option><option>Programa Cardiovascular</option></select></div></div>
+      <div class="settings-section"><h2>Trabajo pendiente</h2><dl class="kv"><dt>Revisiones manuales</dt><dd>${S.pending ? '1 en curso' : 'Ninguna'}</dd><dt>Revisiones automáticas</dt><dd>3 archivos para esta noche</dd>
+        <dt>Boletines</dt><dd>Resumen mensual de calidad: paso 37 de 80</dd><dt>Último trabajo correcto</dt><dd>Boletín clínico semanal · lunes 23 de noviembre, 05:41</dd></dl></div>
+      <div class="settings-section"><h2>Después de un reinicio</h2>${NcNoteCard('success', '«IA» retomó «Resumen mensual de calidad» desde el paso 37 de 80 y volvió a pedir al modelo 1 respuesta que había quedado a medias. Nada se publica a medias: una edición sale solo cuando está completa.', 'El servidor arrancó el miércoles 18 de noviembre a las 06:12, tras un corte de luz')}</div>
+      <div class="settings-section"><h2>Fallas</h2><div class="list">${fails}</div></div>`;
+  } else if (page === 'flow') {
+    body = `<div class="settings-section"><h2>Flujos disponibles</h2><p class="desc">Acciones que Nextcloud puede hacer cuando pasa algo con un archivo.</p>
+        <div class="flow-cards">${[['mdiEyeOffOutline', 'Bloquear el acceso a un archivo', ''], ['mdiFileDocumentOutline', 'Convertir a PDF', ''], ['mdiTagOutline', 'Etiquetado automático', ''], ['mdiCreation', 'Revisar con IA', 'ours']].map(([i, t, c]) => `<div class="flow-card ${c}">${ic(i, 24)}<strong>${t}</strong>${c ? '<span class="hint">De «IA». La revisión corre fuera de horario.</span>' : ''}</div>`).join('')}</div></div>
+      <div class="settings-section"><h2>Flujos configurados</h2>
+        <dl class="flow-rule"><dt>Cuando</dt><dd>Se crea o se actualiza un archivo</dd><dt>Y</dt><dd>La carpeta es <strong>Carpetas de equipo/Recepción</strong></dd><dt>Y</dt><dd>El tipo de archivo es PDF</dd><dt>Entonces</dt><dd><strong>Revisar con IA</strong><br><span class="muted">Instrucciones: «Indica si falta firma o timbre.»</span></dd></dl>
+        <div>${NcButton('secondary', 'Agregar un flujo', 'toast:Editor de reglas de Flujo de Nextcloud.', 'mdiPlus')}</div></div>`;
+  } else {
+    body = `<div class="settings-section"><h2>Inteligencia artificial</h2><p class="desc">Qué aplicación responde cada tipo de tarea. «IA», el Asistente y las apps de APS Conecta usan este mismo camino.</p>
+        <dl class="kv"><dt>Texto libre a texto</dt><dd>Conector de la IA local (OpenAI y LocalAI) · gemma4:e2b</dd><dt>Resumir</dt><dd>Conector de la IA local</dd><dt>Chat</dt><dd>Conector de la IA local</dd><dt>Generar título</dt><dd>Conector de la IA local</dd></dl>
+        ${NcNoteCard('info', 'El conector apunta a «IA local» (Ollama) en este mismo servidor. Ningún texto sale del establecimiento.')}</div>`;
+  }
+  const title = page === 'ia' ? '«IA»' : page === 'flow' ? 'Flujo' : 'Inteligencia artificial';
+  return nav + `<section class="app-content"><div class="content-bar">${NcButton('tertiary', '', 'toggle-nav', 'mdiMenu', 'Abrir o cerrar la navegación')}<div class="titles"><h2>${title}</h2><div class="sub">Configuración de administración</div></div></div>${body}</section>`;
+}
+
+/* ---------- header, layers, bar ---------- */
+function notifications() {
+  const n = [];
+  BULLETINS.filter(receives).forEach((b) => { if (!S.read[b.editions[0]]) n.push({ icon: 'mdiNewspaperVariantOutline', title: 'Nueva edición: ' + b.name, body: EDITIONS[b.editions[0]].date + ' · escrita por IA', time: 'hace 3 h', act: 'goto:ia:edition:' + b.editions[0], btn: 'Leer' }); });
+  n.push({ icon: 'mdiFileDocumentCheckOutline', title: 'Revisión lista: Circular 14 · Consentimiento informado.pdf', body: 'La acción «Circulares entrantes» revisó el archivo que subiste: 1 hallazgo.', time: 'hace 9 h', act: 'goto:ia:report:r3', btn: 'Ver revisión' });
+  if (isEditor()) n.push({ icon: 'mdiAlertOutline', title: 'Una fuente no se pudo leer', body: 'Flujograma TBC.pdf está escaneado, sin texto (Boletín clínico semanal).', time: 'hace 18 h', act: 'goto:ia:edition:c23', btn: 'Ver edición' });
+  if (isAdmin()) n.push({ icon: 'mdiAlertCircleOutline', title: 'Una edición quedó atrasada', body: 'Novedades de Farmacia · edición del 17 nov: el modelo no respondió. Se puede reintentar.', time: 'ayer', act: 'goto:settings:ia', btn: 'Ver estado' });
+  return n;
+}
+function renderHeader() {
+  const notes = notifications();
+  const apps = [['mdiHomeOutline', 'Intranet', 'toast:Intranet (IntraVox).'], ['mdiViewDashboardOutline', 'Panel', 'goto:dashboard'], ['mdiFolderOutline', 'Archivos', 'goto:files'], ['mdiCalendarOutline', 'Calendario', 'toast:Calendario.'],
+    ['mdiMessageOutline', 'Talk', 'toast:Talk.'], ['mdiCreation', '«IA»', 'goto:ia:parati'], ['mdiFileTableBoxOutline', 'Estadística', 'toast:Estadística.'], ['mdiFormatListBulleted', 'Farmacia', 'toast:Farmacia.']];
+  const current = { ia: '«IA»', files: 'Archivos', dashboard: 'Panel', settings: '' }[S.screen];
+  return `<span class="pop-anchor" data-keep><button class="header-btn" data-act="pop:apps" aria-expanded="${S.pop === 'apps'}" aria-label="Aplicaciones">${ic('mdiApps', 22)}</button>
+      ${S.pop === 'apps' ? `<div class="popover apps-panel" role="menu"><div class="apps-grid">${apps.map(([i, n, a]) => `<button class="app-tile ${n === current ? 'current' : ''}" data-act="${a}"><span class="ic">${ic(i, 22)}</span>${n}</button>`).join('')}</div></div>` : ''}</span>
+    <span class="logo">APS Conecta</span><span class="estab">${ESTAB}</span>
+    <div class="header-right">
+      <button class="header-btn hide-sm" data-act="toast:Búsqueda unificada de Nextcloud." aria-label="Buscar">${ic('mdiMagnify', 22)}</button>
+      <span class="pop-anchor" data-keep><button class="header-btn" data-act="pop:notif" aria-expanded="${S.pop === 'notif'}" aria-label="Notificaciones" style="position:relative">${ic('mdiBellOutline', 22)}${notes.length ? '<span class="header-dot"></span>' : ''}</button>
+        ${S.pop === 'notif' ? `<div class="popover notif-panel" role="dialog" aria-label="Notificaciones"><div class="notif-head"><strong>Notificaciones</strong>${NcButton('tertiary small', 'Descartar todas', 'toast:Prototipo: los avisos no se descartan.')}</div>
+          ${notes.map((x) => `<div class="notif">${ic(x.icon)}<div style="flex:1;min-width:0"><div class="bold">${x.title}</div><div class="small muted">${x.body}</div><div class="inline" style="margin-top:6px">${NcButton('primary small', x.btn, x.act)}<span class="small muted">${x.time}</span></div></div></div>`).join('')}</div>` : ''}</span>
+      <button class="header-btn hide-sm" data-act="toast:Contactos de Nextcloud." aria-label="Contactos">${ic('mdiAccountMultipleOutline', 22)}</button>
+      <span class="pop-anchor" data-keep><button class="header-btn" data-act="pop:user" aria-expanded="${S.pop === 'user'}" aria-label="Menú de ${P().name}"><span class="avatar">${P().initials}</span></button>
+        ${S.pop === 'user' ? `<div class="popover" role="menu" style="right:0;top:46px"><div style="padding:8px 12px"><div class="bold">${P().name}</div><div class="small muted">${P().cargo}</div></div><div class="menu-sep"></div>
+          <button class="menu-item" data-act="goto:dashboard">${ic('mdiViewDashboardOutline')}Panel</button>${isAdmin() ? `<button class="menu-item" data-act="goto:settings:ia">${ic('mdiCogOutline')}Configuración de administración</button>` : `<button class="menu-item" data-act="toast:Configuración personal de Nextcloud.">${ic('mdiCogOutline')}Configuración</button>`}
+          <div class="menu-sep"></div><button class="menu-item" data-act="toast:Prototipo.">${ic('mdiLogout')}Cerrar sesión</button></div>` : ''}</span>
+    </div>`;
+}
+
+function renderPicker() {
+  if (!S.modal) return '';
+  const target = S.modal.split(':')[1];
+  const title = target === 'source' ? 'Agregar fuente' : target === 'folder' ? 'Elegir carpeta' : 'Elegir un documento';
+  const ids = FILES_FOLDER.filter((id) => !DOCS[id].scan);
+  return `<div class="modal-mask" data-act="close-modal"><div class="dialog" role="dialog" aria-modal="true" aria-label="${title}" data-inside>
+    <div class="dialog-head"><h2>${title}</h2>${NcButton('tertiary', '', 'close-modal', 'mdiClose', 'Cerrar')}</div>
+    <div class="dialog-main"><div class="dialog-nav">${navEntry('noop', 'Todos los archivos', 'mdiFolderOutline', true)}${navEntry('noop', 'Recientes', 'mdiHistory', false)}${navEntry('noop', 'Favoritos', 'mdiStarOutline', false)}${target === 'source' ? navEntry('noop', 'Calendarios', 'mdiCalendarOutline', false) : ''}</div>
+      <div class="dialog-content"><div class="breadcrumbs"><span class="crumb">${ic('mdiFolderAccountOutline', 18)}</span><span class="sep">›</span><span class="crumb">Carpetas de equipo</span><span class="sep">›</span><span class="crumb">Protocolos</span></div>
+        <input class="input" placeholder="Filtrar la lista de archivos" aria-label="Filtrar">
+        <div class="list" style="margin-top:8px">${target !== 'doc' ? NcListItem({ icon: 'mdiFolder', name: 'Protocolos', sub: 'Carpeta de equipo · todo el grupo puede abrirla', act: 'pick-folder' }) : ''}
+          ${target === 'folder' ? '' : ids.map((id) => NcListItem({ icon: fileIcon(DOCS[id].type), name: DOCS[id].name, sub: `${PAGES[id] || 1} páginas · ${DOCS[id].size} · ${DOCS[id].mod}`, act: target === 'doc' ? 'pick:' + id : 'pick-folder' })).join('')}</div>
+        <div class="hint" style="margin-top:8px">«IA» lee PDF con texto, DOCX, ODT, TXT y MD. Hasta unas ${DAY_PAGES} páginas se revisan al momento; los más largos, esta noche.</div></div></div>
+    <div class="dialog-foot">${NcButton('tertiary', 'Cancelar', 'close-modal')}${NcButton('primary', target === 'doc' ? 'Revisar' : 'Elegir', target === 'doc' ? 'pick:hta' : 'pick-folder')}</div></div></div>`;
+}
+
+function renderBar() {
+  const screens = [['ia', '«IA»'], ['files', 'Archivos'], ['dashboard', 'Panel'], ['settings', 'Administración']].filter(([k]) => k !== 'settings' || isAdmin());
+  return `<span class="pb-tag">Prototipo · datos de ejemplo</span><span>Ver como</span>
+    <span class="pb-seg">${Object.entries(PEOPLE).map(([k, p]) => `<button data-act="role:${k}" aria-pressed="${S.role === k}">${p.label}</button>`).join('')}</span>
+    <span class="hide-sm">Ir a</span><span class="pb-seg">${screens.map(([k, l]) => `<button data-act="goto:${k}${k === 'settings' ? ':ia' : ''}" aria-pressed="${S.screen === k}">${l}</button>`).join('')}</span>`;
+}
+
+function render() {
+  document.getElementById('header').innerHTML = renderHeader();
+  document.getElementById('content').innerHTML = S.screen === 'ia' ? screenIA() : S.screen === 'files' ? screenFiles() : S.screen === 'dashboard' ? screenDashboard() : screenSettings();
+  document.getElementById('layer').innerHTML = renderPicker();
+  document.getElementById('protobar').innerHTML = renderBar();
+}
+
+let toastTimer;
+function toast(msg, action = '') {
+  document.querySelectorAll('.toast').forEach((x) => x.remove());
+  const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status');
+  t.innerHTML = `<span>${msg}</span>${action}`; document.body.appendChild(t);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), 4200);
+}
+
+/* ---------- behaviour ---------- */
+function startReview(doc, fromFiles = false) {
+  S.modal = null;
+  if ((PAGES[doc] || 1) > DAY_PAGES) {
+    S.night = [...(S.night || []).filter((x) => x !== doc), doc];
+    if (!fromFiles) { S.screen = 'ia'; S.view = { s: 'reviews' }; S.side = null; }
+    render(); toast(`Tiene ${PAGES[doc]} páginas: se revisará esta noche, desde las 22:00. Te avisaremos cuando esté lista.`); return;
+  }
+  S.pending = { doc, stage: 'queued' };
+  if (!fromFiles) { S.screen = 'ia'; S.view = { s: 'reviews' }; S.side = null; }
+  render();
+  if (fromFiles) toast('Revisión pedida. Te avisaremos cuando esté lista.', NcButton('secondary small', 'Ver en «IA»', 'goto:ia:reviews'));
+  setTimeout(() => { if (S.pending) { S.pending.stage = 'working'; render(); } }, 1500);
+  setTimeout(() => {
+    if (!S.pending) return;
+    const id = 'n' + (S.done.length + 1);
+    REPORTS[id] = doc === 'hta' ? { ...REPORTS.r1, when: 'Hace un momento' } : { doc, kind: 'manual', who: 'Pedida por ti', when: 'Hace un momento', findings: [
+      { k: 'Falta', where: 'Portada', text: 'No indica fecha de vigencia ni de próxima revisión.', fix: 'Agregar la vigencia en la portada.' },
+      { k: 'Poco claro', where: 'Sección 3', text: 'Usa «según corresponda» sin decir quién decide.', fix: 'Nombrar el cargo responsable de esa decisión.' } ] };
+    S.done.unshift(id); S.pending = null;
+    const onReviews = S.screen === 'ia' && S.view.s === 'reviews';
+    if (onReviews) S.view = { s: 'report', r: id };
+    render(); toast('Tu revisión está lista.', onReviews ? '' : NcButton('secondary small', 'Ver', 'goto:ia:report:' + id));
+  }, 3800);
+}
+
+function go(arg) {
+  const [screen, s, x] = arg.split(':');
+  S.screen = screen; S.side = null; S.pop = null; S.navOpen = false; S.correcting = null;
+  if (screen === 'ia' && s) S.view = s === 'edition' ? { s, e: x } : s === 'report' ? { s, r: x } : { s };
+  if (screen === 'settings') S.settings = s || 'ia';
+}
+
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-act]');
+  if (el && el.classList.contains('modal-mask') && ev.target.closest('[data-inside]')) return;
+  if (!el) { if (S.pop && !ev.target.closest('[data-keep]')) { S.pop = null; render(); } return; }
+  const [act, ...rest] = el.dataset.act.split(':'); const arg = rest.join(':');
+  if (act !== 'pop') S.pop = null;
+  switch (act) {
+    case 'noop': return;
+    case 'view': S.view = { s: arg }; S.side = null; S.correcting = null; S.navOpen = false; break;
+    case 'edition': S.screen = 'ia'; S.view = { s: 'edition', e: arg }; S.side = null; S.correcting = null; S.navOpen = false; break;
+    case 'report': S.screen = 'ia'; S.view = { s: 'report', r: arg }; S.side = null; S.navOpen = false; break;
+    case 'filter': S.filter = arg; break;
+    case 'goto': go(arg); break;
+    case 'settings': S.settings = arg; S.navOpen = false; break;
+    case 'pop': S.pop = S.pop === arg ? null : arg; break;
+    case 'side-config': S.side = ['config', arg]; S.tab = 'fuentes'; break;
+    case 'side-action': S.side = ['action', arg]; S.tab = null; break;
+    case 'side-doc': S.side = ['doc', arg]; S.tab = 'lectura'; break;
+    case 'tab': S.tab = arg; break;
+    case 'sched': if (S.side) S.sched[S.side[1]] = arg; break;
+    case 'close-side': S.side = null; break;
+    case 'open-picker': S.modal = 'picker:' + (arg || 'doc'); break;
+    case 'close-modal': S.modal = null; break;
+    case 'pick': startReview(arg); return;
+    case 'pick-folder': S.modal = null; toast('Prototipo: la fuente quedaría agregada.'); break;
+    case 'rereview': startReview(arg); return;
+    case 'files-review': startReview(arg, true); return;
+    case 'correct': S.correcting = arg; break;
+    case 'cancel-correct': S.correcting = null; break;
+    case 'save-correct': { const t = document.getElementById('correct-text'); if (t) S.corrected[arg] = t.value; S.correcting = null; toast('Corrección guardada. Los lectores ven el texto corregido.'); break; }
+    case 'withdraw': S.withdrawn[arg] = true; toast('Edición retirada.'); break;
+    case 'undo-withdraw': delete S.withdrawn[arg]; break;
+    case 'retry': S.retried[arg] = true; toast('Reintento programado para la próxima noche.'); break;
+    case 'save': S.side = null; toast('Guardado. (Prototipo: no se guarda nada.)'); break;
+    case 'toggle-nav': if (window.matchMedia('(max-width: 800px)').matches) S.navOpen = !S.navOpen; else S.navCollapsed = !S.navCollapsed; break;
+    case 'role': S.role = arg; S.side = null; S.correcting = null;
+      if (S.screen === 'settings' && !isAdmin()) go('ia:parati');
+      if (S.screen === 'ia' && S.view.s === 'edition') { const b = bOf(EDITIONS[S.view.e].b); if (!receives(b) && !canManage(b)) S.view = { s: 'parati' }; }
+      break;
+    case 'toast': toast(arg); return;
+    default: return;
+  }
+  render();
+});
+document.addEventListener('keydown', (ev) => {
+  const a = document.activeElement;
+  if (ev.key === 'Escape') { S.side = null; S.modal = null; S.pop = null; render(); return; }
+  if ((ev.key === 'Enter' || ev.key === ' ') && a && a.matches('[role=button][data-act], tr[data-act]')) { ev.preventDefault(); a.click(); }
+});
+
+render();
+</script>
