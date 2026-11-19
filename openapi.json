@@ -1483,7 +1483,7 @@
     "tags": [
         {
             "name": "api",
-            "description": "«IA» over OCS, the API its own pages read (gestion-aio#162, API contract). Consumers send `OCS-APIRequest: true`, which is also the CSRF protection, and get the OCS envelope back. Every route is attribute-routed and rate-limited, and is either open to any signed-in person, who may see what being checked inside the action, or the admin page's own, for admins and the groups it is delegated to (MetadataTest holds all of it)."
+            "description": "«IA» over OCS, the API its own pages read (gestion-aio#162, API contract). Consumers send `OCS-APIRequest: true`, which is also the CSRF protection, and get the OCS envelope back. Every route is attribute-routed and rate-limited, and is either open to any signed-in person, each action checking who may see what, or the admin page's own, for admins and the groups it is delegated to (MetadataTest holds all of it)."
         }
     ]
 }
