@@ -36,6 +36,7 @@ El arnés es el de Estadística. Con Docker, Node 24 y `make`:
   http://localhost:8093 (admin / admin), con el conector estándar apuntando al modelo fijado por su digest. El modelo
   (4,6 GB) se guarda en `~/.cache/ia-ollama` y sobrevive a `make instance-clean`.
 - `make test-seam`: primero prueba que el modelo responde por TaskProcessing; luego la batería que ve «IA» como la ve
-  una persona o un operador: su API OCS y occ; al final detiene Ollama para probar una revisión con el modelo caído.
+  una persona o un operador: su API OCS y occ; después detiene Ollama a mitad de una revisión, reinicia Nextcloud a
+  mitad de otra y prueba una revisión con el modelo caído.
 - `make openapi`: regenera `openapi.json`.
 - `make instance-clean`: borra la instancia y su base de datos.

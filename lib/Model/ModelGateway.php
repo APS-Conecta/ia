@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace OCA\Ia\Model;
 
 use OCA\Ia\AppInfo\Application;
+use OCP\TaskProcessing\Exception\NotFoundException;
 use OCP\TaskProcessing\IManager;
 use OCP\TaskProcessing\Task;
 use OCP\TaskProcessing\TaskTypes\TextToText;
@@ -42,6 +43,21 @@ class ModelGateway {
 	/** Deletes a task once its result is stored, or once it no longer matters. */
 	public function forget(Task $task): void {
 		$this->taskProcessing->deleteTask($task);
+	}
+
+	/** The task $taskId as TaskProcessing holds it now, or null when it holds none. */
+	public function task(int $taskId): ?Task {
+		try {
+			return $this->taskProcessing->getTask($taskId);
+		} catch (NotFoundException) {
+			return null;
+		}
+	}
+
+	/** Cancels a stuck task and deletes it: a late answer to it is never taken. */
+	public function cancel(Task $task): void {
+		$this->taskProcessing->cancelTask((int)$task->getId());
+		$this->forget($task);
 	}
 
 	/**

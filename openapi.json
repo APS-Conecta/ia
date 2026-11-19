@@ -161,6 +161,8 @@
                     "state",
                     "step",
                     "steps",
+                    "offHours",
+                    "offHoursWindow",
                     "error",
                     "requestedAt"
                 ],
@@ -195,6 +197,12 @@
                     "steps": {
                         "type": "integer",
                         "format": "int64"
+                    },
+                    "offHours": {
+                        "type": "boolean"
+                    },
+                    "offHoursWindow": {
+                        "$ref": "#/components/schemas/OffHours"
                     },
                     "error": {
                         "type": "string",
@@ -410,7 +418,7 @@
             "post": {
                 "operationId": "api-create-review",
                 "summary": "Review a document the caller can open",
-                "description": "A short document is reviewed now; the caller is notified when the report is ready.",
+                "description": "A short document is reviewed now, a longer one in Off hours; the caller is notified when the report is ready. A document the caller already has a Review of answers that Review, asked again when it failed or the document changed.",
                 "tags": [
                     "api"
                 ],
@@ -456,7 +464,7 @@
                 ],
                 "responses": {
                     "201": {
-                        "description": "The Review, under way",
+                        "description": "A new Review, under way or waiting for Off hours",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -488,7 +496,54 @@
                                                         "start": {
                                                             "type": "string",
                                                             "enum": [
-                                                                "now"
+                                                                "now",
+                                                                "offHours"
+                                                            ]
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "The caller's Review of this document",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "type": "object",
+                                                    "required": [
+                                                        "review",
+                                                        "start"
+                                                    ],
+                                                    "properties": {
+                                                        "review": {
+                                                            "$ref": "#/components/schemas/Review"
+                                                        },
+                                                        "start": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "now",
+                                                                "offHours"
                                                             ]
                                                         }
                                                     }
@@ -539,7 +594,7 @@
                         }
                     },
                     "422": {
-                        "description": "«IA» can't review this document yet",
+                        "description": "«IA» can't read this document's format yet",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -791,7 +846,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "The Review, under way again",
+                        "description": "The Review, under way again or waiting for Off hours",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -823,7 +878,8 @@
                                                         "start": {
                                                             "type": "string",
                                                             "enum": [
-                                                                "now"
+                                                                "now",
+                                                                "offHours"
                                                             ]
                                                         }
                                                     }
@@ -874,7 +930,7 @@
                         }
                     },
                     "422": {
-                        "description": "The Review is still under way, or «IA» can't review the document yet",
+                        "description": "The Review is still under way, or «IA» can't read the document's format",
                         "content": {
                             "application/json": {
                                 "schema": {

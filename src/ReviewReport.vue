@@ -29,8 +29,8 @@
 			</div>
 
 			<div v-if="underWay(review)" class="ia-chips" role="status">
-				<NcLoadingIcon :size="20" />
-				<span>{{ review.state === 'waiting' ? 'En la fila del modelo.' : progress }}</span>
+				<NcLoadingIcon v-if="moving(review)" :size="20" />
+				<span>{{ progress(review) }}</span>
 			</div>
 			<NcNoteCard v-else-if="review.state === 'failed'" type="error" heading="La revisión falló">
 				<p>El modelo no pudo terminarla. Pide «Revisar de nuevo» más tarde; si vuelve a fallar, avisa al administrador.</p>
@@ -92,7 +92,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { ocsGet, ocsPost, refusal } from './api.js'
 import { mdiCheckCircleOutline, mdiCreation, mdiOpenInNew, mdiRefresh } from './icons.js'
-import { KINDS, underWay, when } from './reviews.js'
+import { KINDS, moving, progress, underWay, when } from './reviews.js'
 
 /** Seconds between two looks at a Review still under way. */
 const POLL = 5
@@ -104,16 +104,11 @@ export default {
 	props: {
 		id: { type: Number, required: true },
 	},
-	setup: () => ({ KINDS, mdiCheckCircleOutline, mdiCreation, mdiOpenInNew, mdiRefresh, underWay, when }),
+	setup: () => ({ KINDS, mdiCheckCircleOutline, mdiCreation, mdiOpenInNew, mdiRefresh, moving, progress, underWay, when }),
 	data: () => ({ state: 'loading', review: null, timer: null }),
 	computed: {
 		fileLink() {
 			return generateUrl(`/f/${this.review.fileId}`)
-		},
-		progress() {
-			return this.review.steps > 1
-				? `Leyendo el documento y escribiendo la revisión: paso ${this.review.step} de ${this.review.steps}…`
-				: 'Leyendo el documento y escribiendo la revisión…'
 		},
 		counts() {
 			const counts = {}
@@ -141,7 +136,7 @@ export default {
 				}
 				return
 			}
-			if (underWay(this.review)) {
+			if (moving(this.review)) {
 				this.timer = setTimeout(this.load, POLL * 1000)
 			}
 		},

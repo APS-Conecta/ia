@@ -79,11 +79,21 @@ instance-clean:
 model-check:
 	$(COMPOSE) exec --user www-data nextcloud php custom_apps/ia/scripts/model-check.php $(MODEL) $(MODEL_DIGEST)
 
-# The seam suite, then its model-down group with Ollama stopped, as a server whose Model is down.
+# The seam suite, then the groups that need the instance changed between two phases: Ollama
+# stopped mid-task and started again, Nextcloud restarted mid-Run, and the Model down.
 PHPUNIT := $(COMPOSE) exec --user www-data -w /var/www/html/custom_apps/ia nextcloud \
 	php vendor/bin/phpunit --configuration phpunit.seam.xml --testdox
 test-seam: model-check
-	$(PHPUNIT) --exclude-group model-down
+	$(PHPUNIT) --exclude-group ollama-stop-a,ollama-stop-b,restart-a,restart-b,model-down
+	$(PHPUNIT) --group ollama-stop-a
+	$(COMPOSE) stop ollama
+	$(COMPOSE) up -d --wait ollama
+	$(PHPUNIT) --group ollama-stop-b
+	$(PHPUNIT) --group restart-a
+	$(COMPOSE) restart nextcloud
+	$(COMPOSE) up -d --wait
+	$(COMPOSE) exec -d --user www-data nextcloud sh -c "$(WORKER)"
+	$(PHPUNIT) --group restart-b
 	$(COMPOSE) stop ollama
 	$(PHPUNIT) --group model-down; status=$$?; $(COMPOSE) up -d --wait ollama; exit $$status
 

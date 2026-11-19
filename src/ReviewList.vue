@@ -32,7 +32,7 @@
 						<NcIconSvgWrapper :path="mdiFileDocumentOutline" />
 					</template>
 					<template #subname>
-						Pedida el {{ when(review.requestedAt) }}
+						{{ underWay(review) ? progress(review) : `Pedida el ${when(review.requestedAt)}` }}
 					</template>
 				</NcListItem>
 			</ul>
@@ -48,7 +48,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { ocsGet } from './api.js'
 import { mdiFileDocumentCheckOutline, mdiFileDocumentOutline } from './icons.js'
-import { STATES, underWay, when } from './reviews.js'
+import { moving, progress, STATES, underWay, when } from './reviews.js'
 
 /** Seconds between two looks at Reviews still under way. */
 const POLL = 10
@@ -57,7 +57,7 @@ const POLL = 10
 export default {
 	name: 'ReviewList',
 	components: { NcEmptyContent, NcIconSvgWrapper, NcListItem, NcLoadingIcon, NcNoteCard },
-	setup: () => ({ mdiFileDocumentCheckOutline, mdiFileDocumentOutline, STATES, when }),
+	setup: () => ({ mdiFileDocumentCheckOutline, mdiFileDocumentOutline, progress, STATES, underWay, when }),
 	data: () => ({ state: 'loading', reviews: [], timer: null }),
 	mounted() {
 		this.load()
@@ -83,7 +83,7 @@ export default {
 				this.state = 'failed'
 				return
 			}
-			if (this.reviews.some(underWay)) {
+			if (this.reviews.some(moving)) {
 				this.timer = setTimeout(this.load, POLL * 1000)
 			}
 		},

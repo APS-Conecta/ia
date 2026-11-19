@@ -30,10 +30,13 @@ class Version000100Date20261119000000 extends SimpleMigrationStep {
 			$runs->addColumn('step', Types::INTEGER, ['notnull' => true, 'default' => 0]);
 			$runs->addColumn('steps', Types::INTEGER, ['notnull' => true, 'default' => 0]);
 			$runs->addColumn('task_id', Types::BIGINT, ['notnull' => false, 'unsigned' => true]);
+			$runs->addColumn('off_hours', Types::BOOLEAN, ['notnull' => false, 'default' => false]);
+			$runs->addColumn('attempts', Types::INTEGER, ['notnull' => true, 'default' => 0]);
 			$runs->addColumn('last_error', Types::TEXT, ['notnull' => false]);
 			$runs->addColumn('actor', Types::STRING, ['notnull' => false, 'length' => 64]);
 			$runs->addColumn('results', Types::TEXT, ['notnull' => false]);
 			$runs->addColumn('updated_at', Types::BIGINT, ['notnull' => true, 'unsigned' => true]);
+			$runs->addColumn('version', Types::INTEGER, ['notnull' => true, 'default' => 0]);
 			$runs->setPrimaryKey(['id']);
 			$runs->addUniqueIndex(['kind', 'target'], 'ia_runs_kind_target');
 		}
@@ -48,7 +51,7 @@ class Version000100Date20261119000000 extends SimpleMigrationStep {
 			$reports->addColumn('findings', Types::TEXT, ['notnull' => false]);
 			$reports->addColumn('created_at', Types::BIGINT, ['notnull' => true, 'unsigned' => true]);
 			$reports->setPrimaryKey(['id']);
-			$reports->addIndex(['requester'], 'ia_reports_requester');
+			$reports->addUniqueIndex(['requester', 'file_id', 'origin'], 'ia_reports_manual');
 			$reports->addIndex(['file_id'], 'ia_reports_file');
 		}
 

@@ -96,21 +96,25 @@ class ApiController extends OCSController {
 	/**
 	 * Review a document the caller can open
 	 *
-	 * A short document is reviewed now; the caller is notified when the report is ready.
+	 * A short document is reviewed now, a longer one in Off hours; the caller is notified when the
+	 * report is ready. A document the caller already has a Review of answers that Review, asked
+	 * again when it failed or the document changed.
 	 *
 	 * @param int $fileId The document's file id
-	 * @return DataResponse<Http::STATUS_CREATED, array{review: IaReview, start: 'now'}, array{}>|DataResponse<Http::STATUS_NOT_FOUND|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
+	 * @return DataResponse<Http::STATUS_CREATED|Http::STATUS_OK, array{review: IaReview, start: 'now'|'offHours'}, array{}>|DataResponse<Http::STATUS_NOT_FOUND|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
 	 *
-	 * 201: The Review, under way
+	 * 201: A new Review, under way or waiting for Off hours
+	 * 200: The caller's Review of this document
 	 * 404: The caller can't open the document
-	 * 422: «IA» can't review this document yet
+	 * 422: «IA» can't read this document's format yet
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::REVIEW_LIMIT, period: self::PERIOD)]
 	#[ApiRoute(verb: 'POST', url: '/api/v1/reviews')]
 	public function createReview(int $fileId): DataResponse {
 		try {
-			return new DataResponse(['review' => $this->reviews->create($this->user(), $fileId), 'start' => 'now'], Http::STATUS_CREATED);
+			['created' => $created] = $answer = $this->reviews->create($this->user(), $fileId);
+			return new DataResponse(['review' => $answer['review'], 'start' => $answer['start']], $created ? Http::STATUS_CREATED : Http::STATUS_OK);
 		} catch (NotFoundException) {
 			return new DataResponse(['message' => self::NOT_FOUND], Http::STATUS_NOT_FOUND);
 		} catch (Refused $e) {
@@ -142,18 +146,18 @@ class ApiController extends OCSController {
 	 * Review again the current version of a Review's document
 	 *
 	 * @param int $id The Review's id
-	 * @return DataResponse<Http::STATUS_OK, array{review: IaReview, start: 'now'}, array{}>|DataResponse<Http::STATUS_NOT_FOUND|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
+	 * @return DataResponse<Http::STATUS_OK, array{review: IaReview, start: 'now'|'offHours'}, array{}>|DataResponse<Http::STATUS_NOT_FOUND|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
 	 *
-	 * 200: The Review, under way again
+	 * 200: The Review, under way again or waiting for Off hours
 	 * 404: No such Review of the caller's, or they can't open its document any more
-	 * 422: The Review is still under way, or «IA» can't review the document yet
+	 * 422: The Review is still under way, or «IA» can't read the document's format
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::REVIEW_LIMIT, period: self::PERIOD)]
 	#[ApiRoute(verb: 'POST', url: '/api/v1/reviews/{id}/again')]
 	public function reviewAgain(int $id): DataResponse {
 		try {
-			return new DataResponse(['review' => $this->reviews->again($this->user(), $id), 'start' => 'now']);
+			return new DataResponse($this->reviews->again($this->user(), $id));
 		} catch (NotFoundException) {
 			return new DataResponse(['message' => self::NOT_FOUND], Http::STATUS_NOT_FOUND);
 		} catch (Refused $e) {

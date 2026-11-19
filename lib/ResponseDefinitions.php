@@ -17,6 +17,11 @@ namespace OCA\Ia;
  *     fix: string,
  * }
  *
+ * @psalm-type IaOffHours = array{
+ *     start: string,
+ *     end: string,
+ * }
+ *
  * @psalm-type IaReviewItem = array{
  *     id: int,
  *     fileId: int,
@@ -25,6 +30,8 @@ namespace OCA\Ia;
  *     state: 'waiting'|'working'|'done'|'failed',
  *     step: int,
  *     steps: int,
+ *     offHours: bool,
+ *     offHoursWindow: IaOffHours,
  *     error: ?string,
  *     requestedAt: int,
  * }
@@ -36,11 +43,6 @@ namespace OCA\Ia;
  * @psalm-type IaGroup = array{
  *     id: string,
  *     name: string,
- * }
- *
- * @psalm-type IaOffHours = array{
- *     start: string,
- *     end: string,
  * }
  *
  * @psalm-type IaAdminSettings = array{

@@ -46,6 +46,7 @@ import ReviewList from './ReviewList.vue'
 import ReviewReport from './ReviewReport.vue'
 import { ocsGet, ocsPost, refusal } from './api.js'
 import { mdiFileDocumentCheckOutline, mdiPlus, mdiStarOutline } from './icons.js'
+import { offHoursText } from './reviews.js'
 
 /** The page's place, from the URL's hash: «Para ti», «Revisiones» or one Review's report. */
 function viewOf(hash) {
@@ -90,9 +91,11 @@ export default {
 		},
 		async review(fileId) {
 			try {
-				const { review } = await ocsPost('reviews', { fileId })
+				const { review, start } = await ocsPost('reviews', { fileId })
 				window.location.hash = `#revisiones/${review.id}`
-				showSuccess('Revisión pedida. Te avisaremos cuando esté lista.')
+				showSuccess(start === 'offHours'
+					? `Es un documento largo: se revisará fuera de horario, ${offHoursText(review)}. Te avisaremos cuando esté lista.`
+					: 'Revisión pedida. Te avisaremos cuando esté lista.')
 			} catch (error) {
 				showError(refusal(error) ?? 'No se pudo pedir la revisión. Inténtalo de nuevo.')
 			}
