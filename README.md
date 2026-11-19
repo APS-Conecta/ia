@@ -10,9 +10,9 @@ boletines a partir de las fuentes que elige un grupo editor. No es un chat: para
 modelo funciona en el servidor del establecimiento, y «IA» lee solo lo que la persona para la que trabaja puede
 abrir. La interfaz está en español; todo lo demás, en inglés. Licencia AGPL-3.0-or-later.
 
-**Estado:** en construcción. Hoy abre en «Para ti», vacío. La especificación es
-[gestion-aio#162](https://github.com/APS-Conecta/gestion-aio/issues/162), y el trabajo pendiente está en los issues de
-este repositorio. «IA» se publica solo cuando pasen la revisión de privacidad
+**Estado:** en construcción. Hoy abre en «Para ti», vacío, y revisa documentos TXT y MD de hasta unas 10 páginas. La
+especificación es [gestion-aio#162](https://github.com/APS-Conecta/gestion-aio/issues/162), y el trabajo pendiente está
+en los issues de este repositorio. «IA» se publica solo cuando pasen la revisión de privacidad
 ([gestion-aio#164](https://github.com/APS-Conecta/gestion-aio/issues/164)) y la prueba de calidad
 ([#17](https://github.com/APS-Conecta/ia/issues/17)).
 
@@ -35,6 +35,6 @@ El arnés es el de Estadística. Con Docker, Node 24 y `make`:
   http://localhost:8093 (admin / admin), con el conector estándar apuntando al modelo fijado por su digest. El modelo
   (4,6 GB) se guarda en `~/.cache/ia-ollama` y sobrevive a `make instance-clean`.
 - `make test-seam`: primero prueba que el modelo responde por TaskProcessing; luego la batería que ve «IA» como la ve
-  una persona o un operador: su API OCS y occ.
+  una persona o un operador: su API OCS y occ; al final detiene Ollama para probar una revisión con el modelo caído.
 - `make openapi`: regenera `openapi.json`.
 - `make instance-clean`: borra la instancia y su base de datos.

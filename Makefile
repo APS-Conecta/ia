@@ -16,9 +16,11 @@ OCC := $(COMPOSE) exec --user www-data nextcloud php occ
 MODEL := gemma4:e2b
 MODEL_DIGEST := sha256:b37049369adfe3d2b653af0ab301a062ca5cbe96ace6aa0d3f2559ee9b563fc2
 CONNECTOR := integration_openai
-# What «IA local» imports for the connector on the suite (gestion-aio's local_ai.py and #167).
+# What «IA local» imports for the connector on the suite (gestion-aio's local_ai.py and #167). The
+# Model thinks by default, which spends max_tokens before it answers: reasoning_effort none stops it.
 SETTINGS := {"apps": {"$(CONNECTOR)": {"url": "http://ollama:11434/v1", "default_completion_model_id": "$(MODEL)", \
-	"chat_endpoint_enabled": "1", "request_timeout": "900", "max_tokens": "1000"}}}
+	"chat_endpoint_enabled": "1", "request_timeout": "900", "max_tokens": "1000", \
+	"llm_extra_params": "{\"reasoning_effort\": \"none\"}"}}}
 # AIO's TaskProcessing worker: one process, restarted when its 300 s lifetime ends.
 WORKER := while :; do php occ background-job:worker -t 300 'OC\TaskProcessing\SynchronousBackgroundJob'; done
 
@@ -77,9 +79,13 @@ instance-clean:
 model-check:
 	$(COMPOSE) exec --user www-data nextcloud php custom_apps/ia/scripts/model-check.php $(MODEL) $(MODEL_DIGEST)
 
+# The seam suite, then its model-down group with Ollama stopped, as a server whose Model is down.
+PHPUNIT := $(COMPOSE) exec --user www-data -w /var/www/html/custom_apps/ia nextcloud \
+	php vendor/bin/phpunit --configuration phpunit.seam.xml --testdox
 test-seam: model-check
-	$(COMPOSE) exec --user www-data -w /var/www/html/custom_apps/ia nextcloud \
-		php vendor/bin/phpunit --configuration phpunit.seam.xml --testdox
+	$(PHPUNIT) --exclude-group model-down
+	$(COMPOSE) stop ollama
+	$(PHPUNIT) --group model-down; status=$$?; $(COMPOSE) up -d --wait ollama; exit $$status
 
 # Regenerate openapi.json from ApiController's attributes and docblocks.
 openapi:
