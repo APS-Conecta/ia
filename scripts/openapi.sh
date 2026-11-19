@@ -3,9 +3,9 @@
 # Regenerates openapi.json from the attributes and docblocks on ApiController (Estadística's
 # script, cloned): the contract is generated and committed, never hand-edited.
 #
-# The generator is a dev dependency, fetched into tools/ and gitignored there, pinned because its
-# output is CI's drift gate. The app keeps no
-# PHP dependencies and no composer autoloader at runtime.
+# The generator is a dev dependency, fetched into tools/ and gitignored there, and pinned because
+# its output is CI's drift gate. The app keeps no PHP dependencies and no composer autoloader at
+# runtime.
 #
 # Usage: scripts/openapi.sh     (override with IA_CONTAINER=…)
 set -euo pipefail

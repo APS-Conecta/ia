@@ -19,7 +19,7 @@ with the suite's local Model. The spec is APS-Conecta/gestion-aio#162; its ticke
 - **`src/` changed → `npm run build`**: `js/` is build output, ignored. Never commit `js/`, `*.js.map` or
   `node_modules/`.
 - **Never edit by hand** `package-lock.json`, `composer.lock`, the dependency lists in `package.json` and
-  `composer.json` outside a ticket that adds a dependency, or `openapi.json` (generated from `ApiController` by
+  `composer.json` outside a ticket that names the dependency, or `openapi.json` (generated from `ApiController` by
   `make openapi`; MetadataTest and CI fail on drift).
 - **Strings:** what a person reads (templates, pages, messages) is Spanish, written as literals, in tú as the mockup
   writes it; this app uses no `t()` / `$l->t()`, like its siblings. Code, comments, commits and PR text are English.
