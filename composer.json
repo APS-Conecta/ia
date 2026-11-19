@@ -1,0 +1,33 @@
+{
+    "name": "aps-conecta/ia",
+    "description": "Revisa documentos y escribe boletines con el modelo local de la suite, junto al Asistente de Nextcloud.",
+    "license": "AGPL-3.0-or-later",
+    "type": "project",
+    "require": {
+        "php": "^8.2"
+    },
+    "require-dev": {
+        "nextcloud/ocp": "^34.0",
+        "phpunit/phpunit": "^10.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "OCA\\Ia\\": "lib/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "OCA\\Ia\\Tests\\Unit\\": "tests/unit/",
+            "OCA\\Ia\\Tests\\Seam\\": "tests/seam/",
+            "OCP\\": "vendor/nextcloud/ocp/OCP/",
+            "NCU\\": "vendor/nextcloud/ocp/NCU/"
+        }
+    },
+    "config": {
+        "platform": {
+            "php": "8.2"
+        },
+        "sort-packages": true,
+        "optimize-autoloader": true
+    }
+}

@@ -1,0 +1,74 @@
+# «IA»'s CI, Estadística's shape: the static gates in a bare PHP container, the frontend's lint
+# and bundle, and the one seam (gestion-aio#162) against a real throwaway instance with the real
+# Model. The release workflow packs the tarball on every pull request (release.yml).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    name: Static gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: make test
+
+  js:
+    name: Frontend lint and bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+      - run: npm run lint-js
+      - run: make bundles
+
+  seam:
+    name: Seam (Nextcloud 34 + PostgreSQL 18 + the real Model)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+      # the bundle the instance serves: js/ is built, not committed
+      - run: npm run build
+      - name: The Model's digest, the cache key
+        id: model
+        run: echo "digest=$(make -s model-digest)" >> "$GITHUB_OUTPUT"
+      # Pulled once (4.6 GB) and kept by digest: a moved pin is a new key. The path is
+      # compose.dev.yaml's default; actions/cache refuses one with '..' in it.
+      - name: The Model, cached by its digest
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ia-ollama
+          key: ollama-${{ steps.model.outputs.digest }}
+      - run: make deps
+      - name: The throwaway instance (Nextcloud 34, PostgreSQL 18, Ollama, the standard connector)
+        run: make instance-up
+      - name: The seam suite, after the Model answers through TaskProcessing
+        run: make test-seam
+      - name: openapi.json regenerates without drift
+        run: make openapi && git diff --exit-code openapi.json
+      - name: Tear down
+        if: always()
+        run: make instance-clean
+      # Ollama writes as root, and some of its files (metadata/*.json) are root-only: the cache's
+      # post step packs the directory as the runner user.
+      - name: The Model's directory, readable for the cache
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" ~/.cache/ia-ollama
