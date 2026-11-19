@@ -25,6 +25,7 @@ namespace OCA\Ia;
  *     state: 'waiting'|'working'|'done'|'failed',
  *     step: int,
  *     steps: int,
+ *     offHours: bool,
  *     error: ?string,
  *     requestedAt: int,
  * }

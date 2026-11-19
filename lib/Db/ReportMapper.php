@@ -28,6 +28,20 @@ class ReportMapper extends QBMapper {
 		}
 	}
 
+	/** The person's own manual report of the file $fileId, or null. */
+	public function manualOf(string $userId, int $fileId): ?Report {
+		$query = $this->db->getQueryBuilder();
+		$query->select('*')->from($this->getTableName())
+			->where($query->expr()->eq('requester', $query->createNamedParameter($userId)))
+			->andWhere($query->expr()->eq('file_id', $query->createNamedParameter($fileId, IQueryBuilder::PARAM_INT)))
+			->andWhere($query->expr()->eq('origin', $query->createNamedParameter(Report::MANUAL)));
+		try {
+			return $this->findEntity($query);
+		} catch (DoesNotExistException) {
+			return null;
+		}
+	}
+
 	/** @return list<Report> the person's manual reports, newest first */
 	public function requestedBy(string $userId): array {
 		$query = $this->db->getQueryBuilder();

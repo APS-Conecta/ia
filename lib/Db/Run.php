@@ -10,7 +10,9 @@ use OCP\AppFramework\Db\Entity;
 
 /**
  * A Run (gestion-aio#162, Runs): one piece of AI work, unique per (kind, target). A review's target
- * is its report's id. `results` holds what the finished steps gave, as JSON, until the last one.
+ * is its report's id. `results` holds what the finished steps gave, as JSON, until the last one,
+ * so a Run put back in line resumes from its last finished step. An Off-hours Run is asked only
+ * in Off hours.
  *
  * @method string getKind()
  * @method void setKind(string $kind)
@@ -24,6 +26,10 @@ use OCP\AppFramework\Db\Entity;
  * @method void setSteps(int $steps)
  * @method int|null getTaskId()
  * @method void setTaskId(?int $taskId)
+ * @method bool|null getOffHours()
+ * @method void setOffHours(bool $offHours)
+ * @method int|null getAttempts()
+ * @method void setAttempts(int $attempts)
  * @method string|null getLastError()
  * @method void setLastError(?string $lastError)
  * @method string|null getActor()
@@ -41,6 +47,9 @@ class Run extends Entity {
 	public const DONE = 'done';
 	public const FAILED = 'failed';
 
+	/** Asks of one step that may fail before the Run fails with its last error. */
+	public const ATTEMPTS = 3;
+
 	// Null until set: Entity writes only the fields a setter changed.
 	protected ?string $kind = null;
 	protected ?string $target = null;
@@ -48,6 +57,8 @@ class Run extends Entity {
 	protected ?int $step = null;
 	protected ?int $steps = null;
 	protected ?int $taskId = null;
+	protected ?bool $offHours = null;
+	protected ?int $attempts = null;
 	protected ?string $lastError = null;
 	protected ?string $actor = null;
 	protected ?string $results = null;
@@ -57,6 +68,24 @@ class Run extends Entity {
 		$this->addType('step', 'integer');
 		$this->addType('steps', 'integer');
 		$this->addType('taskId', 'integer');
+		$this->addType('offHours', 'boolean');
+		$this->addType('attempts', 'integer');
 		$this->addType('updatedAt', 'integer');
+	}
+
+	/** Its step's ask failed: back in line for the next tick, or failed with $error after the last attempt. */
+	public function retry(string $error): void {
+		$this->setAttempts(($this->getAttempts() ?? 0) + 1);
+		$this->setLastError($error);
+		$this->setTaskId(null);
+		$this->setState($this->getAttempts() >= self::ATTEMPTS ? self::FAILED : self::WAITING);
+	}
+
+	/** It can't go on (its file is gone or unreadable): failed now with $error, whatever the attempts. */
+	public function fail(string $error): void {
+		$this->setState(self::FAILED);
+		$this->setLastError($error);
+		$this->setTaskId(null);
+		$this->setResults(null);
 	}
 }

@@ -20,6 +20,8 @@ abstract class SeamTestCase extends TestCase {
 	private const DAV = 'http://localhost/remote.php/dav/files/';
 	private const OCC = '/var/www/html/occ';
 	private const LOGS = '/var/www/html/data/*.log';
+	/** Where a first phase leaves its state for the second, across an Ollama stop or a restart. */
+	private const HANDOVER = '/tmp/ia-seam-handover.json';
 
 	/** @var array<string, string> each account this class made, with its password */
 	private static array $people = [];
@@ -65,22 +67,74 @@ abstract class SeamTestCase extends TestCase {
 	}
 
 	/**
-	 * Sets Off hours, through the admin setting, to a window from an hour ago to three hours from
-	 * now in the server's timezone, so that they cover the test run; the Editor groups stay.
+	 * Sets Off hours, through the admin setting, to the window from $from to $to hours from now in
+	 * the server's timezone; the Editor groups stay.
 	 *
 	 * @return array{start: string, end: string}
 	 */
-	protected static function offHoursNow(): array {
+	protected static function offHours(int $from, int $to): array {
 		$admin = self::admin();
 		$settings = self::ocs($admin, 'GET', '/apps/ia/api/v1/admin/settings')['data'];
 		$now = new \DateTimeImmutable('now', new \DateTimeZone($settings['timezone']));
-		$hours = ['start' => $now->modify('-1 hour')->format('H:i'), 'end' => $now->modify('+3 hours')->format('H:i')];
+		$hours = ['start' => $now->modify("$from hours")->format('H:i'), 'end' => $now->modify("$to hours")->format('H:i')];
 		$answer = self::ocs($admin, 'PUT', '/apps/ia/api/v1/admin/settings', [
 			'editorGroups' => array_column($settings['editorGroups'], 'id'),
 			'offHours' => $hours,
 		]);
 		self::assertSame(200, $answer['status']);
 		return $hours;
+	}
+
+	/** Off hours that cover the test run: from an hour ago to three hours from now. */
+	protected static function offHoursNow(): array {
+		return self::offHours(-1, 3);
+	}
+
+	/** Off hours that leave the test run out: from two to three hours from now. */
+	protected static function offHoursLater(): array {
+		return self::offHours(2, 3);
+	}
+
+	/** The run engine's tick, as the scheduler would run its TimedJob. */
+	protected static function tick(): void {
+		$jobs = json_decode(self::occ('background-job:list', '--class=OCA\\Ia\\BackgroundJob\\RunJob', '--output=json'), true);
+		self::assertCount(1, $jobs, 'the run engine is registered once');
+		self::occ('background-job:execute', '--force-execute', (string)$jobs[0]['id']);
+	}
+
+	/** @return list<array<string, mixed>> «IA»'s tasks in TaskProcessing now */
+	protected static function tasks(): array {
+		return json_decode(self::occ('taskprocessing:task:list', '--appId=ia', '--output=json'), true);
+	}
+
+	/**
+	 * Ends a first phase: leaves $state for the second, and keeps the people it names (in
+	 * $state['people']) for it.
+	 *
+	 * @param array<string, mixed> $state
+	 */
+	protected static function handOver(array $state): void {
+		file_put_contents(self::HANDOVER, json_encode($state));
+		foreach ($state['people'] ?? [] as $name) {
+			unset(self::$people[$name]);
+		}
+	}
+
+	/**
+	 * Starts a second phase: the first one's state, and its people, with fresh passwords, removed
+	 * when this class ends.
+	 *
+	 * @return array<string, mixed>
+	 */
+	protected static function takeOver(): array {
+		$state = json_decode((string)file_get_contents(self::HANDOVER), true);
+		unlink(self::HANDOVER);
+		foreach ($state['people'] ?? [] as $name) {
+			$password = bin2hex(random_bytes(16));
+			self::occWithEnv(['OC_PASS' => $password], 'user:resetpassword', '--password-from-env', $name);
+			self::$people[$name] = $password;
+		}
+		return $state;
 	}
 
 	/** occ as the web server's user; a failing command fails the test with its output. */
@@ -154,16 +208,26 @@ abstract class SeamTestCase extends TestCase {
 	 * @return array<string, mixed> the Review
 	 */
 	protected static function waitFor(string $person, int $id, array $states, int $seconds): array {
+		return self::waitUntil($person, $id, static fn (array $review): bool => in_array($review['state'], $states, true), $seconds, 'one of ' . implode(', ', $states));
+	}
+
+	/**
+	 * Asks for the Review until $done says so, or fails after $seconds naming $what it waited for.
+	 *
+	 * @param callable(array<string, mixed>): bool $done
+	 * @return array<string, mixed> the Review
+	 */
+	protected static function waitUntil(string $person, int $id, callable $done, int $seconds, string $what): array {
 		$until = time() + $seconds;
 		do {
 			$answer = self::ocs($person, 'GET', "/apps/ia/api/v1/reviews/$id");
 			self::assertSame(200, $answer['status'], "GET reviews/$id answered {$answer['status']}");
-			if (in_array($answer['data']['review']['state'], $states, true)) {
+			if ($done($answer['data']['review'])) {
 				return $answer['data']['review'];
 			}
 			sleep(5);
 		} while (time() < $until);
-		self::fail("Review $id was still {$answer['data']['review']['state']} after {$seconds} s");
+		self::fail("Review $id was not $what after {$seconds} s: " . json_encode(array_diff_key($answer['data']['review'], ['findings' => 0])));
 	}
 
 	/** The Nextcloud log files that hold $needle. @return list<string> */

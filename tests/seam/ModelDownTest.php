@@ -9,8 +9,9 @@ namespace OCA\Ia\Tests\Seam;
 use PHPUnit\Framework\Attributes\Group;
 
 /**
- * A Review while the Model is down (APS-Conecta/ia#2): `make test-seam` stops Ollama around this
- * group. The task fails, the Review fails with its error, and the document's text reaches no log.
+ * A Review while the Model is down (APS-Conecta/ia#2, #6): `make test-seam` stops Ollama around
+ * this group. Each failed task puts the Run back in line for the next tick; the third fails it with
+ * its last error, and it stays failed. The document's text reaches no log.
  */
 #[Group('model-down')]
 final class ModelDownTest extends SeamTestCase {
@@ -19,6 +20,8 @@ final class ModelDownTest extends SeamTestCase {
 
 	private static string $owner;
 	private static string $sentinel;
+	/** @var list<string> the Review's state after each failed attempt */
+	private static array $states = [];
 	/** @var array<string, mixed> */
 	private static array $review;
 
@@ -29,11 +32,18 @@ final class ModelDownTest extends SeamTestCase {
 		$fileId = self::upload(self::$owner, 'curacion.txt', $text);
 		$created = self::ocs(self::$owner, 'POST', '/apps/ia/api/v1/reviews', ['fileId' => $fileId]);
 		self::assertSame(201, $created['status']);
-		self::$review = self::waitFor(self::$owner, $created['data']['review']['id'], ['done', 'failed'], self::WAIT);
+		$id = $created['data']['review']['id'];
+		for ($attempt = 1; $attempt <= 3; $attempt++) {
+			self::$review = self::waitFor(self::$owner, $id, ['waiting', 'failed'], self::WAIT);
+			self::$states[] = self::$review['state'];
+			self::tick();
+		}
+		self::$review = self::ocs(self::$owner, 'GET', "/apps/ia/api/v1/reviews/$id")['data']['review'];
 	}
 
-	public function testAFailedTaskFailsTheReviewWithItsError(): void {
-		self::assertSame('failed', self::$review['state']);
+	public function testThreeFailedTasksFailTheReviewWithItsErrorAndItStaysFailed(): void {
+		self::assertSame(['waiting', 'waiting', 'failed'], self::$states);
+		self::assertSame('failed', self::$review['state'], 'a tick after the third failure asks nothing again');
 		self::assertNotSame('', trim((string)self::$review['error']));
 		self::assertNull(self::$review['findings']);
 		$listed = self::ocs(self::$owner, 'GET', '/apps/ia/api/v1/reviews')['data']['reviews'];
@@ -45,6 +55,6 @@ final class ModelDownTest extends SeamTestCase {
 	}
 
 	public function testTaskProcessingKeepsNoTaskOfTheApp(): void {
-		self::assertSame([], json_decode(self::occ('taskprocessing:task:list', '--appId=ia', '--output=json'), true));
+		self::assertSame([], self::tasks());
 	}
 }

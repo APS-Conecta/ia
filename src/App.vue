@@ -90,9 +90,11 @@ export default {
 		},
 		async review(fileId) {
 			try {
-				const { review } = await ocsPost('reviews', { fileId })
+				const { review, start } = await ocsPost('reviews', { fileId })
 				window.location.hash = `#revisiones/${review.id}`
-				showSuccess('Revisión pedida. Te avisaremos cuando esté lista.')
+				showSuccess(start === 'offHours'
+					? 'Es un documento largo: se revisará fuera de horario. Te avisaremos cuando esté lista.'
+					: 'Revisión pedida. Te avisaremos cuando esté lista.')
 			} catch (error) {
 				showError(refusal(error) ?? 'No se pudo pedir la revisión. Inténtalo de nuevo.')
 			}

@@ -6,6 +6,9 @@ declare(strict_types=1);
 
 namespace OCA\Ia\Settings;
 
+use DateTimeImmutable;
+use DateTimeInterface;
+use DateTimeZone;
 use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Refused;
 use OCP\IAppConfig;
@@ -39,6 +42,18 @@ class Settings {
 	/** @return array{start: string, end: string} */
 	public function offHours(): array {
 		return $this->appConfig->getValueArray(Application::APP_ID, self::HOURS) + self::OFF_HOURS;
+	}
+
+	/**
+	 * Whether $now falls in Off hours, read in the server's timezone; a window may cross midnight.
+	 * Read afresh: the TaskProcessing worker, which asks a Run's next step, keeps app config from
+	 * its start.
+	 */
+	public function isOffHours(DateTimeInterface $now): bool {
+		$this->appConfig->clearCache();
+		['start' => $start, 'end' => $end] = $this->offHours();
+		$time = DateTimeImmutable::createFromInterface($now)->setTimezone(new DateTimeZone($this->timezone()))->format('H:i');
+		return $start < $end ? $start <= $time && $time < $end : $time >= $start || $time < $end;
 	}
 
 	/** The timezone Off hours are read in: the server's, which the suite sets to the centre's. */
