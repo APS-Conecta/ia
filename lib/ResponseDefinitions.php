@@ -32,6 +32,22 @@ namespace OCA\Ia;
  * @psalm-type IaReview = IaReviewItem&array{
  *     findings: ?list<IaFinding>,
  * }
+ *
+ * @psalm-type IaGroup = array{
+ *     id: string,
+ *     name: string,
+ * }
+ *
+ * @psalm-type IaOffHours = array{
+ *     start: string,
+ *     end: string,
+ * }
+ *
+ * @psalm-type IaAdminSettings = array{
+ *     editorGroups: list<IaGroup>,
+ *     offHours: IaOffHours,
+ *     timezone: string,
+ * }
  */
 class ResponseDefinitions {
 }
