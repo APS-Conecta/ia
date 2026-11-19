@@ -177,8 +177,9 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	}
 
 	/**
-	 * Asks a waiting Review Run's current step, as the run engine decides: from its last finished
-	 * step, or from the start when its file changed since.
+	 * Asks a waiting Review Run's current step, as the run engine decides, from its last finished
+	 * step; a Run whose file changed since starts over, sized anew, and a file grown past the short
+	 * size waits for Off hours.
 	 */
 	public function resume(Run $run): void {
 		$source = $this->source($run);
@@ -186,8 +187,11 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			return;
 		}
 		[$report, $file, $text] = $source;
-		$chunks = $file->getEtag() === $report->getEtag() ? self::chunks($text) : $this->restart($report, $run, $file, $text);
-		$this->ask($run, $this->prompt($run, $chunks, self::results($run)['summaries']));
+		if ($file->getEtag() !== $report->getEtag()) {
+			$this->begin($run, $this->restart($report, $run, $file, $text));
+			return;
+		}
+		$this->ask($run, $this->prompt($run, self::chunks($text), self::results($run)['summaries']));
 	}
 
 	/**
