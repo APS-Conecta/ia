@@ -12,6 +12,7 @@ use OCA\Ia\Db\Report;
 use OCA\Ia\Db\ReportMapper;
 use OCA\Ia\Db\Run;
 use OCA\Ia\Db\RunMapper;
+use OCA\Ia\Db\StaleRun;
 use OCA\Ia\Model\ModelGateway;
 use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
@@ -19,6 +20,7 @@ use OCA\Ia\ResponseDefinitions;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\DB\Exception;
 use OCP\Files\File;
 use OCP\Files\NotFoundException;
 use OCP\IDBConnection;
@@ -87,7 +89,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 
 	/**
 	 * Reviews the file $fileId for $userId: now when it is short, in Off hours otherwise. A file
-	 * they already have a Review of is that Review, asked again unless it is under way.
+	 * they already have a Review of is that Review, asked again when it failed or the file changed.
 	 *
 	 * @return array{review: IaReview, start: 'now'|'offHours', created: bool}
 	 * @throws NotFoundException when they can't open it
@@ -98,8 +100,9 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$report = $this->reports->manualOf($userId, $fileId);
 		if ($report !== null) {
 			$run = $this->runs->of(Run::REVIEW, (string)$report->getId()) ?? throw new NotFoundException();
-			if (!self::underWay($run)) {
-				$this->restart($report, $run, $file);
+			if (!self::underWay($run) && ($run->getState() === Run::FAILED || $file->getEtag() !== $report->getEtag())) {
+				$report->setCreatedAt($this->time->getTime());
+				$this->begin($run, $this->restart($report, $run, $file, $this->reader->read($file)));
 			}
 			return $this->answer($report, $run, $file) + ['created' => false];
 		}
@@ -110,15 +113,27 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$report->setOrigin(Report::MANUAL);
 		$report->setRequester($userId);
 		$report->setCreatedAt($this->time->getTime());
-		$this->reports->insert($report);
 		$run = new Run();
 		$run->setKind(Run::REVIEW);
-		$run->setTarget((string)$report->getId());
-		$run->setState(Run::WAITING);
 		$run->setActor($userId);
+		$run->setVersion(0);
 		$run->setUpdatedAt($this->time->getTime());
-		$this->runs->insert($run);
-		$this->start($run, $text);
+		$chunks = $this->line($run, $text);
+		try {
+			$this->atomic(function () use ($report, $run): void {
+				$this->reports->insert($report);
+				$run->setTarget((string)$report->getId());
+				$this->runs->insert($run);
+			}, $this->db);
+		} catch (Exception $e) {
+			if ($e->getReason() !== Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+			return $this->create($userId, $fileId);
+		}
+		if (!$run->getOffHours()) {
+			$this->ask($run, $this->prompt($run, $chunks, []));
+		}
 		return $this->answer($report, $run, $file) + ['created' => true];
 	}
 
@@ -134,7 +149,8 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		if (self::underWay($run)) {
 			throw new Refused('Esta revisión sigue en curso.');
 		}
-		$this->restart($report, $run, $file);
+		$report->setCreatedAt($this->time->getTime());
+		$this->begin($run, $this->restart($report, $run, $file, $this->reader->read($file)));
 		return $this->answer($report, $run, $file);
 	}
 
@@ -165,23 +181,20 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	 * step, or from the start when its file changed since.
 	 */
 	public function resume(Run $run): void {
-		[$report, $file, $text] = $this->source($run);
-		if ($report === null || $file === null || $text === null) {
+		$source = $this->source($run);
+		if ($source === null) {
 			return;
 		}
-		if ($file->getEtag() !== $report->getEtag()) {
-			$report->setEtag($file->getEtag());
-			$this->reports->update($report);
-			$this->start($run, $text);
-			return;
-		}
-		$this->ask($run, $this->prompt($run, self::chunks($text), self::results($run)['summaries']));
+		[$report, $file, $text] = $source;
+		$chunks = $file->getEtag() === $report->getEtag() ? self::chunks($text) : $this->restart($report, $run, $file, $text);
+		$this->ask($run, $this->prompt($run, $chunks, self::results($run)['summaries']));
 	}
 
 	/**
 	 * Takes the result of a Review Run's task, as TaskListener (or the engine, for an answer whose
 	 * event was lost) hands it over: stores the step, then asks the next one, or finishes. A task
-	 * the Run no longer waits for is only deleted.
+	 * the Run no longer waits for is only deleted; of two processes finishing the same task, the
+	 * one that saves first goes on and the other's work is rolled back.
 	 */
 	public function finish(Run $run, Task $task, ?string $error): void {
 		if ($run->getTaskId() !== $task->getId() || $run->getState() !== Run::WORKING) {
@@ -194,16 +207,15 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			$this->runs->save($run);
 			return;
 		}
-		[$report, $file, $text] = $this->source($run);
-		if ($report === null || $file === null || $text === null) {
+		$source = $this->source($run);
+		if ($source === null) {
 			$this->model->forget($task);
 			return;
 		}
+		[$report, $file, $text] = $source;
 		if ($file->getEtag() !== $report->getEtag()) {
-			$report->setEtag($file->getEtag());
-			$this->reports->update($report);
 			$this->model->forget($task);
-			$this->start($run, $text);
+			$this->begin($run, $this->restart($report, $run, $file, $text));
 			return;
 		}
 		$results = self::results($run);
@@ -223,59 +235,72 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		if ($run->getStep() < $run->getSteps()) {
 			$run->setStep($run->getStep() + 1);
 			if ($run->getOffHours() && !$this->settings->isOffHours($this->time->getDateTime())) {
-				$this->wait($run);
+				$run->setState(Run::WAITING);
+				$run->setTaskId(null);
+				$this->runs->save($run);
 				return;
 			}
 			$this->ask($run, $this->prompt($run, $chunks, $results['summaries']));
 			return;
 		}
 		$report->setFindings(json_encode(array_values(array_unique($results['findings'], SORT_REGULAR)), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
-		$this->reports->update($report);
 		$run->setState(Run::DONE);
 		$run->setTaskId(null);
 		$run->setResults(null);
-		$this->runs->save($run);
+		try {
+			$this->atomic(function () use ($report, $run): void {
+				if (!$this->runs->save($run)) {
+					throw new StaleRun();
+				}
+				$this->reports->update($report);
+			}, $this->db);
+		} catch (StaleRun) {
+			return;
+		}
 		$this->notify($report, $file);
 	}
 
 	/**
-	 * The Run's report, its file as the actor opens it now and its text; a Run whose file is gone
+	 * The Run's report, its file as the actor opens it now, and its text; a Run whose file is gone
 	 * or unreadable fails, and null comes back.
 	 *
-	 * @return array{0: ?Report, 1: ?File, 2: ?string}
+	 * @return array{0: Report, 1: File, 2: string}|null
 	 */
-	private function source(Run $run): array {
+	private function source(Run $run): ?array {
 		$report = $this->reports->byId((int)$run->getTarget());
 		$file = $report === null ? null : $this->access->file((string)$run->getActor(), $report->getFileId());
-		if ($report === null || $file === null) {
-			$run->fail('El archivo ya no está disponible.');
-			$this->runs->save($run);
-			return [null, null, null];
-		}
 		try {
-			return [$report, $file, $this->reader->read($file)];
+			if ($report !== null && $file !== null) {
+				return [$report, $file, $this->reader->read($file)];
+			}
+			$run->fail('El archivo ya no está disponible.');
 		} catch (Refused $e) {
 			$run->fail($e->getMessage());
-			$this->runs->save($run);
-			return [null, null, null];
 		}
-	}
-
-	/** The report's file reviewed again from its current version. */
-	private function restart(Report $report, Run $run, File $file): void {
-		$text = $this->reader->read($file);
-		$report->setEtag($file->getEtag());
-		$report->setFindings(null);
-		$report->setCreatedAt($this->time->getTime());
-		$this->reports->update($report);
-		$this->start($run, $text);
+		$this->runs->save($run);
+		return null;
 	}
 
 	/**
-	 * Puts the Run at its first step: asked now for a short document, in line for Off hours for a
-	 * longer one.
+	 * The report's file reviewed from its current version, $text: the report starts over and the
+	 * Run goes back to its first step (Reviews::line).
+	 *
+	 * @return list<string> the chunks
 	 */
-	private function start(Run $run, string $text): void {
+	private function restart(Report $report, Run $run, File $file, string $text): array {
+		$report->setEtag($file->getEtag());
+		$report->setFindings(null);
+		$this->reports->update($report);
+		return $this->line($run, $text);
+	}
+
+	/**
+	 * Puts the Run at the first step of a Review of $text, waiting, unsaved: Off hours for a
+	 * document over the short size.
+	 *
+	 * @return list<string> the chunks
+	 */
+	private function line(Run $run, string $text): array {
 		$chunks = self::chunks($text);
 		$run->setStep(1);
 		$run->setSteps(count($chunks) === 1 ? 1 : count($chunks) + 1);
@@ -283,32 +308,40 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$run->setAttempts(0);
 		$run->setLastError(null);
 		$run->setResults(null);
+		$run->setState(Run::WAITING);
+		$run->setTaskId(null);
+		return $chunks;
+	}
+
+	/**
+	 * Starts a Run put in line: asked now when short, saved waiting for the engine otherwise.
+	 *
+	 * @param list<string> $chunks
+	 */
+	private function begin(Run $run, array $chunks): void {
 		if ($run->getOffHours()) {
-			$this->wait($run);
+			$this->runs->save($run);
 			return;
 		}
 		$this->ask($run, $this->prompt($run, $chunks, []));
 	}
 
-	/** In line, with its progress kept, for the engine to ask when its time comes. */
-	private function wait(Run $run): void {
-		$run->setState(Run::WAITING);
-		$run->setTaskId(null);
-		$this->runs->save($run);
-	}
-
 	/**
 	 * Asks the Model the Run's current step. The task and the Run that names it are saved in one
-	 * transaction, so the worker never finishes a task before its Run expects it. A failed ask is
-	 * a failed attempt.
+	 * transaction, so the worker never finishes a task before its Run expects it, and a Run another
+	 * process saved first rolls the new task back. A failed ask is a failed attempt.
 	 */
 	private function ask(Run $run, string $prompt): void {
 		try {
 			$this->atomic(function () use ($run, $prompt): void {
 				$run->setTaskId($this->model->ask($run->getId(), $prompt));
 				$run->setState(Run::WORKING);
-				$this->runs->save($run);
+				if (!$this->runs->save($run)) {
+					throw new StaleRun();
+				}
 			}, $this->db);
+		} catch (StaleRun) {
+			return;
 		} catch (Throwable) {
 			$run->retry('El modelo no está disponible.');
 			$this->runs->save($run);
@@ -402,6 +435,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			'step' => $run->getStep(),
 			'steps' => $run->getSteps(),
 			'offHours' => (bool)$run->getOffHours(),
+			'offHoursWindow' => $this->settings->offHours(),
 			'error' => $run->getState() === Run::FAILED ? $run->getLastError() : null,
 			'requestedAt' => $report->getCreatedAt(),
 		];

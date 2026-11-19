@@ -21,10 +21,30 @@ class RunMapper extends QBMapper {
 		parent::__construct($db, 'ia_runs', Run::class);
 	}
 
-	/** Stores the Run's changes, stamped with now. */
-	public function save(Run $run): void {
+	/**
+	 * Stores the Run's changes, stamped with now, only if no one saved it since it was read: the web
+	 * request, the engine's tick and the TaskProcessing worker all move Runs. False when it was
+	 * stale and nothing was stored.
+	 */
+	public function save(Run $run): bool {
 		$run->setUpdatedAt($this->time->getTime());
-		$this->update($run);
+		$version = (int)$run->getVersion();
+		$query = $this->db->getQueryBuilder();
+		$query->update($this->getTableName());
+		foreach (array_keys($run->getUpdatedFields()) as $property) {
+			if ($property !== 'id' && $property !== 'version') {
+				$query->set($run->propertyToColumn($property), $query->createNamedParameter($run->{'get' . ucfirst($property)}(), $this->getParameterTypeForProperty($run, $property)));
+			}
+		}
+		$query->set('version', $query->createNamedParameter($version + 1, IQueryBuilder::PARAM_INT))
+			->where($query->expr()->eq('id', $query->createNamedParameter($run->getId(), IQueryBuilder::PARAM_INT)))
+			->andWhere($query->expr()->eq('version', $query->createNamedParameter($version, IQueryBuilder::PARAM_INT)));
+		if ($query->executeStatement() !== 1) {
+			return false;
+		}
+		$run->setVersion($version + 1);
+		$run->resetUpdatedFields();
+		return true;
 	}
 
 	/** @return list<Run> the Runs in $state, oldest first */

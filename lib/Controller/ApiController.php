@@ -98,7 +98,7 @@ class ApiController extends OCSController {
 	 *
 	 * A short document is reviewed now, a longer one in Off hours; the caller is notified when the
 	 * report is ready. A document the caller already has a Review of answers that Review, asked
-	 * again unless it is under way.
+	 * again when it failed or the document changed.
 	 *
 	 * @param int $fileId The document's file id
 	 * @return DataResponse<Http::STATUS_CREATED|Http::STATUS_OK, array{review: IaReview, start: 'now'|'offHours'}, array{}>|DataResponse<Http::STATUS_NOT_FOUND|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>

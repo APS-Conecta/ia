@@ -46,9 +46,12 @@ final class OffHoursBeforeRestartTest extends SeamTestCase {
 
 		$other = self::person();
 		$second = self::ocs($other, 'POST', '/apps/ia/api/v1/reviews', ['fileId' => self::upload($other, 'otro-largo.md', self::longText())])['data']['review']['id'];
+		self::upload($owner, 'manual-largo.md', str_replace('cada 48 a 72 horas', 'cada 72 horas', self::longText()));
+		$changed = self::file($owner, 'manual-largo.md')['etag'];
 		self::offHoursNow();
 		self::tick();
 		self::tick();
+		self::assertSame($changed, self::ocs($owner, 'GET', "/apps/ia/api/v1/reviews/$id")['data']['review']['etag'], 'a Run whose file changed starts over from the new version');
 		self::assertSame('working', self::ocs($owner, 'GET', "/apps/ia/api/v1/reviews/$id")['data']['review']['state'], 'the oldest Run starts first');
 		self::assertSame('waiting', self::ocs($other, 'GET', "/apps/ia/api/v1/reviews/$second")['data']['review']['state']);
 		self::assertCount(1, self::tasks(), 'never more than one Off-hours task in flight');

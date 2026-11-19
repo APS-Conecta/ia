@@ -38,6 +38,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setResults(?string $results)
  * @method int getUpdatedAt()
  * @method void setUpdatedAt(int $updatedAt)
+ * @method int|null getVersion()
+ * @method void setVersion(int $version)
  */
 class Run extends Entity {
 	public const REVIEW = 'review';
@@ -63,6 +65,8 @@ class Run extends Entity {
 	protected ?string $actor = null;
 	protected ?string $results = null;
 	protected ?int $updatedAt = null;
+	/** Bumped by every save: a save from a Run read before another one's is refused (RunMapper::save). */
+	protected ?int $version = null;
 
 	public function __construct() {
 		$this->addType('step', 'integer');
@@ -71,6 +75,7 @@ class Run extends Entity {
 		$this->addType('offHours', 'boolean');
 		$this->addType('attempts', 'integer');
 		$this->addType('updatedAt', 'integer');
+		$this->addType('version', 'integer');
 	}
 
 	/** Its step's ask failed: back in line for the next tick, or failed with $error after the last attempt. */
