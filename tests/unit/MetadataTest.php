@@ -79,7 +79,8 @@ class MetadataTest extends TestCase {
 		$files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(self::APP_DIR . '/lib', \FilesystemIterator::SKIP_DOTS));
 		$checked = 0;
 		foreach ($files as $file) {
-			if ($file->getExtension() === 'php') {
+			// lib/Vendor holds a vendored library under its own licence (scripts/vendor-pdfparser.sh).
+			if ($file->getExtension() === 'php' && !str_starts_with($file->getPathname(), self::APP_DIR . '/lib/Vendor/')) {
 				$checked++;
 				self::assertStringContainsString('SPDX-License-Identifier: AGPL-3.0-or-later',
 					(string)file_get_contents($file->getPathname(), length: 4096), "{$file->getPathname()} must carry the SPDX header");
@@ -115,5 +116,10 @@ class MetadataTest extends TestCase {
 			self::assertTrue($open === 1 xor $delegated === [Admin::class],
 				"$name must be either #[NoAdminRequired] or #[AuthorizedAdminSetting(settings: Admin::class)]");
 		}
+	}
+
+	/** Each vendored library ships its licence beside its code. */
+	public function testEveryVendoredLibraryShipsItsLicence(): void {
+		self::assertFileExists(self::APP_DIR . '/lib/Vendor/Smalot/PdfParser/LICENSE.txt');
 	}
 }

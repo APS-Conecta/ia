@@ -13,7 +13,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 - Reviews of short TXT and MD documents (#2): «Revisar un documento» picks a file, and the report in «Revisiones»
   lists its errors, gaps and unclear parts, each with where it is and a fix, marked «Escrito por IA». The requester
   is notified when it is ready, sees it only while they can open the file, and can review the current version
-  again. The document is never changed. Other formats are refused for now.
+  again. The document is never changed.
 - The «IA» admin page (#3): the admin picks the Editor groups and Off hours (22:00–06:00 by default, in the server's
   timezone), and can delegate the page to a group under Administration privileges. «IA» tells each person which
   Editor groups they belong to, and «Para editores» shows in the navigation only to Editors.
@@ -22,3 +22,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   between steps when Off hours end, retries a failed or lost task, cancels one stuck past the request timeout plus 5
   minutes, and fails a Run with its last error after 3 attempts. A second request for the same file is the same
   Review. Its state lives in the database, so a restart or a stopped Model resumes from the last finished step.
+- PDF, DOCX and ODT (#4): a PDF with text is read through smalot/pdfparser 2.13.1, vendored under a prefix so it never
+  meets Assistant's copy; DOCX and ODT through PHP's zip and XML readers. Each finding names its page (PDF) or section
+  (DOCX, ODT, MD), and a file's own page count decides whether it waits for Off hours. A scan, a password-protected or
+  a damaged file is turned down plainly, and the Model is asked nothing.

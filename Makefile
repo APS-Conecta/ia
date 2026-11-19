@@ -55,6 +55,8 @@ instance-up:
 	# installs the connector there.
 	$(COMPOSE) exec nextcloud chown www-data:www-data /var/www/html/custom_apps
 	$(OCC) app:enable $(CONNECTOR) 2>/dev/null || $(OCC) app:install $(CONNECTOR)
+	# Assistant, as on the suite: it loads its own smalot/pdfparser, which «IA»'s prefixed copy must not meet.
+	$(OCC) app:enable assistant 2>/dev/null || $(OCC) app:install assistant
 	echo '$(SETTINGS)' | $(COMPOSE) exec -T --user www-data nextcloud php occ config:import
 	$(OCC) app:enable ia
 	# Restart AFTER enabling: the web workers cache the route collection and the enabled apps

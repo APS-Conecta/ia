@@ -36,6 +36,7 @@ final class LongReviewTest extends SeamTestCase {
 			self::assertNotSame('', trim($finding['fix']));
 			if ($finding['quote'] !== null) {
 				self::assertStringContainsString($finding['quote'], $text);
+				self::assertMatchesRegularExpression('/^Sección «.+»$/', $finding['where'], 'an MD finding names its section');
 			}
 		}
 		self::assertSame([], json_decode(self::occ('taskprocessing:task:list', '--appId=ia', '--output=json'), true));
