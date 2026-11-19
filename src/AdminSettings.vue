@@ -4,16 +4,18 @@
 			description="Los boletines y las acciones automáticas corren solo en este horario, para no hacer esperar a quienes usan el Asistente de día. Si el servidor se apaga de noche, muévelo, por ejemplo a 13:00–14:00.">
 			<NcLoadingIcon v-if="!settings" :size="32" />
 			<div v-else class="hours">
-				<label for="ia-off-start">Desde</label>
-				<input id="ia-off-start"
-					v-model="settings.offHours.start"
+				<NcDateTimePickerNative id="ia-off-start"
+					:model-value="asDate(settings.offHours.start)"
 					type="time"
-					@change="save">
-				<label for="ia-off-end">hasta</label>
-				<input id="ia-off-end"
-					v-model="settings.offHours.end"
+					label="Desde"
+					@update:model-value="settings.offHours.start = asTime($event)"
+					@change="save" />
+				<NcDateTimePickerNative id="ia-off-end"
+					:model-value="asDate(settings.offHours.end)"
 					type="time"
-					@change="save">
+					label="Hasta"
+					@update:model-value="settings.offHours.end = asTime($event)"
+					@change="save" />
 				<span class="zone">{{ zone }}</span>
 			</div>
 		</NcSettingsSection>
@@ -38,6 +40,7 @@
 <script>
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import '@nextcloud/dialogs/style.css'
+import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcSettingsSection from '@nextcloud/vue/components/NcSettingsSection'
@@ -46,10 +49,15 @@ import { ocsGet, ocsPut, refusal } from './api.js'
 /** The timezones of Chile, where Off hours read as «hora de Chile». */
 const CHILE = ['America/Santiago', 'America/Punta_Arenas', 'Pacific/Easter']
 
+/** HH:MM as the Date NcDateTimePickerNative reads, and back; an emptied field is ''. */
+const asDate = (time) => (time ? new Date(`1970-01-01T${time}`) : null)
+const asTime = (date) => date?.toTimeString().slice(0, 5) ?? ''
+
 /** The «IA» admin page, for admins and the group it is delegated to: Off hours and the Editor groups. */
 export default {
 	name: 'AdminSettings',
-	components: { NcLoadingIcon, NcSelect, NcSettingsSection },
+	components: { NcDateTimePickerNative, NcLoadingIcon, NcSelect, NcSettingsSection },
+	setup: () => ({ asDate, asTime }),
 	data: () => ({ settings: null, found: [], searching: false }),
 	computed: {
 		zone() {
@@ -70,6 +78,8 @@ export default {
 			this.searching = true
 			try {
 				this.found = (await ocsGet(`admin/groups?search=${encodeURIComponent(text)}`)).groups
+			} catch (error) {
+				console.error('ia: the groups did not load', error)
 			} finally {
 				this.searching = false
 			}
@@ -83,7 +93,6 @@ export default {
 				showSuccess('Guardado')
 			} catch (error) {
 				showError(refusal(error) ?? 'No se pudo guardar. Inténtalo de nuevo.')
-				this.settings = await ocsGet('admin/settings')
 			}
 		},
 	},
@@ -95,7 +104,7 @@ export default {
 	display: flex;
 	flex-wrap: wrap;
 	gap: calc(var(--default-grid-baseline) * 2);
-	align-items: center;
+	align-items: flex-end;
 }
 
 .zone {

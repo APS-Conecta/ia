@@ -16,6 +16,8 @@ final class AdminSettingsTest extends SeamTestCase {
 
 	public function testOffHoursAreTenAtNightToSixInTheMorningUntilAnAdminChangesThem(): void {
 		self::occ('config:app:delete', 'ia', 'off_hours');
+		// The web server keeps app config in APCu for 3 s (AppConfig::LOCAL_CACHE_TTL), which occ can't clear.
+		sleep(4);
 		$answer = self::ocs(self::admin(), 'GET', self::SETTINGS);
 		self::assertSame(200, $answer['status']);
 		self::assertSame(['start' => '22:00', 'end' => '06:00'], $answer['data']['offHours']);
@@ -35,12 +37,15 @@ final class AdminSettingsTest extends SeamTestCase {
 		$head = self::person();
 		$delegated = self::group($head);
 		self::occ('admin-delegation:add', self::DELEGATED, $delegated);
+		$groups = '/apps/ia/api/v1/admin/groups?search=' . $delegated;
 		try {
 			self::assertSame(200, self::ocs($head, 'GET', self::SETTINGS)['status']);
+			self::assertContains($delegated, array_column(self::ocs($head, 'GET', $groups)['data']['groups'], 'id'));
 			self::assertSame(200, self::ocs($head, 'PUT', self::SETTINGS, ['editorGroups' => [], 'offHours' => ['start' => '22:00', 'end' => '06:00']])['status']);
 			$someone = self::person();
 			self::assertSame(403, self::ocs($someone, 'GET', self::SETTINGS)['status']);
 			self::assertSame(403, self::ocs($someone, 'PUT', self::SETTINGS, ['editorGroups' => [], 'offHours' => ['start' => '22:00', 'end' => '06:00']])['status']);
+			self::assertSame(403, self::ocs($someone, 'GET', $groups)['status']);
 		} finally {
 			self::occ('admin-delegation:remove', self::DELEGATED, $delegated);
 		}

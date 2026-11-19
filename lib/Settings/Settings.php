@@ -18,11 +18,11 @@ use OCP\IGroupManager;
  */
 class Settings {
 	/** Off hours until an admin changes them: 22:00 to 06:00, in the server's timezone. */
-	public const OFF_HOURS = ['start' => '22:00', 'end' => '06:00'];
+	private const OFF_HOURS = ['start' => '22:00', 'end' => '06:00'];
 
 	private const GROUPS = 'editor_groups';
 	private const HOURS = 'off_hours';
-	private const TIME = '/^([01]\d|2[0-3]):[0-5]\d$/';
+	private const HH_MM = '/^([01]\d|2[0-3]):[0-5]\d$/';
 
 	public function __construct(
 		private IAppConfig $appConfig,
@@ -47,23 +47,27 @@ class Settings {
 	}
 
 	/**
-	 * @param list<string> $editorGroups
-	 * @param array{start: string, end: string} $offHours
+	 * Saves the page as the request sends it, checked here alone.
+	 *
+	 * @param array<mixed> $editorGroups
+	 * @param array<mixed> $offHours
 	 * @throws Refused when a group doesn't exist or an hour isn't one
 	 */
 	public function save(array $editorGroups, array $offHours): void {
 		foreach ($editorGroups as $group) {
-			if (!$this->groups->groupExists($group)) {
-				throw new Refused("No existe el grupo «{$group}».");
+			if (!is_string($group) || !$this->groups->groupExists($group)) {
+				throw new Refused('No existe el grupo «' . (is_string($group) ? $group : json_encode($group)) . '».');
 			}
 		}
-		if (preg_match(self::TIME, $offHours['start']) !== 1 || preg_match(self::TIME, $offHours['end']) !== 1) {
+		$start = $offHours['start'] ?? null;
+		$end = $offHours['end'] ?? null;
+		if (!is_string($start) || !is_string($end) || preg_match(self::HH_MM, $start) !== 1 || preg_match(self::HH_MM, $end) !== 1) {
 			throw new Refused('Escribe las horas como HH:MM, de 00:00 a 23:59.');
 		}
-		if ($offHours['start'] === $offHours['end']) {
+		if ($start === $end) {
 			throw new Refused('El fuera de horario debe empezar y terminar a horas distintas.');
 		}
 		$this->appConfig->setValueArray(Application::APP_ID, self::GROUPS, array_values(array_unique($editorGroups)));
-		$this->appConfig->setValueArray(Application::APP_ID, self::HOURS, ['start' => $offHours['start'], 'end' => $offHours['end']]);
+		$this->appConfig->setValueArray(Application::APP_ID, self::HOURS, ['start' => $start, 'end' => $end]);
 	}
 }

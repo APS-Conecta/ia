@@ -30,8 +30,8 @@ use OCP\IUserSession;
  * «IA» over OCS, the API its own pages read (gestion-aio#162, API contract). Consumers send
  * `OCS-APIRequest: true`, which is also the CSRF protection, and get the OCS envelope back.
  * Every route is attribute-routed and rate-limited, and is either open to any signed-in person,
- * who may see what being checked inside the action, or the admin page's own, for admins and the
- * groups it is delegated to (MetadataTest holds all of it).
+ * each action checking who may see what, or the admin page's own, for admins and the groups it
+ * is delegated to (MetadataTest holds all of it).
  *
  * @psalm-import-type IaAdminSettings from ResponseDefinitions
  * @psalm-import-type IaGroup from ResponseDefinitions
@@ -205,7 +205,7 @@ class ApiController extends OCSController {
 	#[ApiRoute(verb: 'PUT', url: '/api/v1/admin/settings')]
 	public function saveAdminSettings(array $editorGroups, array $offHours): DataResponse {
 		try {
-			$this->settings->save(array_values(array_map('strval', $editorGroups)), ['start' => (string)($offHours['start'] ?? ''), 'end' => (string)($offHours['end'] ?? '')]);
+			$this->settings->save($editorGroups, $offHours);
 		} catch (Refused $e) {
 			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		}

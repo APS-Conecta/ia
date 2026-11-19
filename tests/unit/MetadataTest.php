@@ -98,8 +98,8 @@ class MetadataTest extends TestCase {
 
 	/**
 	 * Every OCS route is routed by its attribute and rate-limited, and is either open to every
-	 * signed-in person, who may see what being checked inside the action, or the «IA» admin
-	 * page's own, for admins and the groups it is delegated to; never both. An attribute deleted
+	 * signed-in person, each action checking who may see what, or the «IA» admin page's own, for
+	 * admins and the groups it is delegated to; never both. An attribute deleted
 	 * from one method is a route that is gone, admin-only or unbounded, silently (farmacia's gate).
 	 */
 	public function testEveryOcsRouteIsRoutedRateLimitedAndOpenOrDelegated(): void {

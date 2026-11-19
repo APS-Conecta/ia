@@ -18,7 +18,7 @@ use OCP\Util;
  */
 class Admin implements IDelegatedSettings {
 	public function getForm(): TemplateResponse {
-		Util::addScript(Application::APP_ID, 'ia-admin');
+		Util::addScript(Application::APP_ID, Application::APP_ID . '-admin');
 		return new TemplateResponse(Application::APP_ID, 'admin', [], TemplateResponse::RENDER_AS_BLANK);
 	}
 
