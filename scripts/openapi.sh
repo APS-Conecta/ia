@@ -3,7 +3,8 @@
 # Regenerates openapi.json from the attributes and docblocks on ApiController (Estadística's
 # script, cloned): the contract is generated and committed, never hand-edited.
 #
-# The generator is a dev dependency, fetched into tools/ and gitignored there. The app keeps no
+# The generator is a dev dependency, fetched into tools/ and gitignored there, pinned because its
+# output is CI's drift gate. The app keeps no
 # PHP dependencies and no composer autoloader at runtime.
 #
 # Usage: scripts/openapi.sh     (override with IA_CONTAINER=…)
@@ -26,7 +27,7 @@ if ! run test -f tools/openapi/vendor/bin/generate-spec; then
 	printf 'Installing nextcloud/openapi-extractor…\n'
 	run mkdir -p tools/openapi
 	run sh -c 'cd tools/openapi && COMPOSER_HOME=/tmp/composer php ../composer.phar \
-		require --quiet --no-interaction nextcloud/openapi-extractor'
+		require --quiet --no-interaction nextcloud/openapi-extractor:1.9.1'
 fi
 
 printf 'Generating openapi.json…\n'

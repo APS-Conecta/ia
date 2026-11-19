@@ -9,7 +9,7 @@ namespace OCA\Ia\Tests\Seam;
 /** «Para ti», everyone's start page (CONTEXT.md). */
 class ParaTiTest extends SeamTestCase {
 	public function testAPersonWhoReadsNoBulletinGetsTheEmptyState(): void {
-		$staff = self::person('personal');
+		$staff = self::person();
 
 		$answer = self::ocs($staff, 'GET', '/apps/ia/api/v1/para-ti');
 

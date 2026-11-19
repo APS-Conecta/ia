@@ -38,8 +38,6 @@ jobs:
     name: Seam (Nextcloud 34 + PostgreSQL 18 + the real Model)
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      IA_OLLAMA_MODELS: ${{ github.workspace }}/../ia-ollama
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -52,11 +50,12 @@ jobs:
       - name: The Model's digest, the cache key
         id: model
         run: echo "digest=$(make -s model-digest)" >> "$GITHUB_OUTPUT"
-      # Pulled once (4.6 GB) and kept by digest: a moved pin is a new key.
+      # Pulled once (4.6 GB) and kept by digest: a moved pin is a new key. The path is
+      # compose.dev.yaml's default; actions/cache refuses one with '..' in it.
       - name: The Model, cached by its digest
         uses: actions/cache@v4
         with:
-          path: ${{ env.IA_OLLAMA_MODELS }}
+          path: ~/.cache/ia-ollama
           key: ollama-${{ steps.model.outputs.digest }}
       - run: make deps
       - name: The throwaway instance (Nextcloud 34, PostgreSQL 18, Ollama, the standard connector)

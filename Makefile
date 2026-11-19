@@ -52,7 +52,7 @@ instance-up:
 	# Docker creates custom_apps/ root-owned for this repo's bind mount, and the App Store
 	# installs the connector there.
 	$(COMPOSE) exec nextcloud chown www-data:www-data /var/www/html/custom_apps
-	$(OCC) app:install $(CONNECTOR) || $(OCC) app:enable $(CONNECTOR)
+	$(OCC) app:enable $(CONNECTOR) 2>/dev/null || $(OCC) app:install $(CONNECTOR)
 	echo '$(SETTINGS)' | $(COMPOSE) exec -T --user www-data nextcloud php occ config:import
 	$(OCC) app:enable ia
 	# Restart AFTER enabling: the web workers cache the route collection and the enabled apps

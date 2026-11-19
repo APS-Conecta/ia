@@ -1,5 +1,12 @@
 # Changelog
 
-## 0.1.0 (sin publicar)
+All notable changes to `APS-Conecta/ia` are recorded here.
 
-- «IA» aparece en el menú de la suite y abre en «Para ti», que por ahora dice que todavía no recibes ningún boletín.
+Format: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
+Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- «IA» in the suite menu, opening on «Para ti», which says the person reads no Bulletin yet.

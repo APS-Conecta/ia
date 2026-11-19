@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   The seam suite (gestion-aio#162): runs INSIDE the dev Nextcloud container and reaches «IA»
-  only through its OCS API, its pages and occ, never its classes. Separate from phpunit.xml on
+  only through its OCS API and occ, never its classes. Separate from phpunit.xml on
   purpose: the static gates must stay runnable in a bare PHP container.
 -->
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"

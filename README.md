@@ -27,7 +27,7 @@ este repositorio. «IA» se publica solo cuando pasen la revisión de privacidad
 
 ## Desarrollo
 
-El arnés es el de Estadística (su ADR-0001, que es el de farmacia). Con Docker, Node 24 y `make`:
+El arnés es el de Estadística. Con Docker, Node 24 y `make`:
 
 - `npm ci && npm run build`: el paquete de `js/`, que no se versiona.
 - `make test`: las compuertas estáticas, en un contenedor PHP sin Nextcloud.
@@ -35,6 +35,6 @@ El arnés es el de Estadística (su ADR-0001, que es el de farmacia). Con Docker
   http://localhost:8093 (admin / admin), con el conector estándar apuntando al modelo fijado por su digest. El modelo
   (4,6 GB) se guarda en `~/.cache/ia-ollama` y sobrevive a `make instance-clean`.
 - `make test-seam`: primero prueba que el modelo responde por TaskProcessing; luego la batería que ve «IA» como la ve
-  una persona: su API OCS, sus páginas y occ.
+  una persona o un operador: su API OCS y occ.
 - `make openapi`: regenera `openapi.json`.
 - `make instance-clean`: borra la instancia y su base de datos.
