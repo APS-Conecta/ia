@@ -84,10 +84,15 @@ export default [
 	{
 		files: ['src/**/*.{js,vue}'],
 		// A flat config declares no browser globals of its own, so no-undef needs the surface the
-		// app actually uses named.
+		// app actually uses named. __webpack_public_path__: main.js points the lazy chunks (the
+		// file picker's) at the app's js/.
 		languageOptions: {
 			globals: {
 				console: 'readonly',
+				window: 'readonly',
+				setTimeout: 'readonly',
+				clearTimeout: 'readonly',
+				__webpack_public_path__: 'writable',
 			},
 		},
 		plugins: { ia: { rules: { 'theme-only': themeOnly } } },

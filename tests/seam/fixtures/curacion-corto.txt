@@ -1,0 +1,38 @@
+PROTOCOLO DE CURACIÓN AVANZADA DE HERIDAS
+CESFAM Los Aromos
+
+1. Objetivo
+Estandarizar la curación avanzada de heridas crónicas en usuarios inscritos del CESFAM, para disminuir el tiempo de cicatrización y las complicaciones infecciosas.
+
+2. Alcance
+Aplica a enfermeras, enfermeros y técnicos en enfermería del sector rojo y del sector azul que realicen curaciones en la sala de procedimientos o en visita domiciliaria.
+
+3. Definiciones
+Herida crónica: herida que no cicatriza en un plazo de seis semanas.
+Curación avanzada: curación que usa apósitos interactivos, bioactivos o mixtos, y que mantiene un ambiente húmedo en la herida.
+
+4. Materiales
+- Suero fisiológico al 0,9 %, tibio.
+- Guantes estériles y guantes de procedimiento.
+- Apósito primario según el tipo de tejido.
+- Apósito secundario y fijación.
+- Equipo de curación estéril.
+
+5. Procedimiento
+5.1 Lavarse las manos y explicar el procedimiento al usuario.
+5.2 Retirar el apósito anterior con guantes de procedimiento y desecharlo.
+5.3 Valorar la herida con la escala de valoración vigente y registrar el puntaje.
+5.4 Irrigar la herida con suero fisiológico a una presión entre 4 y 15 psi, usando una jeringa de 20 ml con aguja 19G.
+5.5 Secar la piel alrededor de la herida, sin secar el lecho de la herida.
+5.6 Aplicar el apósito primario y cubrir con el apósito secundario.
+5.7 Registrar el procedimiento en la ficha clínica.
+
+6. Frecuencia de curación
+Las heridas con tejido de granulación se curan cada 3 a 5 días. Las heridas infectadas se curan cada 7 días o según indicación.
+Las heridas infectadas deben curarse a diario o cada 48 horas como máximo.
+
+7. Derivación
+Derivar al médico del sector si la herida presenta signos de infección sistémica, como fiebre sobre 38 °C, o si no mejora en el plazo que corresponda según lo anterior.
+
+8. Registro
+La enfermera registra cada curación en la ficha clínica con la fecha, la valoración, el apósito usado y la próxima fecha de curación. Se hace lo que corresponde con los casos especiales.

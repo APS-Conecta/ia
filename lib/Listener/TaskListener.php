@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types=1);
+
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+namespace OCA\Ia\Listener;
+
+use OCA\Ia\AppInfo\Application;
+use OCA\Ia\Db\Run;
+use OCA\Ia\Db\RunMapper;
+use OCA\Ia\Model\ModelGateway;
+use OCA\Ia\Review\Reviews;
+use OCP\EventDispatcher\Event;
+use OCP\EventDispatcher\IEventListener;
+use OCP\TaskProcessing\Events\TaskFailedEvent;
+use OCP\TaskProcessing\Events\TaskSuccessfulEvent;
+use Psr\Log\LoggerInterface;
+use Throwable;
+
+/**
+ * Where TaskProcessing hands back «IA»'s tasks, success or failure: each to the Run its custom
+ * id names, and a task no Run claims is deleted. Nothing here fails the worker, and nothing it logs carries a document's text or the
+ * Model's answer: only the Run's id and the error's message.
+ *
+ * @template-implements IEventListener<Event>
+ */
+class TaskListener implements IEventListener {
+	public function __construct(
+		private RunMapper $runs,
+		private Reviews $reviews,
+		private ModelGateway $model,
+		private LoggerInterface $logger,
+	) {
+	}
+
+	#[\Override]
+	public function handle(Event $event): void {
+		if (!$event instanceof TaskSuccessfulEvent && !$event instanceof TaskFailedEvent) {
+			return;
+		}
+		$task = $event->getTask();
+		if ($task->getAppId() !== Application::APP_ID) {
+			return;
+		}
+		try {
+			$run = $this->runs->byId((int)$task->getCustomId());
+			if ($run?->getKind() === Run::REVIEW) {
+				$this->reviews->finish($run, $task, $event instanceof TaskFailedEvent ? ($event->getErrorMessage() ?: 'El modelo no respondió.') : null);
+			} else {
+				$this->model->forget($task);
+			}
+		} catch (Throwable $e) {
+			$this->logger->error('Taking the result of the Run {run} failed: {error}', ['run' => $task->getCustomId(), 'error' => $e->getMessage()]);
+		}
+	}
+}

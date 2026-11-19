@@ -61,6 +61,9 @@ services:
       - dev_nextcloud:/var/www/html
       # The repo itself mounted as the app: edit here, see it live.
       - .:/var/www/html/custom_apps/ia
+      # PHP as the suite must run it: no call arguments in an exception's trace, so a failed task
+      # logs no prompt (APS-Conecta/gestion-aio#167).
+      - ./tests/seam/php.ini:/usr/local/etc/php/conf.d/zz-ia.ini:ro
     environment:
       POSTGRES_HOST: db
       POSTGRES_DB: nextcloud
