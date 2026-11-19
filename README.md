@@ -10,9 +10,10 @@ boletines a partir de las fuentes que elige un grupo editor. No es un chat: para
 modelo funciona en el servidor del establecimiento, y «IA» lee solo lo que la persona para la que trabaja puede
 abrir. La interfaz está en español; todo lo demás, en inglés. Licencia AGPL-3.0-or-later.
 
-**Estado:** en construcción. Hoy abre en «Para ti», vacío, y revisa documentos TXT y MD de hasta unas 10 páginas. La
-especificación es [gestion-aio#162](https://github.com/APS-Conecta/gestion-aio/issues/162), y el trabajo pendiente está
-en los issues de este repositorio. «IA» se publica solo cuando pasen la revisión de privacidad
+**Estado:** en construcción. Hoy abre en «Para ti», vacío, y revisa documentos TXT y MD de hasta unas 10 páginas; en
+su página de administración se eligen los grupos editores y el fuera de horario. La especificación es
+[gestion-aio#162](https://github.com/APS-Conecta/gestion-aio/issues/162), y el trabajo pendiente está en los issues de
+este repositorio. «IA» se publica solo cuando pasen la revisión de privacidad
 ([gestion-aio#164](https://github.com/APS-Conecta/gestion-aio/issues/164)) y la prueba de calidad
 ([#17](https://github.com/APS-Conecta/ia/issues/17)).
 

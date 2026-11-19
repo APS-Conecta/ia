@@ -6,27 +6,36 @@ declare(strict_types=1);
 
 namespace OCA\Ia\Controller;
 
+use OCA\Ia\Access\Access;
 use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
 use OCA\Ia\Review\Reviews;
+use OCA\Ia\Settings\Admin;
+use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\ApiRoute;
+use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\OpenAPI;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\OCSController;
 use OCP\Files\NotFoundException;
+use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
 
 /**
  * «IA» over OCS, the API its own pages read (gestion-aio#162, API contract). Consumers send
  * `OCS-APIRequest: true`, which is also the CSRF protection, and get the OCS envelope back.
- * Every route is attribute-routed, open to any signed-in person and rate-limited
- * (MetadataTest holds all three); who may see what is checked inside each action.
+ * Every route is attribute-routed and rate-limited, and is either open to any signed-in person,
+ * each action checking who may see what, or the admin page's own, for admins and the groups it
+ * is delegated to (MetadataTest holds all of it).
  *
+ * @psalm-import-type IaAdminSettings from ResponseDefinitions
+ * @psalm-import-type IaGroup from ResponseDefinitions
+ * @psalm-import-type IaOffHours from ResponseDefinitions
  * @psalm-import-type IaReview from ResponseDefinitions
  * @psalm-import-type IaReviewItem from ResponseDefinitions
  */
@@ -36,6 +45,10 @@ class ApiController extends OCSController {
 	private const READ_LIMIT = 120;
 	/** Reviews asked for: each one is work for the Model. */
 	private const REVIEW_LIMIT = 30;
+	/** Settings saved: a ceiling against a runaway client. */
+	private const WRITE_LIMIT = 30;
+	/** Groups the admin page's picker offers per search. */
+	private const GROUPS_SHOWN = 20;
 	private const PERIOD = 60;
 	private const NOT_FOUND = 'No encontramos ese documento, o ya no puedes abrirlo.';
 
@@ -43,6 +56,9 @@ class ApiController extends OCSController {
 		IRequest $request,
 		private IUserSession $session,
 		private Reviews $reviews,
+		private Access $access,
+		private Settings $settings,
+		private IGroupManager $groups,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -143,6 +159,90 @@ class ApiController extends OCSController {
 		} catch (Refused $e) {
 			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		}
+	}
+
+	/**
+	 * The caller as «IA» sees them: the Editor groups they belong to, none for anyone who isn't an
+	 * Editor
+	 *
+	 * @return DataResponse<Http::STATUS_OK, array{editorGroups: list<IaGroup>}, array{}>
+	 *
+	 * 200: The caller's Editor groups
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/me')]
+	public function me(): DataResponse {
+		return new DataResponse(['editorGroups' => $this->named($this->access->editorGroups($this->user()))]);
+	}
+
+	/**
+	 * The «IA» admin page: the Editor groups, Off hours and the timezone they are read in
+	 *
+	 * @return DataResponse<Http::STATUS_OK, IaAdminSettings, array{}>
+	 *
+	 * 200: The settings
+	 */
+	#[AuthorizedAdminSetting(settings: Admin::class)]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/admin/settings')]
+	public function adminSettings(): DataResponse {
+		return new DataResponse($this->adminView());
+	}
+
+	/**
+	 * Save the Editor groups and Off hours
+	 *
+	 * @param list<string> $editorGroups The Editor groups' ids
+	 * @param IaOffHours $offHours When Off hours start and end, as HH:MM in the server's timezone
+	 * @return DataResponse<Http::STATUS_OK, IaAdminSettings, array{}>|DataResponse<Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
+	 *
+	 * 200: The settings, saved
+	 * 422: A group doesn't exist or an hour isn't one
+	 */
+	#[AuthorizedAdminSetting(settings: Admin::class)]
+	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'PUT', url: '/api/v1/admin/settings')]
+	public function saveAdminSettings(array $editorGroups, array $offHours): DataResponse {
+		try {
+			$this->settings->save($editorGroups, $offHours);
+		} catch (Refused $e) {
+			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+		return new DataResponse($this->adminView());
+	}
+
+	/**
+	 * The groups whose name or id holds the search, for the admin page's group picker
+	 *
+	 * @param string $search What the admin typed
+	 * @return DataResponse<Http::STATUS_OK, array{groups: list<IaGroup>}, array{}>
+	 *
+	 * 200: Up to 20 groups
+	 */
+	#[AuthorizedAdminSetting(settings: Admin::class)]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/admin/groups')]
+	public function adminGroups(string $search = ''): DataResponse {
+		$found = array_map(static fn ($group): string => $group->getGID(), $this->groups->search($search, self::GROUPS_SHOWN));
+		return new DataResponse(['groups' => $this->named(array_values($found))]);
+	}
+
+	/** @return IaAdminSettings */
+	private function adminView(): array {
+		return [
+			'editorGroups' => $this->named($this->settings->editorGroups()),
+			'offHours' => $this->settings->offHours(),
+			'timezone' => $this->settings->timezone(),
+		];
+	}
+
+	/**
+	 * @param list<string> $ids groups that exist
+	 * @return list<IaGroup>
+	 */
+	private function named(array $ids): array {
+		return array_map(fn (string $id): array => ['id' => $id, 'name' => $this->groups->get($id)?->getDisplayName() ?? $id], $ids);
 	}
 
 	/** The signed-in caller, whom #[NoAdminRequired] guarantees. */

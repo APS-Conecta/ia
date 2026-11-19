@@ -18,6 +18,8 @@
 						<NcIconSvgWrapper :path="mdiFileDocumentCheckOutline" />
 					</template>
 				</NcAppNavigationItem>
+				<!-- Only Editors see this part; Documentos and Acciones automáticas join it (#9, #15). -->
+				<NcAppNavigationCaption v-if="editorGroups.length > 0" name="Para editores" />
 			</template>
 		</NcAppNavigation>
 
@@ -34,6 +36,7 @@ import { getFilePickerBuilder, showError, showSuccess } from '@nextcloud/dialogs
 import '@nextcloud/dialogs/style.css'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
+import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCaption'
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcAppNavigationNew from '@nextcloud/vue/components/NcAppNavigationNew'
 import NcContent from '@nextcloud/vue/components/NcContent'
@@ -41,7 +44,7 @@ import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import ParaTi from './ParaTi.vue'
 import ReviewList from './ReviewList.vue'
 import ReviewReport from './ReviewReport.vue'
-import { ocsPost, refusal } from './api.js'
+import { ocsGet, ocsPost, refusal } from './api.js'
 import { mdiFileDocumentCheckOutline, mdiPlus, mdiStarOutline } from './icons.js'
 
 /** The page's place, from the URL's hash: «Para ti», «Revisiones» or one Review's report. */
@@ -55,11 +58,16 @@ function viewOf(hash) {
 
 export default {
 	name: 'App',
-	components: { NcAppContent, NcAppNavigation, NcAppNavigationItem, NcAppNavigationNew, NcContent, NcIconSvgWrapper, ParaTi, ReviewList, ReviewReport },
+	components: { NcAppContent, NcAppNavigation, NcAppNavigationCaption, NcAppNavigationItem, NcAppNavigationNew, NcContent, NcIconSvgWrapper, ParaTi, ReviewList, ReviewReport },
 	setup: () => ({ mdiFileDocumentCheckOutline, mdiPlus, mdiStarOutline }),
-	data: () => ({ view: viewOf(window.location.hash) }),
-	mounted() {
+	data: () => ({ view: viewOf(window.location.hash), editorGroups: [] }),
+	async mounted() {
 		window.addEventListener('hashchange', this.follow)
+		try {
+			this.editorGroups = (await ocsGet('me')).editorGroups
+		} catch (error) {
+			console.error('ia: who the caller is did not load', error)
+		}
 	},
 	unmounted() {
 		window.removeEventListener('hashchange', this.follow)

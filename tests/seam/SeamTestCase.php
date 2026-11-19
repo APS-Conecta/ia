@@ -23,12 +23,18 @@ abstract class SeamTestCase extends TestCase {
 
 	/** @var array<string, string> each account this class made, with its password */
 	private static array $people = [];
+	/** @var list<string> each group this class made */
+	private static array $groups = [];
 
 	public static function tearDownAfterClass(): void {
 		foreach (array_keys(self::$people) as $name) {
 			self::occ('user:delete', $name);
 		}
+		foreach (self::$groups as $group) {
+			self::occ('group:delete', $group);
+		}
 		self::$people = [];
+		self::$groups = [];
 	}
 
 	/** A fresh account, unique to this run, and its login name. */
@@ -38,6 +44,43 @@ abstract class SeamTestCase extends TestCase {
 		self::occWithEnv(['OC_PASS' => $password], 'user:add', '--password-from-env', $name);
 		self::$people[$name] = $password;
 		return $name;
+	}
+
+	/** A fresh account that is a Nextcloud admin. */
+	protected static function admin(): string {
+		$name = self::person();
+		self::occ('group:adduser', 'admin', $name);
+		return $name;
+	}
+
+	/** A fresh group with $members, unique to this run, and its id. */
+	protected static function group(string ...$members): string {
+		$group = 'group-' . bin2hex(random_bytes(4));
+		self::occ('group:add', $group);
+		foreach ($members as $member) {
+			self::occ('group:adduser', $group, $member);
+		}
+		self::$groups[] = $group;
+		return $group;
+	}
+
+	/**
+	 * Sets Off hours, through the admin setting, to a window from an hour ago to three hours from
+	 * now in the server's timezone, so that they cover the test run; the Editor groups stay.
+	 *
+	 * @return array{start: string, end: string}
+	 */
+	protected static function offHoursNow(): array {
+		$admin = self::admin();
+		$settings = self::ocs($admin, 'GET', '/apps/ia/api/v1/admin/settings')['data'];
+		$now = new \DateTimeImmutable('now', new \DateTimeZone($settings['timezone']));
+		$hours = ['start' => $now->modify('-1 hour')->format('H:i'), 'end' => $now->modify('+3 hours')->format('H:i')];
+		$answer = self::ocs($admin, 'PUT', '/apps/ia/api/v1/admin/settings', [
+			'editorGroups' => array_column($settings['editorGroups'], 'id'),
+			'offHours' => $hours,
+		]);
+		self::assertSame(200, $answer['status']);
+		return $hours;
 	}
 
 	/** occ as the web server's user; a failing command fails the test with its output. */

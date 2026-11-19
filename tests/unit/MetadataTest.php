@@ -9,7 +9,9 @@ namespace OCA\Ia\Tests\Unit;
 use DOMDocument;
 use OCA\Ia\Controller\ApiController;
 use OCA\Ia\Controller\PageController;
+use OCA\Ia\Settings\Admin;
 use OCP\AppFramework\Http\Attribute\ApiRoute;
+use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use PHPUnit\Framework\TestCase;
@@ -95,19 +97,23 @@ class MetadataTest extends TestCase {
 	}
 
 	/**
-	 * Every OCS route is routed by its attribute, open to every signed-in person and
-	 * rate-limited: who may see what is checked inside the action. An attribute deleted from one
-	 * method is a route that is gone, admin-only or unbounded, silently (farmacia's gate).
+	 * Every OCS route is routed by its attribute and rate-limited, and is either open to every
+	 * signed-in person, each action checking who may see what, or the «IA» admin page's own, for
+	 * admins and the groups it is delegated to; never both. An attribute deleted
+	 * from one method is a route that is gone, admin-only or unbounded, silently (farmacia's gate).
 	 */
-	public function testEveryOcsRouteIsRoutedOpenAndRateLimited(): void {
+	public function testEveryOcsRouteIsRoutedRateLimitedAndOpenOrDelegated(): void {
 		$actions = $this->actions(ApiController::class);
 		self::assertNotEmpty($actions);
 
 		foreach ($actions as $method) {
 			$name = ApiController::class . '::' . $method->getName();
 			self::assertCount(1, $method->getAttributes(ApiRoute::class), "$name must carry #[ApiRoute]");
-			self::assertCount(1, $method->getAttributes(NoAdminRequired::class), "$name must be #[NoAdminRequired]");
 			self::assertCount(1, $method->getAttributes(UserRateLimit::class), "$name must carry #[UserRateLimit]");
+			$open = count($method->getAttributes(NoAdminRequired::class));
+			$delegated = array_map(static fn ($attribute) => $attribute->getArguments()['settings'] ?? null, $method->getAttributes(AuthorizedAdminSetting::class));
+			self::assertTrue($open === 1 xor $delegated === [Admin::class],
+				"$name must be either #[NoAdminRequired] or #[AuthorizedAdminSetting(settings: Admin::class)]");
 		}
 	}
 }
