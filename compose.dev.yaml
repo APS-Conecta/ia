@@ -1,0 +1,81 @@
+# Throwaway Nextcloud 34 + PostgreSQL 18 + Ollama for developing and testing «IA», on 8093.
+#
+# NOT the suite: it shares none of its .env, provisioning or data. Throw it away whenever it
+# gets in the way (`make instance-clean`). The images are Estadística's (docs/adr/0001 of
+# Estadística: the harness is cloned), plus the suite's Ollama at the digest gestion-aio's
+# community-containers/ollama pins, with the settings «IA local» gives it. The memory ceilings
+# are the shared box's rule: no container without one.
+name: ia-dev
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: "no"
+    mem_limit: 1g
+    volumes:
+      # postgres:18+ stores data in a major-version subdir, so mount the parent.
+      - dev_postgres:/var/lib/postgresql
+    environment:
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nextcloud -d nextcloud"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama@sha256:910d0d8107b538fb0894e63163eb195de0cc7aefcbc666dc62d3b18f71124592
+    restart: "no"
+    mem_limit: 8g
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NO_CLOUD: "1"
+      # The Model context (#162's limits table): Ollama serves 4096 tokens unless told.
+      OLLAMA_CONTEXT_LENGTH: "8192"
+    volumes:
+      # The models alone (not Ollama's key beside them), outside the repo and the instance's
+      # volumes: the Model survives instance-clean, and CI caches this directory by its digest.
+      - ${IA_OLLAMA_MODELS:-${HOME}/.cache/ia-ollama}:/root/.ollama/models
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  nextcloud:
+    image: nextcloud:34-apache
+    restart: "no"
+    mem_limit: 1536m
+    ports:
+      - "127.0.0.1:8093:80"
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    volumes:
+      - dev_nextcloud:/var/www/html
+      # The repo itself mounted as the app: edit here, see it live.
+      - .:/var/www/html/custom_apps/ia
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: dev
+      NEXTCLOUD_ADMIN_USER: admin
+      NEXTCLOUD_ADMIN_PASSWORD: admin
+      NEXTCLOUD_TRUSTED_DOMAINS: localhost
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/status.php || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+volumes:
+  dev_postgres:
+  dev_nextcloud:

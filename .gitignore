@@ -1,0 +1,7 @@
+/vendor/
+/node_modules/
+/js/
+*.js.map
+/.phpunit.cache/
+/tools/composer.phar
+/tools/openapi/
