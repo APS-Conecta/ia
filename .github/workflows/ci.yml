@@ -67,3 +67,8 @@ jobs:
       - name: Tear down
         if: always()
         run: make instance-clean
+      # Ollama writes as root, and some of its files (metadata/*.json) are root-only: the cache's
+      # post step packs the directory as the runner user.
+      - name: The Model's directory, readable for the cache
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" ~/.cache/ia-ollama
