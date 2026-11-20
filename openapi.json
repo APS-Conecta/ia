@@ -347,12 +347,16 @@
             "Meeting": {
                 "type": "object",
                 "required": [
+                    "id",
                     "title",
                     "start",
                     "end",
                     "calendar"
                 ],
                 "properties": {
+                    "id": {
+                        "type": "string"
+                    },
                     "title": {
                         "type": "string"
                     },
