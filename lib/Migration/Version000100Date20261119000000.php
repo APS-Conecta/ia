@@ -13,7 +13,7 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * The Runs and the Reviews' reports (gestion-aio#162, Schema). Later tickets add the other
+ * The Runs, the Reviews' reports and the Bulletins (gestion-aio#162, Schema). Later tickets add the other
  * tables and the columns their work needs.
  */
 class Version000100Date20261119000000 extends SimpleMigrationStep {
@@ -53,6 +53,19 @@ class Version000100Date20261119000000 extends SimpleMigrationStep {
 			$reports->setPrimaryKey(['id']);
 			$reports->addUniqueIndex(['requester', 'file_id', 'origin'], 'ia_reports_manual');
 			$reports->addIndex(['file_id'], 'ia_reports_file');
+		}
+
+		if (!$schema->hasTable('ia_bulletins')) {
+			$bulletins = $schema->createTable('ia_bulletins');
+			$bulletins->addColumn('id', Types::BIGINT, ['autoincrement' => true, 'notnull' => true, 'unsigned' => true]);
+			$bulletins->addColumn('name', Types::STRING, ['notnull' => true, 'length' => 200]);
+			$bulletins->addColumn('editor_group', Types::STRING, ['notnull' => true, 'length' => 64]);
+			$bulletins->addColumn('sources', Types::TEXT, ['notnull' => true]);
+			$bulletins->addColumn('readers', Types::TEXT, ['notnull' => true]);
+			$bulletins->addColumn('schedule', Types::STRING, ['notnull' => true, 'length' => 32]);
+			$bulletins->addColumn('created_at', Types::BIGINT, ['notnull' => true, 'unsigned' => true]);
+			$bulletins->setPrimaryKey(['id']);
+			$bulletins->addIndex(['editor_group'], 'ia_bulletins_editors');
 		}
 
 		return $schema;

@@ -13,7 +13,21 @@
 						<NcIconSvgWrapper :path="mdiStarOutline" />
 					</template>
 				</NcAppNavigationItem>
-				<NcAppNavigationItem name="Revisiones" href="#revisiones" :active="view.name !== 'para-ti'">
+				<NcAppNavigationItem name="Boletines"
+					href="#boletines"
+					:active="view.name === 'boletines'"
+					:allow-collapse="bulletins.length > 0"
+					:open="true">
+					<template #icon>
+						<NcIconSvgWrapper :path="mdiNewspaperVariantOutline" />
+					</template>
+					<NcAppNavigationItem v-for="bulletin in bulletins"
+						:key="bulletin.id"
+						:name="bulletin.name"
+						:href="`#boletines/${bulletin.id}`"
+						:active="view.name === 'boletin' && view.id === bulletin.id" />
+				</NcAppNavigationItem>
+				<NcAppNavigationItem name="Revisiones" href="#revisiones" :active="view.name === 'revisiones' || view.name === 'revision'">
 					<template #icon>
 						<NcIconSvgWrapper :path="mdiFileDocumentCheckOutline" />
 					</template>
@@ -23,11 +37,27 @@
 			</template>
 		</NcAppNavigation>
 
-		<NcAppContent :page-heading="view.name === 'para-ti' ? 'Para ti' : 'Revisiones'">
+		<NcAppContent :page-heading="HEADINGS[view.name]">
 			<ParaTi v-if="view.name === 'para-ti'" />
+			<BulletinList v-else-if="view.name === 'boletines'"
+				:bulletins="bulletins"
+				:editor="editorGroups.length > 0"
+				@create="sidebar = { id: null }" />
+			<BulletinPage v-else-if="view.name === 'boletin'"
+				:id="view.id"
+				:key="view.id"
+				:version="saved"
+				@edit="sidebar = { id: $event }" />
 			<ReviewList v-else-if="view.name === 'revisiones'" />
 			<ReviewReport v-else :id="view.id" :key="view.id" />
 		</NcAppContent>
+		<BulletinSidebar v-if="sidebar"
+			:id="sidebar.id"
+			:key="sidebar.id ?? 'new'"
+			:editor-groups="editorGroups"
+			@close="sidebar = null"
+			@saved="savedBulletin"
+			@deleted="deleted" />
 	</NcContent>
 </template>
 
@@ -41,11 +71,14 @@ import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcAppNavigationNew from '@nextcloud/vue/components/NcAppNavigationNew'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
+import BulletinList from './BulletinList.vue'
+import BulletinPage from './BulletinPage.vue'
+import BulletinSidebar from './BulletinSidebar.vue'
 import ParaTi from './ParaTi.vue'
 import ReviewList from './ReviewList.vue'
 import ReviewReport from './ReviewReport.vue'
 import { ocsGet, ocsPost, refusal } from './api.js'
-import { mdiFileDocumentCheckOutline, mdiPlus, mdiStarOutline } from './icons.js'
+import { mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiStarOutline } from './icons.js'
 import { offHoursText } from './reviews.js'
 
 /** What «IA» reads (TextReader): PDF with text, DOCX, ODT, TXT and MD. */
@@ -57,20 +90,24 @@ const FORMATS = [
 	'text/markdown',
 ]
 
-/** The page's place, from the URL's hash: «Para ti», «Revisiones» or one Review's report. */
+/** Each place's page heading, for screen readers. */
+const HEADINGS = { 'para-ti': 'Para ti', boletines: 'Boletines', boletin: 'Boletines', revisiones: 'Revisiones', revision: 'Revisiones' }
+
+/** The page's place, from the URL's hash: a section, or one Bulletin or one Review in it. */
 function viewOf(hash) {
 	const [section, id] = hash.replace(/^#\/?/, '').split('/')
-	if (section !== 'revisiones') {
+	const one = { boletines: 'boletin', revisiones: 'revision' }[section]
+	if (one === undefined) {
 		return { name: 'para-ti' }
 	}
-	return /^\d+$/.test(id ?? '') ? { name: 'revision', id: Number(id) } : { name: 'revisiones' }
+	return /^\d+$/.test(id ?? '') ? { name: one, id: Number(id) } : { name: section }
 }
 
 export default {
 	name: 'App',
-	components: { NcAppContent, NcAppNavigation, NcAppNavigationCaption, NcAppNavigationItem, NcAppNavigationNew, NcContent, NcIconSvgWrapper, ParaTi, ReviewList, ReviewReport },
-	setup: () => ({ mdiFileDocumentCheckOutline, mdiPlus, mdiStarOutline }),
-	data: () => ({ view: viewOf(window.location.hash), editorGroups: [] }),
+	components: { BulletinList, BulletinPage, BulletinSidebar, NcAppContent, NcAppNavigation, NcAppNavigationCaption, NcAppNavigationItem, NcAppNavigationNew, NcContent, NcIconSvgWrapper, ParaTi, ReviewList, ReviewReport },
+	setup: () => ({ HEADINGS, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiStarOutline }),
+	data: () => ({ view: viewOf(window.location.hash), editorGroups: [], bulletins: [], sidebar: null, saved: 0 }),
 	async mounted() {
 		window.addEventListener('hashchange', this.follow)
 		try {
@@ -78,6 +115,7 @@ export default {
 		} catch (error) {
 			console.error('ia: who the caller is did not load', error)
 		}
+		this.loadBulletins()
 	},
 	unmounted() {
 		window.removeEventListener('hashchange', this.follow)
@@ -85,6 +123,24 @@ export default {
 	methods: {
 		follow() {
 			this.view = viewOf(window.location.hash)
+		},
+		async loadBulletins() {
+			try {
+				this.bulletins = (await ocsGet('bulletins')).bulletins
+			} catch (error) {
+				console.error('ia: «Boletines» did not load', error)
+			}
+		},
+		async savedBulletin(id) {
+			this.sidebar = null
+			this.saved++
+			await this.loadBulletins()
+			window.location.hash = `#boletines/${id}`
+		},
+		async deleted() {
+			this.sidebar = null
+			await this.loadBulletins()
+			window.location.hash = '#boletines'
 		},
 		async pick() {
 			const picker = getFilePickerBuilder('Revisar un documento')

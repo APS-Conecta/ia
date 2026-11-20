@@ -45,6 +45,36 @@ namespace OCA\Ia;
  *     name: string,
  * }
  *
+ * @psalm-type IaSource = array{
+ *     type: 'folder'|'file'|'calendar',
+ *     id: string,
+ *     name: string,
+ * }
+ *
+ * @psalm-type IaSchedule = array{
+ *     kind: 'daily'|'weekly'|'monthly'|'sources',
+ *     day: ?int,
+ * }
+ *
+ * @psalm-type IaBulletinItem = array{
+ *     id: int,
+ *     name: string,
+ *     role: 'editor'|'reader',
+ * }
+ *
+ * @psalm-type IaBulletin = IaBulletinItem&array{
+ *     editorGroup: IaGroup,
+ *     sources: list<IaSource>,
+ *     readers: list<IaGroup>,
+ *     schedule: IaSchedule,
+ *     due: ?string,
+ * }
+ *
+ * @psalm-type IaReadersPreview = array{
+ *     readers: int,
+ *     leftOut: list<array{id: string, name: string}>,
+ * }
+ *
  * @psalm-type IaAdminSettings = array{
  *     editorGroups: list<IaGroup>,
  *     offHours: IaOffHours,
