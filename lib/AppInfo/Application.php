@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace OCA\Ia\AppInfo;
 
+use OCA\Ia\Dashboard\BulletinsWidget;
 use OCA\Ia\Listener\ActionListener;
 use OCA\Ia\Listener\FileListener;
 use OCA\Ia\Listener\TaskListener;
@@ -37,6 +38,7 @@ class Application extends App implements IBootstrap {
 			$context->registerEventListener($event, ActionListener::class);
 		}
 		$context->registerNotifierService(Notifier::class);
+		$context->registerDashboardWidget(BulletinsWidget::class);
 	}
 
 	public function boot(IBootContext $context): void {

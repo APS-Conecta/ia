@@ -57,8 +57,13 @@ abstract class SeamTestCase extends TestCase {
 
 	/** A fresh group with $members, unique to this run, and its id. */
 	protected static function group(string ...$members): string {
+		return self::namedGroup(null, ...$members);
+	}
+
+	/** A fresh group named $name (its id when null), with these members, and its id. */
+	protected static function namedGroup(?string $name, string ...$members): string {
 		$group = 'group-' . bin2hex(random_bytes(4));
-		self::occ('group:add', $group);
+		self::occ('group:add', $group, ...($name === null ? [] : ['--display-name=' . $name]));
 		foreach ($members as $member) {
 			self::occ('group:adduser', $group, $member);
 		}
@@ -208,8 +213,8 @@ abstract class SeamTestCase extends TestCase {
 	}
 
 	/** A WebDAV call as the person to $path under the server's root, answered with its status. */
-	protected static function dav(string $person, string $method, string $path, string $body): int {
-		return self::http($person, $method, 'http://localhost' . $path, ['Content-Type: application/xml'], $body)[0];
+	protected static function dav(string $person, string $method, string $path, string $body, string $type = 'application/xml'): int {
+		return self::http($person, $method, 'http://localhost' . $path, ['Content-Type: ' . $type], $body)[0];
 	}
 
 	/** Shares the person's $path with the group $group, read-only. */

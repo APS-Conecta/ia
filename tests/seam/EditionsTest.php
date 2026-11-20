@@ -12,6 +12,7 @@ use RuntimeException;
  * The first Edition (APS-Conecta/ia#10): on its date, in Off hours, a Bulletin's Run takes the
  * Readings it lacks, writes the Resumen with the real Model and publishes the Edition whole; its
  * Readers are told and see it only while they can open every file it read that is still there.
+ * Each Reader's Personal list, «Para ti» and the Dashboard widget read it (APS-Conecta/ia#12).
  *
  * An Edition is for the date its Off hours end, in the server's timezone: the first one is written
  * at Pago Pago's time (UTC−11) and the next at Kiritimati's (UTC+14), whose date is always later.
@@ -40,12 +41,14 @@ final class EditionsTest extends SeamTestCase {
 			self::$timezone = null;
 		}
 		self::occ('config:system:set', 'default_timezone', '--value=Pacific/Pago_Pago');
-		self::occ('config:app:set', 'ia', 'cargos', '--type=array', '--value=' . json_encode(self::CARGOS, JSON_UNESCAPED_UNICODE));
-
 		self::$ana = self::person();
 		$editors = self::group(self::$ana, self::person());
 		self::$carla = self::person();
 		self::$dario = self::person();
+		// The Cargo list is the Cargo groups' ids; Carla is a nurse.
+		$cargos = array_map(static fn (string $name): string => self::namedGroup($name), self::CARGOS);
+		self::occ('group:adduser', $cargos[0], self::$carla);
+		self::occ('config:app:set', 'ia', 'cargos', '--type=array', '--value=' . json_encode($cargos));
 		$readers = self::group(self::$carla, self::$dario);
 		self::editorGroups($editors);
 
@@ -122,6 +125,39 @@ final class EditionsTest extends SeamTestCase {
 		$edition = self::edition(self::$carla, self::published(1, self::$sheets)[0]['id']);
 		self::assertSame('', $edition['resumen']);
 		self::assertSame([['turnos.xlsx', 'failed']], array_map(static fn (array $document): array => [$document['name'], $document['status']], $edition['unreadable']));
+	}
+
+	/** @depends testItIsPublishedWholeAndItsReadersAreTold */
+	public function testAReaderSeesTheirOwnMeetingsAndTheDocumentsForTheirCargo(int $id): void {
+		$date = self::edition(self::$carla, $id)['date'];
+		self::occ('dav:create-calendar', self::$carla, 'reuniones');
+		$day = new \DateTimeImmutable($date, new \DateTimeZone('Pacific/Pago_Pago'));
+		self::event('sector', "DTSTART:{$this->utc($day->modify('10:00'))}\r\nDTEND:{$this->utc($day->modify('11:00'))}", 'Reunión de sector');
+		self::event('later', "DTSTART:{$this->utc($day->modify('+3 days 10:00'))}\r\nDTEND:{$this->utc($day->modify('+3 days 11:00'))}", 'Reunión de otra semana');
+		self::event('all-day', 'DTSTART;VALUE=DATE:' . $day->format('Ymd') . "\r\nDTEND;VALUE=DATE:" . $day->modify('+1 day')->format('Ymd'), 'Aniversario del centro');
+
+		$edition = self::edition(self::$carla, $id);
+		self::assertSame(['Reunión de sector'], array_column($edition['personal']['meetings'], 'title'), "her timed events in the Edition's period only");
+		$forNurses = array_filter([...$edition['expiring'], ...$edition['undated']], static fn (array $document): bool => in_array(self::CARGOS[0], $document['cargos'], true));
+		self::assertSame(self::names(array_values($forNurses)), self::names($edition['personal']['documents']), 'the documents whose Reading names her Cargo group');
+		self::assertSame(['meetings' => [], 'documents' => []], self::edition(self::$ana, $id)['personal'], 'someone with no meetings and no Cargo has an empty list');
+	}
+
+	/** @depends testItIsPublishedWholeAndItsReadersAreTold */
+	public function testParaTiMergesTheLatestEditionsOfTheBulletinsSheReads(int $id): void {
+		$paraTi = self::ocs(self::$carla, 'GET', self::API . '/para-ti')['data'];
+		self::assertSame(['Boletín de protocolos', 'Boletín de turnos'], array_column($paraTi['bulletins'], 'name'));
+		self::assertContains($id, array_column($paraTi['editions'], 'id'));
+		self::assertCount(2, $paraTi['editions'], 'the latest Edition of each');
+		self::assertSame(['Reunión de sector'], array_column($paraTi['meetings'], 'title'));
+		self::assertSame(self::names(self::edition(self::$carla, $id)['personal']['documents']), self::names($paraTi['documents']));
+		self::assertSame(['curaciones.txt'], array_column($paraTi['expiring'], 'name'));
+	}
+
+	/** @depends testItIsPublishedWholeAndItsReadersAreTold */
+	public function testTheDashboardWidgetShowsTheLatestEditionsEachCanSee(): void {
+		self::assertSame(['Boletín de protocolos', 'Boletín de turnos'], self::widget(self::$carla));
+		self::assertSame(['Boletín de turnos'], self::widget(self::$dario), 'not the one with a file he cannot open');
 	}
 
 	/** @depends testItIsPublishedWholeAndItsReadersAreTold */
@@ -202,6 +238,27 @@ final class EditionsTest extends SeamTestCase {
 			self::tick();
 		} while (time() < $until);
 		self::fail("Carla did not see $count Editions after " . self::WRITING . ' s');
+	}
+
+	/** A time as iCalendar writes it in UTC. */
+	private function utc(\DateTimeImmutable $time): string {
+		return $time->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
+	}
+
+	/** Puts an event in Carla's «reuniones» calendar: $times holds its DTSTART and DTEND lines. */
+	private static function event(string $uid, string $times, string $title): void {
+		$ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//ia seam//ES\r\nBEGIN:VEVENT\r\nUID:$uid-" . bin2hex(random_bytes(4))
+			. "\r\nDTSTAMP:20260101T000000Z\r\n$times\r\nSUMMARY:$title\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+		self::assertSame(201, self::dav(self::$carla, 'PUT', '/remote.php/dav/calendars/' . self::$carla . "/reuniones/$uid.ics", $ics, 'text/calendar'));
+	}
+
+	/** @return list<string> the titles the «Boletines» Dashboard widget shows $person, sorted */
+	private static function widget(string $person): array {
+		$answer = self::ocs($person, 'GET', '/apps/dashboard/api/v2/widget-items?widgets%5B%5D=ia-boletines');
+		self::assertSame(200, $answer['status']);
+		$titles = array_column($answer['data']['ia-boletines']['items'], 'title');
+		sort($titles);
+		return $titles;
 	}
 
 	/** @return array<string, mixed> */

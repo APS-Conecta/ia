@@ -14,7 +14,7 @@ class ParaTiTest extends SeamTestCase {
 		$answer = self::ocs($staff, 'GET', '/apps/ia/api/v1/para-ti');
 
 		self::assertSame(200, $answer['status']);
-		self::assertSame(['bulletins' => []], $answer['data']);
+		self::assertSame(['bulletins' => [], 'editions' => [], 'meetings' => [], 'documents' => [], 'expiring' => []], $answer['data']);
 	}
 
 	public function testNobodyReadsItWithoutSigningIn(): void {

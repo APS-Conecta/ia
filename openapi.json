@@ -150,35 +150,19 @@
             "Edition": {
                 "allOf": [
                     {
-                        "$ref": "#/components/schemas/EditionItem"
+                        "$ref": "#/components/schemas/EditionSummary"
                     },
                     {
                         "type": "object",
                         "required": [
-                            "bulletin",
                             "resumen",
                             "changed",
                             "expiring",
                             "undated",
-                            "unreadable"
+                            "unreadable",
+                            "personal"
                         ],
                         "properties": {
-                            "bulletin": {
-                                "type": "object",
-                                "required": [
-                                    "id",
-                                    "name"
-                                ],
-                                "properties": {
-                                    "id": {
-                                        "type": "integer",
-                                        "format": "int64"
-                                    },
-                                    "name": {
-                                        "type": "string"
-                                    }
-                                }
-                            },
                             "resumen": {
                                 "type": "string"
                             },
@@ -205,6 +189,9 @@
                                 "items": {
                                     "$ref": "#/components/schemas/EditionDocument"
                                 }
+                            },
+                            "personal": {
+                                "$ref": "#/components/schemas/PersonalList"
                             }
                         }
                     }
@@ -278,6 +265,37 @@
                     }
                 }
             },
+            "EditionSummary": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/EditionItem"
+                    },
+                    {
+                        "type": "object",
+                        "required": [
+                            "bulletin"
+                        ],
+                        "properties": {
+                            "bulletin": {
+                                "type": "object",
+                                "required": [
+                                    "id",
+                                    "name"
+                                ],
+                                "properties": {
+                                    "id": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
             "Finding": {
                 "type": "object",
                 "required": [
@@ -326,6 +344,32 @@
                     }
                 }
             },
+            "Meeting": {
+                "type": "object",
+                "required": [
+                    "title",
+                    "start",
+                    "end",
+                    "calendar"
+                ],
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                    "start": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "end": {
+                        "type": "integer",
+                        "format": "int64",
+                        "nullable": true
+                    },
+                    "calendar": {
+                        "type": "string"
+                    }
+                }
+            },
             "OCSMeta": {
                 "type": "object",
                 "required": [
@@ -362,6 +406,69 @@
                     },
                     "end": {
                         "type": "string"
+                    }
+                }
+            },
+            "ParaTi": {
+                "type": "object",
+                "required": [
+                    "bulletins",
+                    "editions",
+                    "meetings",
+                    "documents",
+                    "expiring"
+                ],
+                "properties": {
+                    "bulletins": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/BulletinItem"
+                        }
+                    },
+                    "editions": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EditionSummary"
+                        }
+                    },
+                    "meetings": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Meeting"
+                        }
+                    },
+                    "documents": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EditionDocument"
+                        }
+                    },
+                    "expiring": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EditionDocument"
+                        }
+                    }
+                }
+            },
+            "PersonalList": {
+                "type": "object",
+                "required": [
+                    "meetings",
+                    "documents"
+                ],
+                "properties": {
+                    "meetings": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Meeting"
+                        }
+                    },
+                    "documents": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EditionDocument"
+                        }
                     }
                 }
             },
@@ -554,8 +661,7 @@
         "/ocs/v2.php/apps/ia/api/v1/para-ti": {
             "get": {
                 "operationId": "api-para-ti",
-                "summary": "«Para ti», the caller's start page: the Bulletins they read",
-                "description": "No Bulletin exists yet, so every person reads none and gets the empty state.",
+                "summary": "«Para ti», the caller's start page: the Bulletins they read, the latest Edition of each, and those Editions' Personal lists and protocols about to expire, merged",
                 "tags": [
                     "api"
                 ],
@@ -581,7 +687,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "The caller's «Para ti»",
+                        "description": "The caller's «Para ti»; empty lists when they read no Bulletin",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -601,16 +707,7 @@
                                                     "$ref": "#/components/schemas/OCSMeta"
                                                 },
                                                 "data": {
-                                                    "type": "object",
-                                                    "required": [
-                                                        "bulletins"
-                                                    ],
-                                                    "properties": {
-                                                        "bulletins": {
-                                                            "type": "array",
-                                                            "maxItems": 0
-                                                        }
-                                                    }
+                                                    "$ref": "#/components/schemas/ParaTi"
                                                 }
                                             }
                                         }
@@ -3246,7 +3343,7 @@
         "/ocs/v2.php/apps/ia/api/v1/editions/{id}": {
             "get": {
                 "operationId": "api-edition",
-                "summary": "An Edition: its Resumen, written by AI ('' when no document could be read), and its sections, each document with its Reading",
+                "summary": "An Edition: its Resumen, written by AI ('' when no document could be read), its sections, each document with its Reading, and the caller's Personal list",
                 "tags": [
                     "api"
                 ],

@@ -18,6 +18,9 @@
 				Las fuentes de este boletín no tienen documentos que «IA» pueda leer, así que esta edición no tiene resumen.
 			</p>
 
+			<h3>Para ti en esta edición</h3>
+			<PersonalLists :meetings="edition.personal.meetings" :documents="edition.personal.documents" @open="reading = $event" />
+
 			<h3>Documentos nuevos y cambiados</h3>
 			<p v-if="edition.changed.length === 0" class="ia-hint">
 				Ningún documento es nuevo ni cambió desde la edición anterior.
@@ -94,58 +97,21 @@
 			</template>
 		</template>
 
-		<NcDialog v-if="reading"
-			:name="reading.name"
-			:buttons="[{ label: 'Cerrar' }]"
-			@closing="reading = null">
-			<template v-if="reading.status === 'read'">
-				<div v-if="reading.summary !== null" class="ia-chips">
-					<NcChip text="Escrito por IA" variant="primary" :icon-path="mdiCreation" no-close />
-					<span class="ia-hint">Leído el {{ when(reading.readAt) }}</span>
-				</div>
-				<p>{{ reading.summary ?? GONE }}</p>
-				<p>{{ reading.expires === null ? 'No encontramos su fecha de vencimiento.' : `Vence el ${longDate(reading.expires)}.` }}</p>
-				<p v-if="reading.cargos.length > 0">
-					Para: {{ reading.cargos.join(', ') }}.
-				</p>
-			</template>
-			<p v-else>
-				{{ UNREADABLE[reading.status] }}
-			</p>
-			<div class="ia-chips">
-				<NcButton :href="fileLink(reading)" variant="secondary">
-					<template #icon>
-						<NcIconSvgWrapper :path="mdiOpenInNew" />
-					</template>
-					Abrir el documento
-				</NcButton>
-			</div>
-		</NcDialog>
+		<ReadingDialog v-if="reading" :document="reading" @close="reading = null" />
 	</section>
 </template>
 
 <script>
-import { generateUrl } from '@nextcloud/router'
-import NcButton from '@nextcloud/vue/components/NcButton'
 import NcChip from '@nextcloud/vue/components/NcChip'
-import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { ocsGet } from './api.js'
-import { longDate } from './bulletins.js'
-import { mdiCalendarOutline, mdiCreation, mdiFileDocumentOutline, mdiOpenInNew } from './icons.js'
-import { when } from './reviews.js'
-
-/** Why a document has no summary, by its Reading's status. */
-const UNREADABLE = {
-	scan: 'Es un documento escaneado: «IA» todavía no lee escaneos.',
-	failed: 'No se pudo leer: puede estar dañado o protegido con contraseña.',
-}
-
-/** A document whose Reading went with its version: it changed or was deleted since. */
-const GONE = 'Su lectura ya no está: el documento cambió o se eliminó después de esta edición.'
+import PersonalLists from './PersonalLists.vue'
+import ReadingDialog from './ReadingDialog.vue'
+import { GONE, longDate, UNREADABLE } from './bulletins.js'
+import { mdiCalendarOutline, mdiCreation, mdiFileDocumentOutline } from './icons.js'
 
 /**
  * One Edition: the Resumen, marked as written by AI, and its sections; each document opens its
@@ -153,11 +119,11 @@ const GONE = 'Su lectura ya no está: el documento cambió o se eliminó despué
  */
 export default {
 	name: 'EditionView',
-	components: { NcButton, NcChip, NcDialog, NcIconSvgWrapper, NcListItem, NcLoadingIcon, NcNoteCard },
+	components: { NcChip, NcIconSvgWrapper, NcListItem, NcLoadingIcon, NcNoteCard, PersonalLists, ReadingDialog },
 	props: {
 		id: { type: Number, required: true },
 	},
-	setup: () => ({ GONE, longDate, mdiCalendarOutline, mdiCreation, mdiFileDocumentOutline, mdiOpenInNew, UNREADABLE, when }),
+	setup: () => ({ GONE, longDate, mdiCalendarOutline, mdiCreation, mdiFileDocumentOutline, UNREADABLE }),
 	data: () => ({ state: 'loading', edition: null, reading: null }),
 	computed: {
 		paragraphs() {
@@ -179,9 +145,6 @@ export default {
 		open(event, document) {
 			event.preventDefault()
 			this.reading = document
-		},
-		fileLink(document) {
-			return generateUrl(`/f/${document.fileId}`)
 		},
 	},
 }

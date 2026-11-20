@@ -45,3 +45,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   that, a member of the Editor group who can open it); they are notified. Anyone who can open the file reads its
   automatic report, which «Revisiones» lists with their own; each file keeps only its latest one. Deleting an action
   asks for no new Reviews and keeps the reports.
+- The Personal list, «Para ti» and the «Boletines» widget (#12): opening an Edition, each Reader sees their own part,
+  computed then and never stored: the timed events in their calendars during the Edition's period and its documents
+  whose Reading names one of their Cargo groups. «Para ti» merges these lists from the latest Edition of each Bulletin
+  the person reads, with the protocols about to expire and those Editions, and says they come from their calendar and
+  Cargo, not from the Model. The Dashboard shows the latest Editions each person can see. The Cargo list in «IA»'s app
+  config is now the Cargo groups' ids, and a Reading keeps the groups it names.

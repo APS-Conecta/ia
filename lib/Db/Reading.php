@@ -10,7 +10,7 @@ use OCP\AppFramework\Db\Entity;
 
 /**
  * A Reading (CONTEXT.md): what the Model took, once, from one version (etag) of a file: a short
- * summary, its expiry date (Y-m-d) and the Cargos it concerns (JSON). One per file: a newer
+ * summary, its expiry date (Y-m-d) and the Cargo groups it concerns (JSON ids). One per file: a newer
  * version replaces it. Status «read», «scan» (no text layer, not read in v1) or «failed».
  *
  * @method int getFileId()

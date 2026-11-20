@@ -10,8 +10,9 @@ boletines a partir de las fuentes que elige un grupo editor. No es un chat: para
 modelo funciona en el servidor del establecimiento, y «IA» lee solo lo que la persona para la que trabaja puede
 abrir. La interfaz está en español; todo lo demás, en inglés. Licencia AGPL-3.0-or-later.
 
-**Estado:** en construcción. Hoy abre en «Para ti», vacío, y revisa documentos PDF, DOCX, ODT, TXT y MD (los largos,
-fuera de horario) y, con acciones automáticas, los que llegan o cambian en una carpeta; los grupos editores preparan
+**Estado:** en construcción. Hoy abre en «Para ti», con las reuniones, los documentos para el cargo y las últimas
+ediciones de los boletines que la persona lee, y revisa documentos PDF, DOCX, ODT, TXT y MD (los largos, fuera de
+horario) y, con acciones automáticas, los que llegan o cambian en una carpeta; los grupos editores preparan
 boletines, cuya edición se escribe fuera de horario y llega a sus lectores; en su página de administración se eligen
 los grupos editores y el fuera de horario. La especificación es
 [gestion-aio#162](https://github.com/APS-Conecta/gestion-aio/issues/162), y el trabajo pendiente está en los issues

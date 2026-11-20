@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace OCA\Ia\Bulletin;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use OCA\Ia\Access\Access;
 use OCA\Ia\Db\Bulletin;
 use OCA\Ia\Db\BulletinMapper;
@@ -16,6 +17,7 @@ use OCA\Ia\Db\Reading;
 use OCA\Ia\Forbidden;
 use OCA\Ia\Reading\Readings;
 use OCA\Ia\ResponseDefinitions;
+use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IUser;
 
@@ -29,10 +31,14 @@ use OCP\IUser;
  *   previous Edition), «Protocolos por vencer» (within 30 days of its date, and those with no
  *   date found), «Fuentes que no se pudieron leer» (scans and failures). Each document carries its
  *   Reading; the summary while the Reading is still of that version.
+ * - **Each Reader's own part**, the Personal list: their meetings in the Edition's period (from its
+ *   date to the next one's) and its documents whose Reading names one of their Cargo groups.
  *
  * @psalm-import-type IaEdition from ResponseDefinitions
  * @psalm-import-type IaEditionDocument from ResponseDefinitions
+ * @psalm-import-type IaMeeting from ResponseDefinitions
  * @psalm-import-type IaEditionItem from ResponseDefinitions
+ * @psalm-import-type IaEditionSummary from ResponseDefinitions
  */
 class Editions {
 	/** «Protocolos por vencer»: expiring within this many days of the Edition's date. */
@@ -44,7 +50,28 @@ class Editions {
 		private Bulletins $setUp,
 		private Readings $readings,
 		private Access $access,
+		private PersonalList $personal,
+		private Settings $settings,
 	) {
+	}
+
+	/** @return list<IaEditionSummary> the latest Edition $userId can see of each Bulletin they edit or read, newest first */
+	public function latest(string $userId): array {
+		$opens = $this->opener($userId);
+		$latest = [];
+		foreach ($this->bulletins->all() as $bulletin) {
+			if ($this->setUp->role($userId, $bulletin) === null) {
+				continue;
+			}
+			foreach ($this->editions->ofBulletin($bulletin->getId()) as $edition) {
+				if ($edition->getStatus() === Edition::PUBLISHED && self::seenBy($edition, $opens)) {
+					$latest[] = ['id' => $edition->getId(), 'date' => $edition->getDate(), 'bulletin' => ['id' => $bulletin->getId(), 'name' => $bulletin->getName()]];
+					break;
+				}
+			}
+		}
+		usort($latest, static fn (array $a, array $b): int => [$b['date'], $b['id']] <=> [$a['date'], $a['id']]);
+		return $latest;
 	}
 
 	/**
@@ -78,7 +105,12 @@ class Editions {
 			|| !self::seenBy($edition, $this->opener($userId))) {
 			throw new DoesNotExistException('No such Edition');
 		}
-		$documents = array_map($this->document(...), self::files($edition));
+		$cargos = $this->settings->cargos();
+		$mine = $this->personal->cargosOf($userId);
+		$stored = self::files($edition);
+		$documents = array_map(fn (array $document): array => $this->document($document, $cargos), $stored);
+		$personal = array_filter($documents, static fn (array $document, int $i): bool => $document['status'] === Reading::READ
+			&& array_intersect($stored[$i]['cargos'], $mine) !== [], ARRAY_FILTER_USE_BOTH);
 		$limit = (new DateTimeImmutable($edition->getDate()))->modify('+' . self::EXPIRING_DAYS . ' days')->format('Y-m-d');
 		$read = array_filter($documents, static fn (array $document): bool => $document['status'] === Reading::READ);
 		$expiring = array_filter($read, static fn (array $document): bool => $document['expires'] !== null && $document['expires'] <= $limit);
@@ -92,7 +124,16 @@ class Editions {
 			'expiring' => $expiring,
 			'undated' => array_values(array_filter($read, static fn (array $document): bool => $document['expires'] === null)),
 			'unreadable' => array_values(array_filter($documents, static fn (array $document): bool => $document['status'] !== Reading::READ)),
+			'personal' => ['meetings' => $this->meetings($userId, $bulletin, $edition), 'documents' => array_values($personal)],
 		];
+	}
+
+	/** @return list<IaMeeting> $userId's meetings in the Edition's period: from its date to the next Edition's, in the server's timezone */
+	private function meetings(string $userId, Bulletin $bulletin, Edition $edition): array {
+		$timezone = new DateTimeZone($this->settings->timezone());
+		$from = new DateTimeImmutable($edition->getDate(), $timezone);
+		$to = new DateTimeImmutable(Schedule::parse($bulletin->getSchedule())->due($from) ?? $from->modify('+1 day')->format('Y-m-d'), $timezone);
+		return $this->personal->meetings($userId, $from, $to);
 	}
 
 	/** @return array<int, string> the versions the Bulletin's last Edition published before $edition read, by file id */
@@ -135,12 +176,13 @@ class Editions {
 
 	/**
 	 * A document as an Edition shows it, with its Reading; the summary only while the Reading is of
-	 * the version the Edition read.
+	 * the version the Edition read, and its Cargo groups by name, those still on the list.
 	 *
 	 * @param array<string, mixed> $document as stored
+	 * @param array<string, string> $cargos the Cargo list, name by group id (Settings::cargos)
 	 * @return IaEditionDocument
 	 */
-	private function document(array $document): array {
+	private function document(array $document, array $cargos): array {
 		$current = $this->readings->of($document['fileId'], $document['etag']);
 		return [
 			'fileId' => $document['fileId'],
@@ -150,7 +192,7 @@ class Editions {
 			'summary' => $current?->getSummary(),
 			'readAt' => $current?->getReadAt(),
 			'expires' => $document['expires'],
-			'cargos' => $document['cargos'],
+			'cargos' => array_values(array_intersect_key($cargos, array_flip($document['cargos']))),
 		];
 	}
 
