@@ -21,10 +21,14 @@
 					:model-value="shown"
 					input-label="Edición"
 					:options="editions"
-					:get-option-label="(option) => longDate(option.date)"
+					:get-option-label="(option) => longDate(option.date) + (option.late ? ' (atrasada)' : '')"
 					:clearable="false"
 					@update:model-value="show" />
 			</div>
+			<NcNoteCard v-if="bulletin.writing" type="info">
+				Se está escribiendo la edición del {{ longDate(bulletin.writing.date) }}{{ bulletin.writing.late ? ', atrasada' : '' }}: paso {{ Math.min(bulletin.writing.step, bulletin.writing.steps) }} de {{ bulletin.writing.steps }}.
+				Sigue fuera de horario.
+			</NcNoteCard>
 			<NcEmptyContent v-if="editions.length === 0" name="Todavía no hay ediciones" :description="dueText(bulletin)">
 				<template #icon>
 					<NcIconSvgWrapper :path="mdiNewspaperVariantOutline" />

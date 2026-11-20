@@ -68,7 +68,7 @@ class Editions {
 			}
 			foreach ($this->editions->ofBulletin($bulletin->getId()) as $edition) {
 				if ($edition->getStatus() === Edition::PUBLISHED && self::seenBy($edition, $opens)) {
-					$latest[] = ['id' => $edition->getId(), 'date' => $edition->getDate(), 'bulletin' => ['id' => $bulletin->getId(), 'name' => $bulletin->getName()]];
+					$latest[] = ['id' => $edition->getId(), 'date' => $edition->getDate(), 'late' => (bool)$edition->getLate(), 'bulletin' => ['id' => $bulletin->getId(), 'name' => $bulletin->getName()]];
 					break;
 				}
 			}
@@ -91,7 +91,7 @@ class Editions {
 		$items = [];
 		foreach ($this->editions->ofBulletin($bulletinId) as $edition) {
 			if ($edition->getStatus() === Edition::PUBLISHED && self::seenBy($edition, $opens)) {
-				$items[] = ['id' => $edition->getId(), 'date' => $edition->getDate()];
+				$items[] = ['id' => $edition->getId(), 'date' => $edition->getDate(), 'late' => (bool)$edition->getLate()];
 			}
 		}
 		return $items;
@@ -122,21 +122,20 @@ class Editions {
 			'id' => $edition->getId(),
 			'bulletin' => ['id' => $bulletin->getId(), 'name' => $bulletin->getName()],
 			'date' => $edition->getDate(),
+			'late' => (bool)$edition->getLate(),
 			'resumen' => (string)$edition->getResumen(),
 			'changed' => array_values(array_filter($documents, static fn (array $document): bool => $document['new'])),
 			'expiring' => $expiring,
 			'undated' => array_values(array_filter($read, static fn (array $document): bool => $document['expires'] === null)),
 			'unreadable' => array_values(array_filter($documents, static fn (array $document): bool => $document['status'] !== Reading::READ)),
-			'personal' => ['meetings' => $this->meetings($userId, $bulletin, $edition), 'documents' => array_values($personal)],
+			'personal' => ['meetings' => $this->meetings($userId, $edition), 'documents' => array_values($personal)],
 		];
 	}
 
-	/** @return list<IaMeeting> $userId's meetings in the Edition's period: from its date to the next Edition's, in the server's timezone */
-	private function meetings(string $userId, Bulletin $bulletin, Edition $edition): array {
+	/** @return list<IaMeeting> $userId's meetings in the Edition's period, from its date to its end, in the server's timezone */
+	private function meetings(string $userId, Edition $edition): array {
 		$timezone = new DateTimeZone($this->settings->timezone());
-		$from = new DateTimeImmutable($edition->getDate(), $timezone);
-		$to = new DateTimeImmutable(Schedule::parse($bulletin->getSchedule())->due($from) ?? $from->modify('+1 day')->format('Y-m-d'), $timezone);
-		return $this->personal->meetings($userId, $from, $to);
+		return $this->personal->meetings($userId, new DateTimeImmutable($edition->getDate(), $timezone), new DateTimeImmutable($edition->getUntil(), $timezone));
 	}
 
 	/** @return array<int, string> the versions the Bulletin's last Edition published before $edition read, by file id */

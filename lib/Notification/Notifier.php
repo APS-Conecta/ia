@@ -12,7 +12,10 @@ use OCP\Notification\INotification;
 use OCP\Notification\INotifier;
 use OCP\Notification\UnknownNotificationException;
 
-/** «IA»'s notifications, in Spanish: «Revisión lista» to the person who asked for it, «Nueva edición» to a Bulletin's Readers. */
+/**
+ * «IA»'s notifications, in Spanish: «Revisión lista» to whoever asked for it, «Nueva edición» to a
+ * Bulletin's Readers, «Edición atrasada» and «Una fuente no se pudo leer» to its Editors.
+ */
 class Notifier implements INotifier {
 	public function __construct(
 		private IURLGenerator $url,
@@ -34,6 +37,8 @@ class Notifier implements INotifier {
 		[$subject, $hash] = match ($notification->getApp() === Application::APP_ID ? $notification->getSubject() : null) {
 			'review_ready' => ['Revisión lista', "#revisiones/$id"],
 			'edition_published' => ['Nueva edición', '#boletines/' . (int)($parameters['bulletin'] ?? 0) . "/$id"],
+			'edition_late' => ['Edición atrasada', '#boletines/' . (int)($parameters['bulletin'] ?? 0)],
+			'source_unreadable' => ['Una fuente no se pudo leer', '#boletines/' . (int)($parameters['bulletin'] ?? 0)],
 			default => throw new UnknownNotificationException(),
 		};
 		return $notification

@@ -47,11 +47,11 @@ class RunMapper extends QBMapper {
 		return true;
 	}
 
-	/** @return list<Run> the Runs in $state, oldest first */
-	public function inState(string $state): array {
+	/** @return list<Run> the Runs in one of these states, oldest first */
+	public function inState(string ...$states): array {
 		$query = $this->db->getQueryBuilder();
 		$query->select('*')->from($this->getTableName())
-			->where($query->expr()->eq('state', $query->createNamedParameter($state)))
+			->where($query->expr()->in('state', $query->createNamedParameter($states, IQueryBuilder::PARAM_STR_ARRAY)))
 			->orderBy('id', 'ASC');
 		return $this->findEntities($query);
 	}

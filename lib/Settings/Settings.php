@@ -65,7 +65,14 @@ class Settings {
 	public function offHoursDate(DateTimeInterface $now): string {
 		['start' => $start, 'end' => $end] = $this->offHours();
 		$local = DateTimeImmutable::createFromInterface($now)->setTimezone(new DateTimeZone($this->timezone()));
-		return ($start > $end && $local->format('H:i') >= $start ? $local->modify('+1 day') : $local)->format('Y-m-d');
+		$time = $local->format('H:i');
+		$crosses = $start > $end;
+		if ($this->isOffHours($now)) {
+			return ($crosses && $time >= $start ? $local->modify('+1 day') : $local)->format('Y-m-d');
+		}
+		// The next ones start today, or tomorrow once today's start has passed.
+		$starts = $time < $start ? $local : $local->modify('+1 day');
+		return ($crosses ? $starts->modify('+1 day') : $starts)->format('Y-m-d');
 	}
 
 	/**

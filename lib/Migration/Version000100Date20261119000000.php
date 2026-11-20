@@ -103,6 +103,9 @@ class Version000100Date20261119000000 extends SimpleMigrationStep {
 			$editions->addColumn('id', Types::BIGINT, ['autoincrement' => true, 'notnull' => true, 'unsigned' => true]);
 			$editions->addColumn('bulletin_id', Types::BIGINT, ['notnull' => true, 'unsigned' => true]);
 			$editions->addColumn('date', Types::STRING, ['notnull' => true, 'length' => 10]);
+			$editions->addColumn('until', Types::STRING, ['notnull' => true, 'length' => 10]);
+			$editions->addColumn('late', Types::BOOLEAN, ['notnull' => false, 'default' => false]);
+			$editions->addColumn('fingerprint', Types::TEXT, ['notnull' => false]);
 			$editions->addColumn('status', Types::STRING, ['notnull' => true, 'length' => 16]);
 			$editions->addColumn('resumen', Types::TEXT, ['notnull' => false]);
 			$editions->addColumn('files', Types::TEXT, ['notnull' => false]);

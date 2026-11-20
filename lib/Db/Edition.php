@@ -19,6 +19,12 @@ use OCP\AppFramework\Db\Entity;
  * @method void setBulletinId(int $bulletinId)
  * @method string getDate()
  * @method void setDate(string $date)
+ * @method string getUntil()
+ * @method void setUntil(string $until)
+ * @method bool|null getLate()
+ * @method void setLate(bool $late)
+ * @method string|null getFingerprint()
+ * @method void setFingerprint(?string $fingerprint)
  * @method string getStatus()
  * @method void setStatus(string $status)
  * @method string|null getResumen()
@@ -35,6 +41,12 @@ class Edition extends Entity {
 	// Null until set: Entity writes only the fields a setter changed.
 	protected ?int $bulletinId = null;
 	protected ?string $date = null;
+	/** The end of its period, exclusive (Y-m-d): the next Edition's date as the schedule had it then. */
+	protected ?string $until = null;
+	/** Whether the Off hours of its date ended before it was published. */
+	protected ?bool $late = null;
+	/** Its Sources' state when it was opened (Db\Changes), for a Bulletin that comes when they change. */
+	protected ?string $fingerprint = null;
 	protected ?string $status = null;
 	protected ?string $resumen = null;
 	protected ?string $files = null;
@@ -42,6 +54,7 @@ class Edition extends Entity {
 
 	public function __construct() {
 		$this->addType('bulletinId', 'integer');
+		$this->addType('late', 'boolean');
 		$this->addType('publishedAt', 'integer');
 	}
 }

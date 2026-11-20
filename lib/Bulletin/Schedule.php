@@ -71,6 +71,21 @@ final class Schedule {
 		};
 	}
 
+	/** The latest date (Y-m-d) on or before $date an Edition was due; null when its Sources decide. */
+	public function last(DateTimeImmutable $date): ?string {
+		return match ($this->kind) {
+			'daily' => $date->format('Y-m-d'),
+			'weekly' => $date->modify('-' . (((int)$date->format('N') - $this->day + 7) % 7) . ' days')->format('Y-m-d'),
+			'monthly' => ((int)$date->format('j') >= $this->day ? $date : $date->modify('first day of last month'))->format('Y-m-') . sprintf('%02d', $this->day),
+			default => null,
+		};
+	}
+
+	/** Where the period of an Edition for $date ends (exclusive): the next due date, or a week on when its Sources decide. */
+	public function until(DateTimeImmutable $date): string {
+		return $this->due($date) ?? $date->modify('+7 days')->format('Y-m-d');
+	}
+
 	/** The date (Y-m-d) the next Edition is due after $today, or null when its Sources decide. */
 	public function due(DateTimeImmutable $today): ?string {
 		$next = $today->modify('+1 day');

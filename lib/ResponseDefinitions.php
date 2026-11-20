@@ -70,6 +70,7 @@ namespace OCA\Ia;
  *     readers: list<IaGroup>,
  *     schedule: IaSchedule,
  *     due: ?string,
+ *     writing: ?IaWriting,
  * }
  *
  * @psalm-type IaAction = array{
@@ -83,6 +84,14 @@ namespace OCA\Ia;
  * @psalm-type IaEditionItem = array{
  *     id: int,
  *     date: string,
+ *     late: bool,
+ * }
+ *
+ * @psalm-type IaWriting = array{
+ *     date: string,
+ *     step: int,
+ *     steps: int,
+ *     late: bool,
  * }
  *
  * @psalm-type IaEditionDocument = array{

@@ -11,6 +11,7 @@ use DateTimeZone;
 use OCA\Ia\Access\Access;
 use OCA\Ia\Db\Bulletin;
 use OCA\Ia\Db\BulletinMapper;
+use OCA\Ia\Db\Edition;
 use OCA\Ia\Db\EditionMapper;
 use OCA\Ia\Db\Run;
 use OCA\Ia\Db\RunMapper;
@@ -41,6 +42,7 @@ use OCP\IUser;
  * @psalm-import-type IaGroup from ResponseDefinitions
  * @psalm-import-type IaReadersPreview from ResponseDefinitions
  * @psalm-import-type IaSource from ResponseDefinitions
+ * @psalm-import-type IaWriting from ResponseDefinitions
  */
 class Bulletins {
 	use TTransactional;
@@ -316,7 +318,23 @@ class Bulletins {
 			'readers' => $role === 'editor' ? array_map($this->group(...), self::decode($bulletin->getReaders())) : [],
 			'schedule' => $schedule->view(),
 			'due' => $schedule->due($today),
+			'writing' => $role === 'editor' ? $this->writing($bulletin) : null,
 		];
+	}
+
+	/**
+	 * The Edition being written, for its Editors: its date, step i of n and whether it is late.
+	 *
+	 * @return IaWriting|null
+	 */
+	private function writing(Bulletin $bulletin): ?array {
+		foreach ($this->editions->ofBulletin($bulletin->getId()) as $edition) {
+			$run = $edition->getStatus() === Edition::WRITING ? $this->runs->of(Run::EDITION, (string)$edition->getId()) : null;
+			if ($run !== null && $run->getState() !== Run::FAILED) {
+				return ['date' => $edition->getDate(), 'step' => $run->getStep(), 'steps' => $run->getSteps(), 'late' => (bool)$edition->getLate()];
+			}
+		}
+		return null;
 	}
 
 	/**

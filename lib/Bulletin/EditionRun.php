@@ -12,6 +12,7 @@ use OCA\Ia\Access\Access;
 use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Db\Bulletin;
 use OCA\Ia\Db\BulletinMapper;
+use OCA\Ia\Db\Changes;
 use OCA\Ia\Db\Edition;
 use OCA\Ia\Db\EditionMapper;
 use OCA\Ia\Db\Reading;
@@ -41,19 +42,25 @@ use OCP\TaskProcessing\Task;
  * An Edition's Run (gestion-aio#162, Bulletins and Readings): on its date, in Off hours, it
  * writes the Edition and publishes it whole; its Readers are told.
  *
+ * - **When.** On the latest date due since the Bulletin's previous Edition: after missed dates,
+ *   one Edition, not one per date; never a second while one is still being written. A Bulletin
+ *   that comes «cuando cambien sus fuentes» gets one in the first Off hours, then only after a
+ *   Source's etag or sync token changed. An Edition still unpublished once the Off hours of its
+ *   date are over is «atrasada»: its Editors are told once, and it continues the next night.
+ *
  * 1. **Survey**, without the Model: the Run acts as an active member of the Editor group who can
  *    open every Source, lists the Sources' documents (a document Source whatever its format, so
  *    one «IA» can't read is listed as such) and keeps each one's Reading when it is of the same
  *    version. A calendar is only access-checked: its meetings come with the Personal list
- *    (APS-Conecta/ia#12).
+ *    (APS-Conecta/ia#12). A Source gone or unreadable is told to the Editors.
  * 2. **Readings**: each document missing one is read, part by part when long; one that changed
  *    since the survey is read in its new version, from its first part.
  * 3. **The Resumen**, from the Readings, in context-sized rounds until one is left; none when no
  *    document could be read.
  * 4. **Publish**, with each document's version, whether it is new or changed, and its Reading.
  *
- * Its progress is the Run's results, so it resumes from its last finished step; an empty answer
- * is a failed attempt.
+ * Its progress is the Run's results, so it resumes from its last finished step, and its step i of
+ * n the asks planned; an empty answer is a failed attempt.
  */
 class EditionRun implements Kind {
 	use TTransactional;
@@ -77,19 +84,54 @@ class EditionRun implements Kind {
 		private INotificationManager $notifications,
 		private ITimeFactory $time,
 		private IDBConnection $db,
+		private Changes $changes,
 	) {
 	}
 
 	/**
-	 * In Off hours: an Edition, and its Run in line, for each Bulletin due on the date these Off
-	 * hours end that has none for it yet.
+	 * In Off hours: an Edition, and its Run in line, for each Bulletin due since its previous Edition,
+	 * or whose Sources changed, as of the date these Off hours end.
 	 */
 	public function due(DateTimeInterface $now): void {
-		$date = $this->settings->offHoursDate($now);
+		$today = new DateTimeImmutable($this->settings->offHoursDate($now));
 		foreach ($this->bulletins->all() as $bulletin) {
-			if (Schedule::parse($bulletin->getSchedule())->matches(new DateTimeImmutable($date)) && !$this->editionMapper->exists($bulletin->getId(), $date)) {
-				$this->open($bulletin, $date);
+			$schedule = Schedule::parse($bulletin->getSchedule());
+			$editions = $this->editionMapper->ofBulletin($bulletin->getId());
+			$previous = $editions[0] ?? null;
+			if ($previous !== null && $previous->getStatus() === Edition::WRITING
+				&& $this->runs->of(Run::EDITION, (string)$previous->getId())?->getState() !== Run::FAILED) {
+				continue;
 			}
+			if ($schedule->kind === 'sources') {
+				$state = $this->changes->of($this->setUp->stored($bulletin));
+				if ($previous === null || ($previous->getDate() < $today->format('Y-m-d') && $previous->getFingerprint() !== $state)) {
+					$this->open($bulletin, $today->format('Y-m-d'), $schedule, $state);
+				}
+				continue;
+			}
+			// The first Edition comes on its first date; after one, the latest date due since.
+			$date = $previous === null ? ($schedule->matches($today) ? $today->format('Y-m-d') : null) : $schedule->last($today);
+			if ($date !== null && ($previous === null || $date > $previous->getDate())) {
+				$this->open($bulletin, $date, $schedule, null);
+			}
+		}
+	}
+
+	/**
+	 * Each Edition still being written once the Off hours of its date are over is «atrasada», and
+	 * its Editors are told, once.
+	 */
+	public function overdue(DateTimeInterface $now): void {
+		$today = $this->settings->offHoursDate($now);
+		foreach ($this->runs->inState(Run::WAITING, Run::WORKING) as $run) {
+			$edition = $run->getKind() === Run::EDITION ? $this->editionMapper->byId((int)$run->getTarget()) : null;
+			$bulletin = $edition === null ? null : $this->bulletins->byId($edition->getBulletinId());
+			if ($bulletin === null || $edition->getDate() >= $today || $edition->getLate()) {
+				continue;
+			}
+			$edition->setLate(true);
+			$this->editionMapper->update($edition);
+			$this->tellEditors($bulletin, $edition, 'edition_late');
 		}
 	}
 
@@ -98,7 +140,7 @@ class EditionRun implements Kind {
 		if ($bulletin === null) {
 			return;
 		}
-		$state = self::state($run) ?? $this->survey($run, $bulletin);
+		$state = self::state($run) ?? $this->survey($run, $bulletin, $edition);
 		if ($state !== null) {
 			$this->next($run, $bulletin, $edition, $state);
 		}
@@ -120,6 +162,7 @@ class EditionRun implements Kind {
 			return;
 		}
 		$run->setAttempts(0);
+		$run->setStep($run->getStep() + 1);
 		if (!$this->settings->isOffHours($this->time->getDateTime())) {
 			$run->setResults(json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
 			$run->setTaskId(null);
@@ -130,10 +173,13 @@ class EditionRun implements Kind {
 		$this->next($run, $bulletin, $edition, $state);
 	}
 
-	private function open(Bulletin $bulletin, string $date): void {
+	private function open(Bulletin $bulletin, string $date, Schedule $schedule, ?string $fingerprint): void {
 		$edition = new Edition();
 		$edition->setBulletinId($bulletin->getId());
 		$edition->setDate($date);
+		$edition->setUntil($schedule->until(new DateTimeImmutable($date)));
+		$edition->setLate(false);
+		$edition->setFingerprint($fingerprint);
 		$edition->setStatus(Edition::WRITING);
 		$run = new Run();
 		$run->setKind(Run::EDITION);
@@ -180,30 +226,61 @@ class EditionRun implements Kind {
 	 *
 	 * @return array<string, mixed>|null
 	 */
-	private function survey(Run $run, Bulletin $bulletin): ?array {
+	private function survey(Run $run, Bulletin $bulletin, Edition $edition): ?array {
 		$actor = $this->setUp->actor($bulletin);
 		if ($actor === null) {
 			$run->fail('Nadie del grupo editor puede abrir todas las fuentes del boletín.');
 			$this->runs->save($run);
+			$this->tellEditors($bulletin, $edition, 'source_unreadable');
 			return null;
 		}
 		$run->setActor($actor->getUID());
 		$files = [];
+		$unreadable = false;
 		foreach ($this->setUp->stored($bulletin) as $source) {
-			if ($source['type'] !== 'calendar') {
-				foreach (self::documents($this->access->node($actor->getUID(), (int)$source['id'], $source['type'])) as $file) {
-					$files[$file->getId()] = ['fileId' => $file->getId(), 'etag' => $file->getEtag(), 'name' => $file->getName(), 'file' => $file];
-				}
+			if ($source['type'] === 'calendar') {
+				continue;
+			}
+			$node = $this->access->node($actor->getUID(), (int)$source['id'], $source['type']);
+			// A Source gone since it was set up (Bulletins::actor skips it) can't be read.
+			$unreadable = $unreadable || $node === null;
+			foreach (self::documents($node) as $file) {
+				$files[$file->getId()] = ['fileId' => $file->getId(), 'etag' => $file->getEtag(), 'name' => $file->getName(), 'file' => $file, 'source' => $source['type'] === 'file'];
 			}
 		}
 		$queue = [];
+		$asks = 0;
 		foreach ($files as $id => $entry) {
-			if ($this->readings->of($id, $entry['etag']) === null && $this->readable($entry['file'], $entry['etag']) !== null) {
+			$reading = $this->readings->of($id, $entry['etag']);
+			$document = $reading === null ? $this->readable($entry['file'], $entry['etag']) : null;
+			if ($document !== null) {
 				$queue[] = $id;
+				$parts = count($this->readings->parts($document));
+				$asks += $parts === 1 ? 1 : $parts + 1;
 			}
-			unset($files[$id]['file']);
+			$unreadable = $unreadable || ($entry['source'] && ($reading ?? $this->readings->of($id, $entry['etag']))?->getStatus() !== Reading::READ && $document === null);
+			unset($files[$id]['file'], $files[$id]['source']);
 		}
+		if ($unreadable) {
+			$this->tellEditors($bulletin, $edition, 'source_unreadable');
+		}
+		// The Readings to take, then a Resumen of one ask at least.
+		$run->setStep(1);
+		$run->setSteps($asks + 1);
 		return ['files' => array_values($files), 'queue' => $queue, 'part' => 0, 'parts' => [], 'batches' => null, 'partials' => [], 'resumen' => null];
+	}
+
+	/** Tells the Bulletin's Editors of its Edition: that it is late, or that a Source can't be read. */
+	private function tellEditors(Bulletin $bulletin, Edition $edition, string $subject): void {
+		foreach ($this->access->members($bulletin->getEditorGroup()) as $editor) {
+			$notification = $this->notifications->createNotification();
+			$notification->setApp(Application::APP_ID)
+				->setUser($editor->getUID())
+				->setDateTime($this->time->getDateTime())
+				->setObject('edition', (string)$edition->getId())
+				->setSubject($subject, ['name' => $bulletin->getName(), 'bulletin' => $bulletin->getId()]);
+			$this->notifications->notify($notification);
+		}
 	}
 
 	/**
@@ -242,6 +319,7 @@ class EditionRun implements Kind {
 		if ($state['batches'] === null) {
 			$digest = $this->digest($edition, $state['files']);
 			$state['batches'] = $digest === '' ? [] : ModelGateway::chunks($digest, $resumen);
+			self::plan($run, $state['batches']);
 		}
 		while ($state['resumen'] === null && $state['batches'] !== []) {
 			$batches = $state['batches'];
@@ -255,6 +333,7 @@ class EditionRun implements Kind {
 			// Each round's paragraphs are the next round's input, until one batch is left.
 			$state['batches'] = ModelGateway::chunks(implode("\n\n", $state['partials']), $resumen);
 			$state['partials'] = [];
+			self::plan($run, $state['batches']);
 		}
 		return null;
 	}
@@ -413,6 +492,16 @@ class EditionRun implements Kind {
 				->setSubject('edition_published', ['name' => $bulletin->getName(), 'bulletin' => $bulletin->getId()]);
 			$this->notifications->notify($notification);
 		}
+	}
+
+	/**
+	 * Its steps, now that the Resumen's rounds are known: those taken, then a round's asks (one
+	 * batch is the Resumen; more are a paragraph each and the Resumen of them).
+	 *
+	 * @param list<string> $batches
+	 */
+	private static function plan(Run $run, array $batches): void {
+		$run->setSteps($run->getStep() - 1 + (count($batches) <= 1 ? count($batches) : count($batches) + 1));
 	}
 
 	/** @return array<string, mixed>|null the Run's progress, null before its survey */
