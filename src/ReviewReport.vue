@@ -11,7 +11,10 @@
 		</NcNoteCard>
 		<template v-else>
 			<p class="ia-lead">
-				Revisión pedida por ti · {{ when(review.requestedAt) }}
+				{{ review.origin === 'manual' ? 'Revisión pedida por ti' : 'Revisión automática' }} · {{ when(review.requestedAt) }}
+			</p>
+			<p v-if="review.instructions" class="ia-hint">
+				El grupo editor pidió revisar además: «{{ review.instructions }}»
 			</p>
 			<div class="ia-chips">
 				<NcButton :href="fileLink" variant="secondary">
@@ -20,7 +23,7 @@
 					</template>
 					Abrir el documento
 				</NcButton>
-				<NcButton v-if="!underWay(review)" variant="tertiary" @click="again">
+				<NcButton v-if="!underWay(review) && review.origin === 'manual'" variant="tertiary" @click="again">
 					<template #icon>
 						<NcIconSvgWrapper :path="mdiRefresh" />
 					</template>
@@ -33,7 +36,12 @@
 				<span>{{ progress(review) }}</span>
 			</div>
 			<NcNoteCard v-else-if="review.state === 'failed'" type="error" heading="La revisión falló">
-				<p>El modelo no pudo terminarla. Pide «Revisar de nuevo» más tarde; si vuelve a fallar, avisa al administrador.</p>
+				<p v-if="review.origin === 'manual'">
+					El modelo no pudo terminarla. Pide «Revisar de nuevo» más tarde; si vuelve a fallar, avisa al administrador.
+				</p>
+				<p v-else>
+					No se pudo terminar. Se revisará de nuevo cuando el archivo cambie; si vuelve a fallar, avisa al administrador.
+				</p>
 				<p class="ia-hint">
 					Detalle: {{ review.error }}
 				</p>
@@ -48,7 +56,9 @@
 						no-close />
 				</div>
 				<NcNoteCard type="info">
-					Solo tú ves esta revisión, mientras puedas abrir el archivo.
+					{{ review.origin === 'manual'
+						? 'Solo tú ves esta revisión, mientras puedas abrir el archivo.'
+						: 'La ven todos los que pueden abrir el archivo. Se revisa de nuevo, fuera de horario, cada vez que cambia.' }}
 				</NcNoteCard>
 				<NcEmptyContent v-if="review.findings.length === 0"
 					name="La revisión no encontró qué corregir"

@@ -17,9 +17,9 @@
 			</template>
 		</NcEmptyContent>
 		<section v-else>
-			<h3>Tus revisiones</h3>
+			<h3>Revisiones</h3>
 			<p class="ia-hint">
-				Solo tú las ves, mientras puedas abrir el archivo.
+				Las que pides las ves solo tú; las automáticas, todos los que pueden abrir el archivo.
 			</p>
 			<ul>
 				<NcListItem v-for="review in reviews"
@@ -32,7 +32,7 @@
 						<NcIconSvgWrapper :path="mdiFileDocumentOutline" />
 					</template>
 					<template #subname>
-						{{ underWay(review) ? progress(review) : `Pedida el ${when(review.requestedAt)}` }}
+						{{ underWay(review) ? progress(review) : askedText(review) }}
 					</template>
 				</NcListItem>
 			</ul>
@@ -48,7 +48,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { ocsGet } from './api.js'
 import { mdiFileDocumentCheckOutline, mdiFileDocumentOutline } from './icons.js'
-import { moving, progress, STATES, underWay, when } from './reviews.js'
+import { askedText, moving, progress, STATES, underWay } from './reviews.js'
 
 /** Seconds between two looks at Reviews still under way. */
 const POLL = 10
@@ -57,7 +57,7 @@ const POLL = 10
 export default {
 	name: 'ReviewList',
 	components: { NcEmptyContent, NcIconSvgWrapper, NcListItem, NcLoadingIcon, NcNoteCard },
-	setup: () => ({ mdiFileDocumentCheckOutline, mdiFileDocumentOutline, progress, STATES, underWay, when }),
+	setup: () => ({ askedText, mdiFileDocumentCheckOutline, mdiFileDocumentOutline, progress, STATES, underWay }),
 	data: () => ({ state: 'loading', reviews: [], timer: null }),
 	mounted() {
 		this.load()

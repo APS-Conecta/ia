@@ -7,6 +7,8 @@ declare(strict_types=1);
 namespace OCA\Ia\Review;
 
 use OCA\Ia\Access\Access;
+use OCA\Ia\Action\Actions;
+use OCA\Ia\Db\Action;
 use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Db\Report;
 use OCA\Ia\Db\ReportMapper;
@@ -39,6 +41,11 @@ use OCP\TaskProcessing\Task;
  *   summaries for Falta. Each step is asked when the one before it succeeds.
  * - **As the requester.** A manual report is theirs alone, and only while they can open the
  *   file; every step reads the file as them.
+ * - **Automatic** (an Automatic action's): a file keeps one automatic report, reviewed in Off hours
+ *   on its latest version however often it changes, with the action's instructions. It reads the
+ *   file as whoever added or changed it last; failing that, as an active member of the action's
+ *   Editor group who can open it; otherwise the Run fails and nobody is told. Anyone who can open
+ *   the file reads it, and whoever added or changed it is told.
  * - **Short now, longer in Off hours.** A document of about 10 pages or less is asked at once; a
  *   longer one waits for Off hours, where the run engine (Runs) asks it, and an Off-hours Run
  *   stops between steps when Off hours end, to resume from its last finished step the next time.
@@ -86,6 +93,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		private IDBConnection $db,
 		private Settings $settings,
 		private Steps $steps,
+		private Actions $actions,
 	) {
 	}
 
@@ -104,7 +112,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			$run = $this->runs->of(Run::REVIEW, (string)$report->getId()) ?? throw new NotFoundException();
 			if (!self::underWay($run) && ($run->getState() === Run::FAILED || $file->getEtag() !== $report->getEtag())) {
 				$report->setCreatedAt($this->time->getTime());
-				$this->begin($run, $this->restart($report, $run, $file, $this->reader->read($file)));
+				$this->begin($run, $report, $this->restart($report, $run, $file, $this->reader->read($file)));
 			}
 			return $this->answer($report, $run, $file) + ['created' => false];
 		}
@@ -116,27 +124,63 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$report->setRequester($userId);
 		$report->setCreatedAt($this->time->getTime());
 		$run = new Run();
-		$run->setKind(Run::REVIEW);
 		$run->setActor($userId);
-		$run->setVersion(0);
-		$run->setUpdatedAt($this->time->getTime());
-		$chunks = $this->line($run, $document);
-		try {
-			$this->atomic(function () use ($report, $run): void {
-				$this->reports->insert($report);
-				$run->setTarget((string)$report->getId());
-				$this->runs->insert($run);
-			}, $this->db);
-		} catch (Exception $e) {
-			if ($e->getReason() !== Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
-				throw $e;
-			}
+		$chunks = $this->line($run, $report, $document);
+		if (!$this->insert($report, $run)) {
 			return $this->create($userId, $fileId);
 		}
 		if (!$run->getOffHours()) {
-			$this->steps->ask($run, $this->prompt($run, $chunks, []));
+			$this->steps->ask($run, $this->prompt($run, $report, $chunks, []));
 		}
 		return $this->answer($report, $run, $file) + ['created' => true];
+	}
+
+	/**
+	 * Puts the automatic Review of $file in line for Off hours: it was added to, changed in, moved
+	 * or copied into the folder of $action, by $changer when known. Only a Review done on this
+	 * same version, for this same action, stays as it is; any other is reviewed from its first
+	 * step, on the version current when it starts, with the action's instructions.
+	 */
+	public function automatic(File $file, Action $action, ?string $changer): void {
+		$report = $this->reports->automaticOf($file->getId()) ?? new Report();
+		$run = $report->getId() === null ? new Run() : $this->runs->of(Run::REVIEW, (string)$report->getId());
+		if ($run === null || ($run->getState() === Run::DONE && $report->getEtag() === $file->getEtag() && $report->getRule() === $action->getId())) {
+			return;
+		}
+		$report->setFileId($file->getId());
+		$report->setAutomaticFile($file->getId());
+		$report->setOrigin(Report::ACTION);
+		// No version reviewed: whatever step it was at, the Run starts over (resume, finish).
+		$report->setEtag('');
+		$report->setRequester($changer);
+		$report->setRule($action->getId());
+		$report->setInstructions($action->getInstructions());
+		$report->setCreatedAt($this->time->getTime());
+		if ($report->getId() === null) {
+			$run->setRule($action->getId());
+			$run->setState(Run::WAITING);
+			$run->setOffHours(true);
+			$run->setStep(0);
+			$run->setSteps(0);
+			$run->setAttempts(0);
+			if (!$this->insert($report, $run)) {
+				$this->automatic($file, $action, $changer);
+			}
+			return;
+		}
+		$this->reports->update($report);
+		// A Run in line or under way is the engine's to move: the blank version restarts it there.
+		if (self::underWay($run)) {
+			return;
+		}
+		$run->setRule($action->getId());
+		$run->setState(Run::WAITING);
+		$run->setOffHours(true);
+		$run->setTaskId(null);
+		if (!$this->runs->save($run)) {
+			// Another process moved the Run since it was read: line it up again from what it saved.
+			$this->automatic($file, $action, $changer);
+		}
 	}
 
 	/**
@@ -147,12 +191,15 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	 * @throws Refused while it is still under way, or when «IA» can't read its format
 	 */
 	public function again(string $userId, int $id): array {
-		[$report, $run, $file] = $this->mine($userId, $id);
+		[$report, $run, $file] = $this->seen($userId, $id);
+		if ($report->isAutomatic()) {
+			throw new NotFoundException();
+		}
 		if (self::underWay($run)) {
 			throw new Refused('Esta revisión sigue en curso.');
 		}
 		$report->setCreatedAt($this->time->getTime());
-		$this->begin($run, $this->restart($report, $run, $file, $this->reader->read($file)));
+		$this->begin($run, $report, $this->restart($report, $run, $file, $this->reader->read($file)));
 		return $this->answer($report, $run, $file);
 	}
 
@@ -161,27 +208,32 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	 * @throws NotFoundException
 	 */
 	public function one(string $userId, int $id): array {
-		[$report, $run, $file] = $this->mine($userId, $id);
+		[$report, $run, $file] = $this->seen($userId, $id);
 		return $this->view($report, $run, $file, true);
 	}
 
-	/** @return list<IaReviewItem> $userId's Reviews of files they can still open, newest first */
+	/**
+	 * @return list<IaReviewItem> $userId's own Reviews and the automatic ones of files they can
+	 *                            open, newest first
+	 */
 	public function all(string $userId): array {
 		$items = [];
-		foreach ($this->reports->requestedBy($userId) as $report) {
+		foreach ([...$this->reports->requestedBy($userId), ...$this->reports->automatic()] as $report) {
 			$file = $this->access->file($userId, $report->getFileId());
 			$run = $this->runs->of(Run::REVIEW, (string)$report->getId());
 			if ($file !== null && $run !== null) {
 				$items[] = $this->view($report, $run, $file, false);
 			}
 		}
+		usort($items, static fn (array $a, array $b): int => [$b['requestedAt'], $b['id']] <=> [$a['requestedAt'], $a['id']]);
 		return $items;
 	}
 
 	/**
 	 * Asks a waiting Review Run's current step, as the run engine decides, from its last finished
-	 * step; a Run whose file changed since starts over, sized anew, and a file grown past the short
-	 * size waits for Off hours.
+	 * step; a Run whose file changed since (an automatic one's first time, too) starts over from
+	 * its first step, sized anew. It is the Run's turn, so the step is asked now, unless the file
+	 * grew past the short size: then it waits for its turn among the Off-hours Runs.
 	 */
 	public function resume(Run $run): void {
 		$source = $this->source($run);
@@ -189,11 +241,14 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			return;
 		}
 		[$report, $file, $document] = $source;
-		if ($file->getEtag() !== $report->getEtag()) {
-			$this->begin($run, $this->restart($report, $run, $file, $document));
+		$wasOffHours = (bool)$run->getOffHours();
+		$chunks = $file->getEtag() !== $report->getEtag() ? $this->restart($report, $run, $file, $document) : self::chunks($document, $report);
+		// One that just became an Off-hours Run waits for its turn among them.
+		if ($run->getOffHours() && (!$wasOffHours || !$this->settings->isOffHours($this->time->getDateTime()))) {
+			$this->runs->save($run);
 			return;
 		}
-		$this->steps->ask($run, $this->prompt($run, self::chunks($document), self::results($run)['summaries']));
+		$this->steps->ask($run, $this->prompt($run, $report, $chunks, self::results($run)['summaries']));
 	}
 
 	/**
@@ -221,12 +276,12 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		[$report, $file, $document] = $source;
 		if ($file->getEtag() !== $report->getEtag()) {
 			$this->model->forget($task);
-			$this->begin($run, $this->restart($report, $run, $file, $document));
+			$this->begin($run, $report, $this->restart($report, $run, $file, $document));
 			return;
 		}
 		$results = self::results($run);
 		$lines = ModelGateway::lines((string)($task->getOutput()['output'] ?? ''));
-		$chunks = self::chunks($document);
+		$chunks = self::chunks($document, $report);
 		if ($run->getSteps() === 1) {
 			$results['findings'] = Findings::from($lines, $document, [Findings::ERROR, Findings::UNCLEAR, Findings::MISSING]);
 		} elseif ($run->getStep() <= count($chunks)) {
@@ -246,7 +301,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 				$this->runs->save($run);
 				return;
 			}
-			$this->steps->ask($run, $this->prompt($run, $chunks, $results['summaries']));
+			$this->steps->ask($run, $this->prompt($run, $report, $chunks, $results['summaries']));
 			return;
 		}
 		$report->setFindings(json_encode(array_values(array_unique($results['findings'], SORT_REGULAR)), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
@@ -267,19 +322,27 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	}
 
 	/**
-	 * The Run's report, its file as the actor opens it now, and the Document read from it; a Run
-	 * whose file is gone or unreadable fails, and null comes back.
+	 * The Run's report, its file as the Run's actor opens it now, and the Document read from it; a
+	 * Run whose file is gone, unreadable or no one may read for it fails, and null comes back.
 	 *
 	 * @return array{0: Report, 1: File, 2: Document}|null
 	 */
 	private function source(Run $run): ?array {
 		$report = $this->reports->byId((int)$run->getTarget());
-		$file = $report === null ? null : $this->access->file((string)$run->getActor(), $report->getFileId());
+		$action = $report?->isAutomatic() ? $this->actions->byId((int)$report->getRule()) : null;
+		if ($report?->isAutomatic()) {
+			$run->setActor($action === null ? null : $this->actor($report, $action));
+		}
+		$file = $report === null || $run->getActor() === null ? null : $this->access->file($run->getActor(), $report->getFileId());
 		try {
 			if ($report !== null && $file !== null) {
 				return [$report, $file, $this->reader->read($file)];
 			}
-			$run->fail('El archivo ya no está disponible.');
+			$run->fail(match (true) {
+				!$report?->isAutomatic() => 'El archivo ya no está disponible.',
+				$action === null => 'Se eliminó la acción automática.',
+				default => 'Ni quien agregó o cambió el archivo ni su grupo editor pueden abrirlo.',
+			});
 		} catch (Refused $e) {
 			$run->fail($e->getMessage());
 		}
@@ -297,20 +360,20 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$report->setEtag($file->getEtag());
 		$report->setFindings(null);
 		$this->reports->update($report);
-		return $this->line($run, $document);
+		return $this->line($run, $report, $document);
 	}
 
 	/**
-	 * Puts the Run at the first step of a Review of $document, waiting, unsaved: Off hours for a
-	 * document over the short size, as its own page count says.
+	 * Puts the Run at the first step of a Review of $document, waiting, unsaved: Off hours for an
+	 * automatic one, or a document over the short size, as its own page count says.
 	 *
 	 * @return list<string> the chunks
 	 */
-	private function line(Run $run, Document $document): array {
-		$chunks = self::chunks($document);
+	private function line(Run $run, Report $report, Document $document): array {
+		$chunks = self::chunks($document, $report);
 		$run->setStep(1);
 		$run->setSteps(count($chunks) === 1 ? 1 : count($chunks) + 1);
-		$run->setOffHours($document->pages > self::SHORT_PAGES);
+		$run->setOffHours($report->isAutomatic() || $document->pages > self::SHORT_PAGES);
 		$run->setAttempts(0);
 		$run->setLastError(null);
 		$run->setResults(null);
@@ -324,12 +387,12 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	 *
 	 * @param list<string> $chunks
 	 */
-	private function begin(Run $run, array $chunks): void {
+	private function begin(Run $run, Report $report, array $chunks): void {
 		if ($run->getOffHours()) {
 			$this->runs->save($run);
 			return;
 		}
-		$this->steps->ask($run, $this->prompt($run, $chunks, []));
+		$this->steps->ask($run, $this->prompt($run, $report, $chunks, []));
 	}
 
 	/**
@@ -351,7 +414,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	 * @param list<string> $chunks
 	 * @param list<string> $summaries
 	 */
-	private function prompt(Run $run, array $chunks, array $summaries): string {
+	private function prompt(Run $run, Report $report, array $chunks, array $summaries): string {
 		$step = $run->getStep();
 		$n = count($chunks);
 		[$instruction, $body] = match (true) {
@@ -359,7 +422,13 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			$step <= $n => [sprintf(self::CHUNK, $step, $n), $chunks[$step - 1]],
 			default => [sprintf(self::GAPS, $n), implode("\n", array_map(static fn (int $i, string $summary): string => 'Parte ' . ($i + 1) . ': ' . $summary, array_keys($summaries), $summaries))],
 		};
-		return $instruction . "\n\n<<<\n" . $body . "\n>>>";
+		return $instruction . self::told($report) . "\n\n<<<\n" . $body . "\n>>>";
+	}
+
+	/** The Editors' instructions for the Review, as the prompt adds them; '' when none. */
+	private static function told(Report $report): string {
+		$instructions = (string)$report->getInstructions();
+		return $instructions === '' ? '' : "\nAdemás, el grupo editor pide: «" . $instructions . '»';
 	}
 
 	/** @param list<array<string, string>> $lines a chunk step's lines, whose RESUMEN sums it up */
@@ -373,30 +442,68 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	}
 
 	/** @return list<string> the chunks every step of a Review of $document uses */
-	private static function chunks(Document $document): array {
-		return ModelGateway::chunks($document->text, mb_strlen(self::SINGLE) > mb_strlen(self::CHUNK) ? self::SINGLE : self::CHUNK);
+	private static function chunks(Document $document, Report $report): array {
+		return ModelGateway::chunks($document->text, (mb_strlen(self::SINGLE) > mb_strlen(self::CHUNK) ? self::SINGLE : self::CHUNK) . self::told($report));
 	}
 
 	/**
-	 * $userId's own manual report $id, its Run and the file, while they can open it.
+	 * The report $id, its Run and the file, while $userId can open the file: their own manual
+	 * report, or an automatic one.
 	 *
 	 * @return array{0: Report, 1: Run, 2: File}
 	 * @throws NotFoundException
 	 */
-	private function mine(string $userId, int $id): array {
+	private function seen(string $userId, int $id): array {
 		$report = $this->reports->byId($id);
 		$run = $report === null ? null : $this->runs->of(Run::REVIEW, (string)$id);
-		$file = $report === null || $report->getRequester() !== $userId ? null : $this->access->file($userId, $report->getFileId());
+		$theirs = $report !== null && ($report->isAutomatic() || $report->getRequester() === $userId);
+		$file = $theirs ? $this->access->file($userId, $report->getFileId()) : null;
 		if ($run === null || $file === null) {
 			throw new NotFoundException();
 		}
 		return [$report, $run, $file];
 	}
 
+	/**
+	 * Who an automatic Review reads the file as: whoever added or changed it last, while they can
+	 * open it; else a member of its action's Editor group who can (Actions::actor).
+	 */
+	private function actor(Report $report, Action $action): ?string {
+		$changer = $report->getRequester();
+		return $changer !== null && $this->access->file($changer, $report->getFileId()) !== null
+			? $changer
+			: $this->actions->actor($action, $report->getFileId());
+	}
+
+	/** Puts a new report and its Review Run in the database together; false when the report was already there. */
+	private function insert(Report $report, Run $run): bool {
+		$run->setKind(Run::REVIEW);
+		$run->setVersion(0);
+		$run->setUpdatedAt($this->time->getTime());
+		try {
+			$this->atomic(function () use ($report, $run): void {
+				$this->reports->insert($report);
+				$run->setTarget((string)$report->getId());
+				$this->runs->insert($run);
+			}, $this->db);
+		} catch (Exception $e) {
+			if ($e->getReason() !== Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+			return false;
+		}
+		return true;
+	}
+
+	/** Tells who asked for a report, or who added or changed the file of an automatic one while they can open it. */
 	private function notify(Report $report, File $file): void {
+		$to = $report->getRequester();
+		if ($to === null || ($report->isAutomatic() && $this->access->file($to, $report->getFileId()) === null)) {
+			return;
+		}
 		$notification = $this->notifications->createNotification();
 		$notification->setApp(Application::APP_ID)
-			->setUser((string)$report->getRequester())
+			->setUser($to)
 			->setDateTime($this->time->getDateTime())
 			->setObject('review', (string)$report->getId())
 			->setSubject('review_ready', ['name' => $file->getName()]);
@@ -422,6 +529,8 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			'offHoursWindow' => $this->settings->offHours(),
 			'error' => $run->getState() === Run::FAILED ? $run->getLastError() : null,
 			'requestedAt' => $report->getCreatedAt(),
+			'origin' => $report->getOrigin(),
+			'instructions' => $report->getInstructions(),
 		];
 		return $findings ? $item + ['findings' => $report->getFindings() === null ? null : json_decode($report->getFindings(), true)] : $item;
 	}

@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace OCA\Ia\Controller;
 
 use OCA\Ia\Access\Access;
+use OCA\Ia\Action\Actions;
 use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Bulletin\Bulletins;
 use OCA\Ia\Bulletin\Editions;
@@ -37,6 +38,7 @@ use OCP\IUserSession;
  * each action checking who may see what, or the admin page's own, for admins and the groups it
  * is delegated to (MetadataTest holds all of it).
  *
+ * @psalm-import-type IaAction from ResponseDefinitions
  * @psalm-import-type IaAdminSettings from ResponseDefinitions
  * @psalm-import-type IaBulletin from ResponseDefinitions
  * @psalm-import-type IaBulletinItem from ResponseDefinitions
@@ -60,6 +62,8 @@ class ApiController extends OCSController {
 	private const GROUPS_SHOWN = 20;
 	private const PERIOD = 60;
 	private const NOT_FOUND = 'No encontramos ese documento, o ya no puedes abrirlo.';
+	private const NO_BULLETIN = 'No encontramos ese boletín.';
+	private const NO_ACTION = 'No encontramos esa acción automática.';
 
 	public function __construct(
 		IRequest $request,
@@ -70,6 +74,7 @@ class ApiController extends OCSController {
 		private IGroupManager $groups,
 		private Bulletins $bulletins,
 		private Editions $editions,
+		private Actions $actions,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -91,11 +96,11 @@ class ApiController extends OCSController {
 	}
 
 	/**
-	 * «Revisiones»: the caller's Reviews of files they can still open, newest first
+	 * «Revisiones»: the caller's own Reviews and the automatic ones, of files they can still open, newest first
 	 *
 	 * @return DataResponse<Http::STATUS_OK, array{reviews: list<IaReviewItem>}, array{}>
 	 *
-	 * 200: The caller's Reviews
+	 * 200: The Reviews
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
@@ -134,13 +139,13 @@ class ApiController extends OCSController {
 	}
 
 	/**
-	 * One of the caller's Reviews, with its report once it is ready
+	 * One of the caller's Reviews, or an automatic one of a file they can open, with its report once it is ready
 	 *
 	 * @param int $id The Review's id
 	 * @return DataResponse<Http::STATUS_OK, array{review: IaReview}, array{}>|DataResponse<Http::STATUS_NOT_FOUND, array{message: string}, array{}>
 	 *
 	 * 200: The Review
-	 * 404: No such Review of the caller's, or they can't open its document any more
+	 * 404: No such Review of the caller's, nor an automatic one, or they can't open its document any more
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
@@ -398,6 +403,86 @@ class ApiController extends OCSController {
 	}
 
 	/**
+	 * «Acciones automáticas»: the Automatic actions of the caller's Editor groups
+	 *
+	 * @return DataResponse<Http::STATUS_OK, array{actions: list<IaAction>}, array{}>|DataResponse<Http::STATUS_FORBIDDEN, array{message: string}, array{}>
+	 *
+	 * 200: The actions, by name
+	 * 403: The caller is no Editor
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/actions')]
+	public function actions(): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse(['actions' => $this->actions->all($this->user())]));
+	}
+
+	/**
+	 * Put an Automatic action on a folder: every file added to it, changed in it, moved or copied into it is reviewed in Off hours
+	 *
+	 * @param string $name The action's name
+	 * @param string $editorGroup The caller's Editor group that owns it
+	 * @param string $folder The folder's file id: one the whole Editor group can open
+	 * @param string $instructions What the Reviews should also check, up to 1000 characters; '' for none
+	 * @return DataResponse<Http::STATUS_CREATED, array{action: IaAction}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
+	 *
+	 * 201: The action
+	 * 403: The caller isn't in that Editor group
+	 * 422: A field isn't one, or a member of the Editor group can't open the folder
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'POST', url: '/api/v1/actions')]
+	public function createAction(string $name, string $editorGroup, string $folder, string $instructions = ''): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse([
+			'action' => $this->actions->create($this->user(), ['name' => $name, 'editorGroup' => $editorGroup, 'folder' => $folder, 'instructions' => $instructions]),
+		], Http::STATUS_CREATED), self::NO_ACTION);
+	}
+
+	/**
+	 * Change an Automatic action of the caller's Editor group: its name, folder and instructions
+	 *
+	 * @param int $id The action's id
+	 * @param string $name The action's name
+	 * @param string $folder The folder's file id: one the whole Editor group can open
+	 * @param string $instructions What the Reviews should also check, up to 1000 characters; '' for none
+	 * @return DataResponse<Http::STATUS_OK, array{action: IaAction}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
+	 *
+	 * 200: The action, changed
+	 * 403: The caller isn't in its Editor group
+	 * 404: No such action
+	 * 422: A field isn't one, or a member of the Editor group can't open the folder
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'PUT', url: '/api/v1/actions/{id}')]
+	public function changeAction(int $id, string $name, string $folder, string $instructions = ''): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse([
+			'action' => $this->actions->change($this->user(), $id, ['name' => $name, 'folder' => $folder, 'instructions' => $instructions]),
+		]), self::NO_ACTION);
+	}
+
+	/**
+	 * Delete an Automatic action of the caller's Editor group: no new Review comes from it; its reports stay
+	 *
+	 * @param int $id The action's id
+	 * @return DataResponse<Http::STATUS_OK, array{}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND, array{message: string}, array{}>
+	 *
+	 * 200: Deleted
+	 * 403: The caller isn't in its Editor group
+	 * 404: No such action
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'DELETE', url: '/api/v1/actions/{id}')]
+	public function deleteAction(int $id): DataResponse {
+		return $this->refusable(function () use ($id): DataResponse {
+			$this->actions->delete($this->user(), $id);
+			return new DataResponse([]);
+		}, self::NO_ACTION);
+	}
+
+	/**
 	 * The caller's calendars, theirs and those shared with them, to pick a Bulletin's Sources from
 	 *
 	 * @return DataResponse<Http::STATUS_OK, array{calendars: list<array{id: string, name: string}>}, array{}>
@@ -438,17 +523,17 @@ class ApiController extends OCSController {
 	}
 
 	/**
-	 * $answer's response, or the Spanish reason it was refused: 403, 404 or 422.
+	 * $answer's response, or the Spanish reason it was refused: 403, 404 ($notFound) or 422.
 	 *
 	 * @param callable(): DataResponse $answer
 	 */
-	private function refusable(callable $answer): DataResponse {
+	private function refusable(callable $answer, string $notFound = self::NO_BULLETIN): DataResponse {
 		try {
 			return $answer();
 		} catch (Forbidden $e) {
 			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_FORBIDDEN);
 		} catch (DoesNotExistException) {
-			return new DataResponse(['message' => 'No encontramos ese boletín.'], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['message' => $notFound], Http::STATUS_NOT_FOUND);
 		} catch (Refused $e) {
 			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		}

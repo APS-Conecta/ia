@@ -13,7 +13,10 @@ use OCP\IDBConnection;
 
 /** @template-extends QBMapper<Reading> */
 class ReadingMapper extends QBMapper {
-	public function __construct(IDBConnection $db) {
+	public function __construct(
+		IDBConnection $db,
+		private Places $places,
+	) {
 		parent::__construct($db, 'ia_readings', Reading::class);
 	}
 
@@ -44,17 +47,11 @@ class ReadingMapper extends QBMapper {
 	 *                   the folder's own row, as a share or a Team folder shows it at another path
 	 */
 	public function under(int $folderId): array {
-		$query = $this->db->getQueryBuilder();
-		$query->select('storage', 'path')->from('filecache')
-			->where($query->expr()->eq('fileid', $query->createNamedParameter($folderId, IQueryBuilder::PARAM_INT)));
-		$result = $query->executeQuery();
-		$folder = $result->fetch();
-		$result->closeCursor();
-		if ($folder === false) {
+		$folder = $this->places->of([$folderId])[$folderId] ?? null;
+		if ($folder === null) {
 			return [];
 		}
-		$storageId = (int)$folder['storage'];
-		$path = (string)$folder['path'];
+		['storage' => $storageId, 'path' => $path] = $folder;
 		$query = $this->db->getQueryBuilder();
 		$query->select('r.file_id')->from($this->getTableName(), 'r')
 			->innerJoin('r', 'filecache', 'f', $query->expr()->eq('f.fileid', 'r.file_id'))

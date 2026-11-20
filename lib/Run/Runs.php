@@ -68,7 +68,7 @@ class Runs {
 			return;
 		}
 		$waiting = $this->runs->inState(Run::WAITING);
-		usort($waiting, static fn (Run $a, Run $b): int => [$a->getKind() !== Run::REVIEW, $a->getId()] <=> [$b->getKind() !== Run::REVIEW, $b->getId()]);
+		usort($waiting, static fn (Run $a, Run $b): int => [!self::manual($a), $a->getId()] <=> [!self::manual($b), $b->getId()]);
 		foreach ($waiting as $run) {
 			// One that ended (failed, or published without the Model) leaves the turn to the next; one
 			// put back in line keeps it, so the oldest still starts first.
@@ -76,6 +76,11 @@ class Runs {
 				return;
 			}
 		}
+	}
+
+	/** Whether it is a Review someone asked for by hand: an automatic one has its rule. */
+	private static function manual(Run $run): bool {
+		return $run->getKind() === Run::REVIEW && $run->getRule() === null;
 	}
 
 	private function resume(Run $run): void {
