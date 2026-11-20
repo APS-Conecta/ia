@@ -40,8 +40,14 @@ class Access {
 		return array_values(array_filter($this->groups->get($groupId)?->getUsers() ?? [], static fn (IUser $user): bool => $user->isEnabled()));
 	}
 
-	/** The folder or file $fileId as $userId can open it now, of the $type asked for ('folder' or 'file'), or null. */
+	/**
+	 * The folder or file $fileId as $userId can open it now, of the $type asked for ('folder' or
+	 * 'file'), or null; a deleted account opens nothing.
+	 */
 	public function node(string $userId, int $fileId, string $type): ?Node {
+		if (!$this->users->userExists($userId)) {
+			return null;
+		}
 		try {
 			$node = $this->root->getUserFolder($userId)->getFirstNodeById($fileId);
 		} catch (NotPermittedException) {
@@ -49,6 +55,16 @@ class Access {
 		}
 		$fits = $type === 'folder' ? $node instanceof Folder : $node instanceof File;
 		return $fits && $node->isReadable() ? $node : null;
+	}
+
+	/** Whether the file $fileId is still in someone's Files: one in a trash bin is gone. */
+	public function exists(int $fileId): bool {
+		foreach ($this->root->getById($fileId) as $node) {
+			if (preg_match('#^/[^/]+/files/#', $node->getPath()) === 1) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** The calendar $key among $userId's calendars now, theirs or shared with them, or null. */

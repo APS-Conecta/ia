@@ -22,11 +22,15 @@ export function scheduleText({ kind, day }) {
 	}[kind]
 }
 
+/** «viernes, 20 de noviembre», from a date (Y-m-d). */
+export function longDate(date) {
+	return new Date(`${date}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
 /** When the next Edition is due, in a sentence. */
 export function dueText(bulletin) {
 	if (bulletin.due === null) {
 		return 'La próxima edición se escribe la noche después de que cambie una de sus fuentes.'
 	}
-	const date = new Date(`${bulletin.due}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
-	return `La primera edición sale el ${date}, escrita fuera de horario la noche anterior.`
+	return `La primera edición sale el ${longDate(bulletin.due)}, escrita fuera de horario la noche anterior.`
 }

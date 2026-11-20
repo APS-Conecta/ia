@@ -46,6 +46,7 @@
 			<BulletinPage v-else-if="view.name === 'boletin'"
 				:id="view.id"
 				:key="view.id"
+				:edition="view.edition"
 				:version="version"
 				@edit="sidebar = { id: $event }" />
 			<ReviewList v-else-if="view.name === 'revisiones'" />
@@ -93,14 +94,17 @@ const FORMATS = [
 /** Each place's page heading, for screen readers. */
 const HEADINGS = { 'para-ti': 'Para ti', boletines: 'Boletines', boletin: 'Boletines', revisiones: 'Revisiones', revision: 'Revisiones' }
 
-/** The page's place, from the URL's hash: a section, or one Bulletin or one Review in it. */
+/** The page's place, from the URL's hash: a section, one Bulletin or one Review in it, or one of a Bulletin's Editions. */
 function viewOf(hash) {
-	const [section, id] = hash.replace(/^#\/?/, '').split('/')
+	const [section, id, edition] = hash.replace(/^#\/?/, '').split('/')
 	const one = { boletines: 'boletin', revisiones: 'revision' }[section]
 	if (one === undefined) {
 		return { name: 'para-ti' }
 	}
-	return /^\d+$/.test(id ?? '') ? { name: one, id: Number(id) } : { name: section }
+	if (!/^\d+$/.test(id ?? '')) {
+		return { name: section }
+	}
+	return { name: one, id: Number(id), edition: one === 'boletin' && /^\d+$/.test(edition ?? '') ? Number(edition) : null }
 }
 
 export default {

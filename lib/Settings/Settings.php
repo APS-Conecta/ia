@@ -24,6 +24,8 @@ class Settings {
 	private const OFF_HOURS = ['start' => '22:00', 'end' => '06:00'];
 
 	private const GROUPS = 'editor_groups';
+	/** The establishment's Cargo list, an array-typed key of names, written by «IA local» (gestion-aio#167). */
+	private const CARGOS = 'cargos';
 	private const HOURS = 'off_hours';
 	private const HH_MM = '/^([01]\d|2[0-3]):[0-5]\d$/';
 
@@ -54,6 +56,22 @@ class Settings {
 		['start' => $start, 'end' => $end] = $this->offHours();
 		$time = DateTimeImmutable::createFromInterface($now)->setTimezone(new DateTimeZone($this->timezone()))->format('H:i');
 		return $start < $end ? $start <= $time && $time < $end : $time >= $start || $time < $end;
+	}
+
+	/**
+	 * The date (Y-m-d) on which the Off hours that hold $now, or come next, end: the date an
+	 * Edition written in them is for.
+	 */
+	public function offHoursDate(DateTimeInterface $now): string {
+		['start' => $start, 'end' => $end] = $this->offHours();
+		$local = DateTimeImmutable::createFromInterface($now)->setTimezone(new DateTimeZone($this->timezone()));
+		return ($start > $end && $local->format('H:i') >= $start ? $local->modify('+1 day') : $local)->format('Y-m-d');
+	}
+
+	/** @return list<string> the establishment's Cargos, the only ones a Reading may name; read afresh, as isOffHours */
+	public function cargos(): array {
+		$this->appConfig->clearCache();
+		return array_values(array_filter($this->appConfig->getValueArray(Application::APP_ID, self::CARGOS), 'is_string'));
 	}
 
 	/** The timezone Off hours are read in: the server's, which the suite sets to the centre's. */

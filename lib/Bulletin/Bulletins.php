@@ -11,11 +11,16 @@ use DateTimeZone;
 use OCA\Ia\Access\Access;
 use OCA\Ia\Db\Bulletin;
 use OCA\Ia\Db\BulletinMapper;
+use OCA\Ia\Db\EditionMapper;
+use OCA\Ia\Db\Run;
+use OCA\Ia\Db\RunMapper;
 use OCA\Ia\Forbidden;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\AppFramework\Db\TTransactional;
+use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IUser;
 
@@ -29,6 +34,7 @@ use OCP\IUser;
  *   a Source one member can't open is refused, naming who.
  * - **Readers** are the Reader groups' members; the preview counts those who can open every
  *   Source, checked live, and names the others with the Sources they can't open.
+ * - **Deleted** with its Editions and their Runs.
  *
  * @psalm-import-type IaBulletin from ResponseDefinitions
  * @psalm-import-type IaBulletinItem from ResponseDefinitions
@@ -37,14 +43,19 @@ use OCP\IUser;
  * @psalm-import-type IaSource from ResponseDefinitions
  */
 class Bulletins {
+	use TTransactional;
+
 	private const TYPES = ['folder', 'file', 'calendar'];
 	private const NOT_THEIRS = 'Solo los miembros del grupo editor de un boletín pueden verlo o cambiarlo.';
 
 	public function __construct(
 		private BulletinMapper $bulletins,
+		private EditionMapper $editions,
+		private RunMapper $runs,
 		private Access $access,
 		private IGroupManager $groups,
 		private Settings $settings,
+		private IDBConnection $db,
 	) {
 	}
 
@@ -112,7 +123,11 @@ class Bulletins {
 	 * @throws Forbidden
 	 */
 	public function delete(string $userId, int $id): void {
-		$this->bulletins->delete($this->edited($userId, $id));
+		$bulletin = $this->edited($userId, $id);
+		$this->atomic(function () use ($bulletin): void {
+			$this->runs->forget(Run::EDITION, array_map('strval', $this->editions->forget($bulletin->getId())));
+			$this->bulletins->delete($bulletin);
+		}, $this->db);
 	}
 
 	/**
@@ -128,12 +143,7 @@ class Bulletins {
 			throw new Forbidden('Solo los editores preparan boletines.');
 		}
 		$sources = $this->sources($userId, $input['sources'] ?? null);
-		$readers = [];
-		foreach ($this->readerGroups($input['readers'] ?? null) as $group) {
-			foreach ($this->access->members($group) as $user) {
-				$readers[$user->getUID()] = $user;
-			}
-		}
+		$readers = $this->membersOf($this->readerGroups($input['readers'] ?? null));
 		$leftOut = [];
 		foreach ($readers as $user) {
 			$cannot = $this->cannotOpen($user, $sources);
@@ -142,6 +152,33 @@ class Bulletins {
 			}
 		}
 		return ['readers' => count($readers) - count($leftOut), 'leftOut' => $leftOut];
+	}
+
+	/** @return list<IUser> the Bulletin's Readers: its Reader groups' active members, each once */
+	public function readers(Bulletin $bulletin): array {
+		return $this->membersOf(self::decode($bulletin->getReaders()));
+	}
+
+	/**
+	 * Who a Bulletin's Run acts as: the first active member of its Editor group, by id, who can open
+	 * every Source now (a folder or document no longer in anyone's Files is no Source any more);
+	 * null when none can.
+	 */
+	public function actor(Bulletin $bulletin): ?IUser {
+		$sources = array_values(array_filter($this->stored($bulletin), fn (array $source): bool => $source['type'] === 'calendar' || $this->access->exists((int)$source['id'])));
+		$members = $this->access->members($bulletin->getEditorGroup());
+		usort($members, static fn (IUser $a, IUser $b): int => strcmp($a->getUID(), $b->getUID()));
+		foreach ($members as $member) {
+			if ($this->cannotOpen($member, $sources) === []) {
+				return $member;
+			}
+		}
+		return null;
+	}
+
+	/** @return list<IaSource> the Bulletin's Sources, named as its actor or anyone sees them */
+	public function stored(Bulletin $bulletin): array {
+		return array_map(static fn (array $source): array => ['type' => $source['type'], 'id' => (string)$source['id'], 'name' => ''], self::decode($bulletin->getSources()));
 	}
 
 	/**
@@ -159,7 +196,7 @@ class Bulletins {
 	}
 
 	/** 'editor' when $userId is in its Editor group (still an Editor group), 'reader' when in a Reader group, else null. */
-	private function role(string $userId, Bulletin $bulletin): ?string {
+	public function role(string $userId, Bulletin $bulletin): ?string {
 		if (in_array($bulletin->getEditorGroup(), $this->access->editorGroups($userId), true)) {
 			return 'editor';
 		}
@@ -281,6 +318,20 @@ class Bulletins {
 			'schedule' => $schedule->view(),
 			'due' => $schedule->due($today),
 		];
+	}
+
+	/**
+	 * @param list<string> $groups
+	 * @return list<IUser> the groups' active members, each once
+	 */
+	private function membersOf(array $groups): array {
+		$members = [];
+		foreach ($groups as $group) {
+			foreach ($this->access->members($group) as $user) {
+				$members[$user->getUID()] = $user;
+			}
+		}
+		return array_values($members);
 	}
 
 	/** @return IaGroup */

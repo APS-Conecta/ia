@@ -27,6 +27,8 @@ class ModelGateway {
 	private const CHARS_PER_TOKEN = 3;
 	/** The line a prompt asks the Model to end on: without it, the last line is unfinished. */
 	public const END = 'FIN';
+	/** How every prompt asks for the END line. */
+	public const CLOSE = 'Al terminar, escribe una última línea con la palabra ' . self::END . '.';
 
 	public function __construct(
 		private IManager $taskProcessing,
@@ -98,9 +100,7 @@ class ModelGateway {
 	 * @return list<array<string, string>>
 	 */
 	public static function lines(string $answer): array {
-		$lines = array_values(array_filter(array_map('trim', explode("\n", str_replace("\r", '', $answer))), static fn (string $line): bool => $line !== ''));
-		$end = array_search(self::END, array_map(static fn (string $line): string => strtoupper(trim($line, " *.#")), $lines), true);
-		$lines = $end === false ? array_slice($lines, 0, -1) : array_slice($lines, 0, $end);
+		$lines = self::upToEnd(array_values(array_filter(array_map('trim', explode("\n", str_replace("\r", '', $answer))), static fn (string $line): bool => $line !== '')));
 		$maps = [];
 		foreach ($lines as $line) {
 			$fields = [];
@@ -114,6 +114,23 @@ class ModelGateway {
 			}
 		}
 		return $maps;
+	}
+
+	/**
+	 * The Model's prose answer: its text up to the END line; an answer without it was cut, so its
+	 * last line is dropped.
+	 */
+	public static function prose(string $answer): string {
+		return trim(implode("\n", self::upToEnd(explode("\n", trim(str_replace("\r", '', $answer))))));
+	}
+
+	/**
+	 * @param list<string> $lines an answer's lines
+	 * @return list<string> those before the END line; all but the last when there is none, as the answer was cut
+	 */
+	private static function upToEnd(array $lines): array {
+		$end = array_search(self::END, array_map(static fn (string $line): string => strtoupper(trim($line, " *.#")), $lines), true);
+		return $end === false ? array_slice($lines, 0, -1) : array_slice($lines, 0, $end);
 	}
 
 	/** $value upper-cased, without accents or surrounding marks, its spaces collapsed: how a key or a kind is matched. */

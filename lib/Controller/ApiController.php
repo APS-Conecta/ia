@@ -9,6 +9,7 @@ namespace OCA\Ia\Controller;
 use OCA\Ia\Access\Access;
 use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Bulletin\Bulletins;
+use OCA\Ia\Bulletin\Editions;
 use OCA\Ia\Forbidden;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
@@ -39,6 +40,8 @@ use OCP\IUserSession;
  * @psalm-import-type IaAdminSettings from ResponseDefinitions
  * @psalm-import-type IaBulletin from ResponseDefinitions
  * @psalm-import-type IaBulletinItem from ResponseDefinitions
+ * @psalm-import-type IaEdition from ResponseDefinitions
+ * @psalm-import-type IaEditionItem from ResponseDefinitions
  * @psalm-import-type IaReadersPreview from ResponseDefinitions
  * @psalm-import-type IaGroup from ResponseDefinitions
  * @psalm-import-type IaOffHours from ResponseDefinitions
@@ -66,6 +69,7 @@ class ApiController extends OCSController {
 		private Settings $settings,
 		private IGroupManager $groups,
 		private Bulletins $bulletins,
+		private Editions $editions,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -352,6 +356,45 @@ class ApiController extends OCSController {
 			$this->bulletins->delete($this->user(), $id);
 			return new DataResponse([]);
 		});
+	}
+
+	/**
+	 * A Bulletin's published Editions that the caller can see: those whose every file still there
+	 * they can open
+	 *
+	 * @param int $id The Bulletin's id
+	 * @return DataResponse<Http::STATUS_OK, array{editions: list<IaEditionItem>}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND, array{message: string}, array{}>
+	 *
+	 * 200: Its Editions, newest first
+	 * 403: The caller neither edits nor reads it
+	 * 404: No such Bulletin
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/bulletins/{id}/editions')]
+	public function editions(int $id): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse(['editions' => $this->editions->all($this->user(), $id)]));
+	}
+
+	/**
+	 * An Edition: its Resumen, written by AI ('' when no document could be read), and its sections,
+	 * each document with its Reading
+	 *
+	 * @param int $id The Edition's id
+	 * @return DataResponse<Http::STATUS_OK, array{edition: IaEdition}, array{}>|DataResponse<Http::STATUS_NOT_FOUND, array{message: string}, array{}>
+	 *
+	 * 200: The Edition
+	 * 404: No such Edition, it isn't published yet, or the caller can't see it
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/editions/{id}')]
+	public function edition(int $id): DataResponse {
+		try {
+			return new DataResponse(['edition' => $this->editions->one($this->user(), $id)]);
+		} catch (DoesNotExistException) {
+			return new DataResponse(['message' => 'No encontramos esa edición, o ya no puedes leerla.'], Http::STATUS_NOT_FOUND);
+		}
 	}
 
 	/**

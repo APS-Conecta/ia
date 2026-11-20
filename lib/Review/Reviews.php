@@ -18,6 +18,8 @@ use OCA\Ia\Reading\Document;
 use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
+use OCA\Ia\Run\Kind;
+use OCA\Ia\Run\Steps;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -27,7 +29,6 @@ use OCP\Files\NotFoundException;
 use OCP\IDBConnection;
 use OCP\Notification\IManager as INotificationManager;
 use OCP\TaskProcessing\Task;
-use Throwable;
 
 /**
  * Reviews (CONTEXT.md; gestion-aio#162, Reviews): the Model checks one document and reports its
@@ -49,7 +50,7 @@ use Throwable;
  * @psalm-import-type IaReview from ResponseDefinitions
  * @psalm-import-type IaReviewItem from ResponseDefinitions
  */
-class Reviews {
+class Reviews implements Kind {
 	use TTransactional;
 
 	/** A short document, reviewed at once: about 10 pages. */
@@ -62,18 +63,17 @@ class Reviews {
 	private const FORMAT = 'Escribe un hallazgo por línea, con este formato exacto:
 TIPO: Error | CITA: frase copiada del documento, tal cual | PROBLEMA: qué está mal | ARREGLO: cómo corregirlo
 En CITA copia las palabras exactas del documento, sin cambiarlas.';
-	private const CLOSE = 'Al terminar, escribe una última línea con la palabra ' . ModelGateway::END . '.';
 
 	private const SINGLE = 'Revisa el documento de un centro de salud que está entre las marcas <<< y >>>. ' . self::KINDS . "\n" . self::MISSING . "\n\n"
 		. self::FORMAT . ' En una Falta escribe CITA: - y agrega | DONDE: sección donde debería ir' . "\n"
-		. 'Escribe solo los hallazgos, sin títulos ni explicaciones. ' . self::CLOSE;
+		. 'Escribe solo los hallazgos, sin títulos ni explicaciones. ' . ModelGateway::CLOSE;
 	private const CHUNK = 'Revisa la parte %d de %d de un documento de un centro de salud; la parte está entre las marcas <<< y >>>. ' . self::KINDS . "\n\n"
 		. "Primero escribe una línea con un resumen de la parte, así:\nRESUMEN: qué dice esta parte, en dos o tres oraciones\nDespués:\n"
-		. self::FORMAT . "\n" . 'Escribe solo el resumen y los hallazgos, sin títulos ni explicaciones. ' . self::CLOSE;
+		. self::FORMAT . "\n" . 'Escribe solo el resumen y los hallazgos, sin títulos ni explicaciones. ' . ModelGateway::CLOSE;
 	private const GAPS = 'Estos son los resúmenes de las %d partes de un documento de un centro de salud, entre las marcas <<< y >>>. '
 		. "Di qué le falta: algo que un documento así debería tener y no tiene.\n\n"
 		. "Escribe una falta por línea, con este formato exacto:\nTIPO: Falta | DONDE: parte o sección donde debería ir | PROBLEMA: qué falta | ARREGLO: qué agregar\n"
-		. 'Escribe solo las faltas, sin títulos ni explicaciones. ' . self::CLOSE;
+		. 'Escribe solo las faltas, sin títulos ni explicaciones. ' . ModelGateway::CLOSE;
 
 	public function __construct(
 		private Access $access,
@@ -85,6 +85,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		private ITimeFactory $time,
 		private IDBConnection $db,
 		private Settings $settings,
+		private Steps $steps,
 	) {
 	}
 
@@ -133,7 +134,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			return $this->create($userId, $fileId);
 		}
 		if (!$run->getOffHours()) {
-			$this->ask($run, $this->prompt($run, $chunks, []));
+			$this->steps->ask($run, $this->prompt($run, $chunks, []));
 		}
 		return $this->answer($report, $run, $file) + ['created' => true];
 	}
@@ -192,7 +193,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			$this->begin($run, $this->restart($report, $run, $file, $document));
 			return;
 		}
-		$this->ask($run, $this->prompt($run, self::chunks($document), self::results($run)['summaries']));
+		$this->steps->ask($run, $this->prompt($run, self::chunks($document), self::results($run)['summaries']));
 	}
 
 	/**
@@ -245,7 +246,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 				$this->runs->save($run);
 				return;
 			}
-			$this->ask($run, $this->prompt($run, $chunks, $results['summaries']));
+			$this->steps->ask($run, $this->prompt($run, $chunks, $results['summaries']));
 			return;
 		}
 		$report->setFindings(json_encode(array_values(array_unique($results['findings'], SORT_REGULAR)), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
@@ -328,29 +329,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			$this->runs->save($run);
 			return;
 		}
-		$this->ask($run, $this->prompt($run, $chunks, []));
-	}
-
-	/**
-	 * Asks the Model the Run's current step. The task and the Run that names it are saved in one
-	 * transaction, so the worker never finishes a task before its Run expects it, and a Run another
-	 * process saved first rolls the new task back. A failed ask is a failed attempt.
-	 */
-	private function ask(Run $run, string $prompt): void {
-		try {
-			$this->atomic(function () use ($run, $prompt): void {
-				$run->setTaskId($this->model->ask($run->getId(), $prompt));
-				$run->setState(Run::WORKING);
-				if (!$this->runs->save($run)) {
-					throw new StaleRun();
-				}
-			}, $this->db);
-		} catch (StaleRun) {
-			return;
-		} catch (Throwable) {
-			$run->retry('El modelo no está disponible.');
-			$this->runs->save($run);
-		}
+		$this->steps->ask($run, $this->prompt($run, $chunks, []));
 	}
 
 	/**

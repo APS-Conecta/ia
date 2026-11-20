@@ -61,6 +61,16 @@ final class Schedule {
 		return ['kind' => $this->kind, 'day' => $this->day];
 	}
 
+	/** Whether an Edition is due on $date: never for «cuando cambien sus fuentes» (APS-Conecta/ia#13). */
+	public function matches(DateTimeImmutable $date): bool {
+		return match ($this->kind) {
+			'daily' => true,
+			'weekly' => (int)$date->format('N') === $this->day,
+			'monthly' => (int)$date->format('j') === $this->day,
+			default => false,
+		};
+	}
+
 	/** The date (Y-m-d) the next Edition is due after $today, or null when its Sources decide. */
 	public function due(DateTimeImmutable $today): ?string {
 		$next = $today->modify('+1 day');

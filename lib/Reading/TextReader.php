@@ -36,6 +36,7 @@ class TextReader {
 	/** Letters below which a PDF page is a scanned image, not text; a PDF is a scan when most pages are. */
 	private const SCAN_LETTERS = 40;
 
+	private const READS = ['txt', 'md', 'pdf', 'docx', 'odt'];
 	private const FORMATS = 'Por ahora «IA» revisa archivos PDF, DOCX, ODT, TXT y MD.';
 	private const UNREADABLE = 'No se pudo leer el archivo: puede estar dañado o protegido con contraseña.';
 	private const SCANNED = 'Es un documento escaneado: «IA» todavía no lee escaneos. Sube una versión con texto (PDF de texto, DOCX u ODT).';
@@ -49,10 +50,15 @@ class TextReader {
 	) {
 	}
 
+	/** Whether «IA» reads files of $name's format. */
+	public static function reads(string $name): bool {
+		return in_array(strtolower(pathinfo($name, PATHINFO_EXTENSION)), self::READS, true);
+	}
+
 	/** @throws Refused when «IA» can't read it */
 	public function read(File $file): Document {
 		$format = strtolower(pathinfo($file->getName(), PATHINFO_EXTENSION));
-		if (!in_array($format, ['txt', 'md', 'pdf', 'docx', 'odt'], true)) {
+		if (!self::reads($file->getName())) {
 			throw new Refused(self::FORMATS);
 		}
 		$content = (string)$file->getContent();
@@ -109,7 +115,7 @@ class TextReader {
 			$text .= $pageText . "\n\n";
 		}
 		if ($images * 2 > count($pages)) {
-			throw new Refused(self::SCANNED);
+			throw new Scanned(self::SCANNED);
 		}
 		return new Document(rtrim($text), count($pages), $marks);
 	}
