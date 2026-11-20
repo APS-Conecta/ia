@@ -47,7 +47,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   asks for no new Reviews and keeps the reports.
 - The Personal list, «Para ti» and the «Boletines» widget (#12): opening an Edition, each Reader sees their own part,
   computed then and never stored: the timed events in their calendars during the Edition's period and its documents
-  whose Reading names one of their Cargo groups. «Para ti» merges these lists from the latest Edition of each Bulletin
-  the person reads, with the protocols about to expire and those Editions, and says they come from their calendar and
-  Cargo, not from the Model. The Dashboard shows the latest Editions each person can see. «IA» reads the Cargo list
-  from its app config as the Cargo groups' ids; a Reading keeps the ids it names.
+  whose Reading names one of their Cargo groups. «Para ti» merges what is ahead in these lists (#28: the meetings not
+  yet ended and the documents new or changed) from the latest Edition of each Bulletin the person reads, with the
+  protocols about to expire and those Editions, and says they come from their calendar and Cargo, not from the Model.
+  The Dashboard shows the latest Editions each person can see. «IA» reads the Cargo list from its app config as the
+  Cargo groups' ids; a Reading keeps the ids it names.

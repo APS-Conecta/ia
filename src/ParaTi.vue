@@ -8,16 +8,19 @@
 		</NcNoteCard>
 		<NcEmptyContent v-else-if="paraTi.bulletins.length === 0"
 			name="Todavía no recibes ningún boletín"
-			description="Cuando un grupo editor te sume a los lectores de un boletín, aquí verás tus reuniones, los documentos para tu cargo y las últimas ediciones.">
+			description="Cuando un grupo editor te sume a los lectores de un boletín, aquí verás tus próximas reuniones, los documentos nuevos o cambiados para tu cargo y las últimas ediciones.">
 			<template #icon>
 				<NcIconSvgWrapper :path="mdiNewspaperVariantOutline" />
 			</template>
 		</NcEmptyContent>
 		<template v-else>
 			<p class="ia-lead">
-				Lo de tus boletines que te toca: tus reuniones, los documentos para tu cargo y los protocolos por vencer.
+				Lo de tus boletines que te toca: tus próximas reuniones, los documentos nuevos o cambiados para tu cargo y los protocolos por vencer.
 			</p>
-			<PersonalList :meetings="paraTi.meetings" :documents="paraTi.documents" @open="reading = $event" />
+			<PersonalList :meetings="paraTi.meetings"
+				:documents="paraTi.documents"
+				ahead
+				@open="reading = $event" />
 
 			<h3>Protocolos por vencer</h3>
 			<p v-if="paraTi.expiring.length === 0" class="ia-hint">
