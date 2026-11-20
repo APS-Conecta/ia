@@ -8,11 +8,14 @@ namespace OCA\Ia\Controller;
 
 use OCA\Ia\Access\Access;
 use OCA\Ia\AppInfo\Application;
+use OCA\Ia\Bulletin\Bulletins;
+use OCA\Ia\Forbidden;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
 use OCA\Ia\Review\Reviews;
 use OCA\Ia\Settings\Admin;
 use OCA\Ia\Settings\Settings;
+use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\ApiRoute;
 use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
@@ -34,6 +37,9 @@ use OCP\IUserSession;
  * is delegated to (MetadataTest holds all of it).
  *
  * @psalm-import-type IaAdminSettings from ResponseDefinitions
+ * @psalm-import-type IaBulletin from ResponseDefinitions
+ * @psalm-import-type IaBulletinItem from ResponseDefinitions
+ * @psalm-import-type IaReadersPreview from ResponseDefinitions
  * @psalm-import-type IaGroup from ResponseDefinitions
  * @psalm-import-type IaOffHours from ResponseDefinitions
  * @psalm-import-type IaReview from ResponseDefinitions
@@ -59,6 +65,7 @@ class ApiController extends OCSController {
 		private Access $access,
 		private Settings $settings,
 		private IGroupManager $groups,
+		private Bulletins $bulletins,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -228,8 +235,180 @@ class ApiController extends OCSController {
 	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
 	#[ApiRoute(verb: 'GET', url: '/api/v1/admin/groups')]
 	public function adminGroups(string $search = ''): DataResponse {
-		$found = array_map(static fn ($group): string => $group->getGID(), $this->groups->search($search, self::GROUPS_SHOWN));
-		return new DataResponse(['groups' => $this->named(array_values($found))]);
+		return new DataResponse(['groups' => $this->found($search)]);
+	}
+
+	/**
+	 * «Boletines»: the Bulletins the caller edits or reads, by name
+	 *
+	 * @return DataResponse<Http::STATUS_OK, array{bulletins: list<IaBulletinItem>}, array{}>
+	 *
+	 * 200: The caller's Bulletins
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/bulletins')]
+	public function bulletins(): DataResponse {
+		return new DataResponse(['bulletins' => $this->bulletins->all($this->user())]);
+	}
+
+	/**
+	 * Create a Bulletin for one of the caller's Editor groups
+	 *
+	 * @param string $name The Bulletin's name
+	 * @param string $editorGroup The Editor group that owns it, one of the caller's
+	 * @param list<array{type: string, id: string}> $sources Folders, documents and calendars the whole Editor group can open
+	 * @param list<string> $readers The Reader groups' ids
+	 * @param array{kind: string, day?: ?int} $schedule When its Editions are due
+	 * @return DataResponse<Http::STATUS_CREATED, array{bulletin: IaBulletin}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
+	 *
+	 * 201: The Bulletin
+	 * 403: The Editor group isn't one of the caller's
+	 * 422: A field isn't one, or a member of the Editor group can't open a Source
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'POST', url: '/api/v1/bulletins')]
+	public function createBulletin(string $name, string $editorGroup, array $sources, array $readers, array $schedule): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse([
+			'bulletin' => $this->bulletins->create($this->user(), ['name' => $name, 'editorGroup' => $editorGroup, 'sources' => $sources, 'readers' => $readers, 'schedule' => $schedule]),
+		], Http::STATUS_CREATED));
+	}
+
+	/**
+	 * Who a Bulletin with these Sources and Reader groups reaches, for an Editor setting one up
+	 *
+	 * @param list<array{type: string, id: string}> $sources The Sources
+	 * @param list<string> $readers The Reader groups' ids
+	 * @return DataResponse<Http::STATUS_OK, IaReadersPreview, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
+	 *
+	 * 200: How many Readers it reaches, and who is left out because they can't open a Source
+	 * 403: The caller is no Editor
+	 * 422: A field isn't one
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'POST', url: '/api/v1/bulletins/preview')]
+	public function previewBulletin(array $sources, array $readers): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse($this->bulletins->preview($this->user(), ['sources' => $sources, 'readers' => $readers])));
+	}
+
+	/**
+	 * One Bulletin the caller edits or reads, with when its next Edition is due
+	 *
+	 * @param int $id The Bulletin's id
+	 * @return DataResponse<Http::STATUS_OK, array{bulletin: IaBulletin}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND, array{message: string}, array{}>
+	 *
+	 * 200: The Bulletin
+	 * 403: The caller neither edits nor reads it
+	 * 404: No such Bulletin
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/bulletins/{id}')]
+	public function bulletin(int $id): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse(['bulletin' => $this->bulletins->one($this->user(), $id)]));
+	}
+
+	/**
+	 * Change a Bulletin of the caller's Editor group: its name, Sources, Readers and schedule
+	 *
+	 * @param int $id The Bulletin's id
+	 * @param string $name The Bulletin's name
+	 * @param list<array{type: string, id: string}> $sources Folders, documents and calendars the whole Editor group can open
+	 * @param list<string> $readers The Reader groups' ids
+	 * @param array{kind: string, day?: ?int} $schedule When its Editions are due
+	 * @return DataResponse<Http::STATUS_OK, array{bulletin: IaBulletin}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
+	 *
+	 * 200: The Bulletin, changed
+	 * 403: The caller isn't in its Editor group
+	 * 404: No such Bulletin
+	 * 422: A field isn't one, or a member of the Editor group can't open a Source
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'PUT', url: '/api/v1/bulletins/{id}')]
+	public function changeBulletin(int $id, string $name, array $sources, array $readers, array $schedule): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse([
+			'bulletin' => $this->bulletins->change($this->user(), $id, ['name' => $name, 'sources' => $sources, 'readers' => $readers, 'schedule' => $schedule]),
+		]));
+	}
+
+	/**
+	 * Delete a Bulletin of the caller's Editor group
+	 *
+	 * @param int $id The Bulletin's id
+	 * @return DataResponse<Http::STATUS_OK, array{}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND, array{message: string}, array{}>
+	 *
+	 * 200: Deleted
+	 * 403: The caller isn't in its Editor group
+	 * 404: No such Bulletin
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'DELETE', url: '/api/v1/bulletins/{id}')]
+	public function deleteBulletin(int $id): DataResponse {
+		return $this->refusable(function () use ($id): DataResponse {
+			$this->bulletins->delete($this->user(), $id);
+			return new DataResponse([]);
+		});
+	}
+
+	/**
+	 * The caller's calendars, theirs and those shared with them, to pick a Bulletin's Sources from
+	 *
+	 * @return DataResponse<Http::STATUS_OK, array{calendars: list<array{id: string, name: string}>}, array{}>
+	 *
+	 * 200: The calendars
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/calendars')]
+	public function calendars(): DataResponse {
+		$calendars = array_map(static fn ($calendar): array => ['id' => $calendar->getKey(), 'name' => Access::calendarName($calendar)],
+			$this->access->calendarsOf($this->user()));
+		return new DataResponse(['calendars' => $calendars]);
+	}
+
+	/**
+	 * The groups whose name or id holds the search, for an Editor picking a Bulletin's Readers
+	 *
+	 * @param string $search What the Editor typed
+	 * @return DataResponse<Http::STATUS_OK, array{groups: list<IaGroup>}, array{}>|DataResponse<Http::STATUS_FORBIDDEN, array{message: string}, array{}>
+	 *
+	 * 200: Up to 20 groups
+	 * 403: The caller is no Editor
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/groups')]
+	public function groups(string $search = ''): DataResponse {
+		if ($this->access->editorGroups($this->user()) === []) {
+			return new DataResponse(['message' => 'Solo los editores eligen lectores.'], Http::STATUS_FORBIDDEN);
+		}
+		return new DataResponse(['groups' => $this->found($search)]);
+	}
+
+	/** @return list<IaGroup> up to GROUPS_SHOWN groups whose name or id holds $search */
+	private function found(string $search): array {
+		return $this->named(array_values(array_map(static fn ($group): string => $group->getGID(), $this->groups->search($search, self::GROUPS_SHOWN))));
+	}
+
+	/**
+	 * $answer's response, or the Spanish reason it was refused: 403, 404 or 422.
+	 *
+	 * @param callable(): DataResponse $answer
+	 */
+	private function refusable(callable $answer): DataResponse {
+		try {
+			return $answer();
+		} catch (Forbidden $e) {
+			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_FORBIDDEN);
+		} catch (DoesNotExistException) {
+			return new DataResponse(['message' => 'No encontramos ese boletín.'], Http::STATUS_NOT_FOUND);
+		} catch (Refused $e) {
+			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
 	}
 
 	/** @return IaAdminSettings */

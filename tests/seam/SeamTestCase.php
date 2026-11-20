@@ -195,6 +195,32 @@ abstract class SeamTestCase extends TestCase {
 		return ['fileId' => (int)($id[1] ?? 0), 'etag' => $etag[1] ?? ''];
 	}
 
+	/** Makes the folder $name in the person's Files, and answers its file id. */
+	protected static function folder(string $person, string $name): int {
+		[$status] = self::http($person, 'MKCOL', self::DAV . $person . '/' . rawurlencode($name), []);
+		self::assertSame(201, $status, "MKCOL $name answered $status");
+		return self::file($person, $name)['fileId'];
+	}
+
+	/** A WebDAV call as the person to $path under the server's root, answered with its status. */
+	protected static function dav(string $person, string $method, string $path, string $body): int {
+		return self::http($person, $method, 'http://localhost' . $path, ['Content-Type: application/xml'], $body)[0];
+	}
+
+	/** Shares the person's $path with the group $group, read-only. */
+	protected static function shareWithGroup(string $person, string $path, string $group): void {
+		$answer = self::ocs($person, 'POST', '/apps/files_sharing/api/v1/shares', ['path' => $path, 'shareType' => 1, 'shareWith' => $group, 'permissions' => 1]);
+		self::assertSame(200, $answer['status'], "sharing $path with $group answered {$answer['status']}");
+	}
+
+	/** Makes $groups the Editor groups, through the admin setting; Off hours stay. */
+	protected static function editorGroups(string ...$groups): void {
+		$admin = self::admin();
+		$settings = self::ocs($admin, 'GET', '/apps/ia/api/v1/admin/settings')['data'];
+		$answer = self::ocs($admin, 'PUT', '/apps/ia/api/v1/admin/settings', ['editorGroups' => $groups, 'offHours' => $settings['offHours']]);
+		self::assertSame(200, $answer['status']);
+	}
+
 	/** Moves the person's file to their trash, so they can no longer open it. */
 	protected static function remove(string $person, string $name): void {
 		[$status] = self::http($person, 'DELETE', self::DAV . $person . '/' . rawurlencode($name), []);
