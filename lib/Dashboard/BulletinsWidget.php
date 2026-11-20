@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace OCA\Ia\Dashboard;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use IntlDateFormatter;
 use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Bulletin\Editions;
@@ -52,10 +53,11 @@ class BulletinsWidget implements IAPIWidgetV2, IIconWidget {
 	}
 
 	public function getItemsV2(string $userId, ?string $since = null, int $limit = 7): WidgetItems {
-		$dates = IntlDateFormatter::create('es_CL', IntlDateFormatter::LONG, IntlDateFormatter::NONE, 'UTC');
+		// As the app writes a date: «viernes, 20 de noviembre» (bulletins.js longDate).
+		$dates = new IntlDateFormatter('es_CL', IntlDateFormatter::FULL, IntlDateFormatter::NONE, 'UTC', null, "EEEE, d 'de' MMMM");
 		$items = array_map(fn (array $edition): WidgetItem => new WidgetItem(
 			$edition['bulletin']['name'],
-			'Edición del ' . $dates->format(new DateTimeImmutable($edition['date'] . ' 12:00', new \DateTimeZone('UTC'))),
+			'Edición del ' . $dates->format(new DateTimeImmutable($edition['date'] . ' 12:00', new DateTimeZone('UTC'))),
 			$this->url->linkToRouteAbsolute('ia.page.index') . '#boletines/' . $edition['bulletin']['id'] . '/' . $edition['id'],
 			$this->getIconUrl(),
 			(string)$edition['id'],

@@ -10,7 +10,6 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use OCA\Ia\Access\Access;
 use OCA\Ia\ResponseDefinitions;
-use OCA\Ia\Settings\Settings;
 
 /**
  * A Reader's Personal list (CONTEXT.md; gestion-aio#162, Bulletins): their own part of an Edition,
@@ -22,11 +21,10 @@ use OCA\Ia\Settings\Settings;
 class PersonalList {
 	public function __construct(
 		private Access $access,
-		private Settings $settings,
 	) {
 	}
 
-	/** @return list<IaMeeting> the timed events in $userId's calendars from $from to $to, each occurrence once, by start */
+	/** @return list<IaMeeting> the timed events in $userId's calendars from $from to $to, each occurrence once, by start; cancelled ones left out */
 	public function meetings(string $userId, DateTimeImmutable $from, DateTimeImmutable $to): array {
 		$meetings = [];
 		foreach ($this->access->calendarsOf($userId) as $calendar) {
@@ -34,11 +32,13 @@ class PersonalList {
 			foreach ($calendar->search('', [], ['timerange' => ['start' => $from, 'end' => $to]]) as $object) {
 				foreach ($object['type'] === 'VEVENT' ? $object['objects'] : [] as $event) {
 					[$start, $parameters] = $event['DTSTART'] ?? [null, []];
-					if (!$start instanceof DateTimeInterface || self::allDay($parameters)) {
+					if (!$start instanceof DateTimeInterface || self::allDay($parameters) || strtoupper((string)($event['STATUS'][0] ?? '')) === 'CANCELLED') {
 						continue;
 					}
 					$end = $event['DTEND'][0] ?? null;
-					$meetings[$object['uid'] . '@' . $start->getTimestamp()] = [
+					$id = $object['uid'] . '@' . $start->getTimestamp();
+					$meetings[$id] = [
+						'id' => $id,
 						'title' => (string)($event['SUMMARY'][0] ?? ''),
 						'start' => $start->getTimestamp(),
 						'end' => $end instanceof DateTimeInterface ? $end->getTimestamp() : null,
@@ -51,9 +51,12 @@ class PersonalList {
 		return $meetings;
 	}
 
-	/** @return list<string> the ids of the Cargo groups $userId is in */
-	public function cargosOf(string $userId): array {
-		return array_values(array_intersect(array_keys($this->settings->cargos()), $this->access->groupsOf($userId)));
+	/**
+	 * @param array<string, string> $cargos the Cargo list (Settings::cargos)
+	 * @return list<string> the ids of the Cargo groups $userId is in
+	 */
+	public function cargosOf(string $userId, array $cargos): array {
+		return array_values(array_intersect(array_map(strval(...), array_keys($cargos)), $this->access->groupsOf($userId)));
 	}
 
 	/** @param array<array-key, mixed> $parameters a DTSTART's: an all-day event's is a DATE */

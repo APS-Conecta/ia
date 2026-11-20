@@ -55,12 +55,15 @@ class Editions {
 	) {
 	}
 
-	/** @return list<IaEditionSummary> the latest Edition $userId can see of each Bulletin they edit or read, newest first */
-	public function latest(string $userId): array {
+	/**
+	 * @return list<IaEditionSummary> the latest Edition $userId can see of each Bulletin they edit or
+	 *                                read (only those they read, when $read), newest first
+	 */
+	public function latest(string $userId, bool $read = false): array {
 		$opens = $this->opener($userId);
 		$latest = [];
 		foreach ($this->bulletins->all() as $bulletin) {
-			if ($this->setUp->role($userId, $bulletin) === null) {
+			if ($this->setUp->role($userId, $bulletin) === null || ($read && !$this->setUp->reads($userId, $bulletin))) {
 				continue;
 			}
 			foreach ($this->editions->ofBulletin($bulletin->getId()) as $edition) {
@@ -106,11 +109,11 @@ class Editions {
 			throw new DoesNotExistException('No such Edition');
 		}
 		$cargos = $this->settings->cargos();
-		$mine = $this->personal->cargosOf($userId);
+		$readerCargos = $this->personal->cargosOf($userId, $cargos);
 		$stored = self::files($edition);
 		$documents = array_map(fn (array $document): array => $this->document($document, $cargos), $stored);
 		$personal = array_filter($documents, static fn (array $document, int $i): bool => $document['status'] === Reading::READ
-			&& array_intersect($stored[$i]['cargos'], $mine) !== [], ARRAY_FILTER_USE_BOTH);
+			&& array_intersect($stored[$i]['cargos'], $readerCargos) !== [], ARRAY_FILTER_USE_BOTH);
 		$limit = (new DateTimeImmutable($edition->getDate()))->modify('+' . self::EXPIRING_DAYS . ' days')->format('Y-m-d');
 		$read = array_filter($documents, static fn (array $document): bool => $document['status'] === Reading::READ);
 		$expiring = array_filter($read, static fn (array $document): bool => $document['expires'] !== null && $document['expires'] <= $limit);

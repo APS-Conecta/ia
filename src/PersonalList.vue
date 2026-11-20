@@ -9,7 +9,7 @@
 		</p>
 		<ul v-else>
 			<NcListItem v-for="meeting in meetings"
-				:key="meeting.calendar + meeting.start + meeting.title"
+				:key="meeting.id"
 				:name="meeting.title || 'Reunión sin título'"
 				:details="meeting.calendar">
 				<template #icon>
@@ -33,9 +33,6 @@
 				<template #icon>
 					<NcIconSvgWrapper :path="mdiFileDocumentOutline" />
 				</template>
-				<template #subname>
-					{{ document.summary ?? GONE }}
-				</template>
 			</NcListItem>
 		</ul>
 	</section>
@@ -45,19 +42,22 @@
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
-import { GONE, meetingText } from './bulletins.js'
+import { meetingText } from './bulletins.js'
 import { mdiCalendarOutline, mdiFileDocumentOutline } from './icons.js'
 
-/** A person's Personal list: their meetings and the documents for their Cargo, from data, not the Model. */
+/**
+ * A person's Personal list: their meetings and the documents for their Cargo, from data, not the
+ * Model; a document's Reading, written by AI, opens in its dialog.
+ */
 export default {
-	name: 'PersonalLists',
+	name: 'PersonalList',
 	components: { NcIconSvgWrapper, NcListItem, NcNoteCard },
 	props: {
 		meetings: { type: Array, required: true },
 		documents: { type: Array, required: true },
 	},
 	emits: ['open'],
-	setup: () => ({ GONE, mdiCalendarOutline, mdiFileDocumentOutline, meetingText }),
+	setup: () => ({ mdiCalendarOutline, mdiFileDocumentOutline, meetingText }),
 	methods: {
 		open(event, document) {
 			event.preventDefault()

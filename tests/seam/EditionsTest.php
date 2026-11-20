@@ -135,6 +135,7 @@ final class EditionsTest extends SeamTestCase {
 		self::event('sector', "DTSTART:{$this->utc($day->modify('10:00'))}\r\nDTEND:{$this->utc($day->modify('11:00'))}", 'Reunión de sector');
 		self::event('later', "DTSTART:{$this->utc($day->modify('+3 days 10:00'))}\r\nDTEND:{$this->utc($day->modify('+3 days 11:00'))}", 'Reunión de otra semana');
 		self::event('all-day', 'DTSTART;VALUE=DATE:' . $day->format('Ymd') . "\r\nDTEND;VALUE=DATE:" . $day->modify('+1 day')->format('Ymd'), 'Aniversario del centro');
+		self::event('cancelled', "DTSTART:{$this->utc($day->modify('15:00'))}\r\nDTEND:{$this->utc($day->modify('16:00'))}\r\nSTATUS:CANCELLED", 'Reunión suspendida');
 
 		$edition = self::edition(self::$carla, $id);
 		self::assertSame(['Reunión de sector'], array_column($edition['personal']['meetings'], 'title'), "her timed events in the Edition's period only");
@@ -152,6 +153,8 @@ final class EditionsTest extends SeamTestCase {
 		self::assertSame(['Reunión de sector'], array_column($paraTi['meetings'], 'title'));
 		self::assertSame(self::names(self::edition(self::$carla, $id)['personal']['documents']), self::names($paraTi['documents']));
 		self::assertSame(['curaciones.txt'], array_column($paraTi['expiring'], 'name'));
+		self::assertSame(['bulletins' => [], 'editions' => [], 'meetings' => [], 'documents' => [], 'expiring' => []],
+			self::ocs(self::$ana, 'GET', self::API . '/para-ti')['data'], 'editing a Bulletin is not reading it');
 	}
 
 	/** @depends testItIsPublishedWholeAndItsReadersAreTold */

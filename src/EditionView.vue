@@ -19,7 +19,7 @@
 			</p>
 
 			<h3>Para ti en esta edición</h3>
-			<PersonalLists :meetings="edition.personal.meetings" :documents="edition.personal.documents" @open="reading = $event" />
+			<PersonalList :meetings="edition.personal.meetings" :documents="edition.personal.documents" @open="reading = $event" />
 
 			<h3>Documentos nuevos y cambiados</h3>
 			<p v-if="edition.changed.length === 0" class="ia-hint">
@@ -108,7 +108,7 @@ import NcListItem from '@nextcloud/vue/components/NcListItem'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { ocsGet } from './api.js'
-import PersonalLists from './PersonalLists.vue'
+import PersonalList from './PersonalList.vue'
 import ReadingDialog from './ReadingDialog.vue'
 import { GONE, longDate, UNREADABLE } from './bulletins.js'
 import { mdiCalendarOutline, mdiCreation, mdiFileDocumentOutline } from './icons.js'
@@ -119,7 +119,7 @@ import { mdiCalendarOutline, mdiCreation, mdiFileDocumentOutline } from './icons
  */
 export default {
 	name: 'EditionView',
-	components: { NcChip, NcIconSvgWrapper, NcListItem, NcLoadingIcon, NcNoteCard, PersonalLists, ReadingDialog },
+	components: { NcChip, NcIconSvgWrapper, NcListItem, NcLoadingIcon, NcNoteCard, PersonalList, ReadingDialog },
 	props: {
 		id: { type: Number, required: true },
 	},

@@ -97,6 +97,7 @@ namespace OCA\Ia;
  * }
  *
  * @psalm-type IaMeeting = array{
+ *     id: string,
  *     title: string,
  *     start: int,
  *     end: ?int,

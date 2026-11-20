@@ -140,9 +140,17 @@ class Readings {
 		return array_merge(...(ModelGateway::lines($answer) ?: [[]]));
 	}
 
-	/** @return list<string> the ids of the establishment's Cargo groups that $value names */
+	/**
+	 * @return list<string> the ids of the establishment's Cargo groups that $value names: each part
+	 *                      between commas or semicolons, or a piece of it between «y» («Abastecimiento
+	 *                      y Finanzas» is one Cargo, «Enfermera y TENS» two)
+	 */
 	private function cargosIn(string $value): array {
-		$named = array_map(ModelGateway::fold(...), preg_split('/\s*[,;]\s*|\s+y\s+/u', $value) ?: []);
-		return array_keys(array_filter($this->settings->cargos(), static fn (string $cargo): bool => in_array(ModelGateway::fold($cargo), $named, true)));
+		$named = [];
+		foreach (preg_split('/\s*[,;]\s*/u', $value) ?: [] as $part) {
+			array_push($named, ModelGateway::fold($part), ...array_map(ModelGateway::fold(...), preg_split('/\s+y\s+/u', $part) ?: []));
+		}
+		$found = array_filter($this->settings->cargos(), static fn (string $cargo): bool => in_array(ModelGateway::fold($cargo), $named, true));
+		return array_map(strval(...), array_keys($found));
 	}
 }

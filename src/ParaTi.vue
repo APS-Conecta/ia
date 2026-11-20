@@ -17,7 +17,7 @@
 			<p class="ia-lead">
 				Lo de tus boletines que te toca: tus reuniones, los documentos para tu cargo y los protocolos por vencer.
 			</p>
-			<PersonalLists :meetings="paraTi.meetings" :documents="paraTi.documents" @open="reading = $event" />
+			<PersonalList :meetings="paraTi.meetings" :documents="paraTi.documents" @open="reading = $event" />
 
 			<h3>Protocolos por vencer</h3>
 			<p v-if="paraTi.expiring.length === 0" class="ia-hint">
@@ -67,7 +67,7 @@ import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
-import PersonalLists from './PersonalLists.vue'
+import PersonalList from './PersonalList.vue'
 import ReadingDialog from './ReadingDialog.vue'
 import { ocsGet } from './api.js'
 import { longDate } from './bulletins.js'
@@ -79,7 +79,7 @@ import { mdiCalendarOutline, mdiNewspaperVariantOutline } from './icons.js'
  */
 export default {
 	name: 'ParaTi',
-	components: { NcEmptyContent, NcIconSvgWrapper, NcListItem, NcLoadingIcon, NcNoteCard, PersonalLists, ReadingDialog },
+	components: { NcEmptyContent, NcIconSvgWrapper, NcListItem, NcLoadingIcon, NcNoteCard, PersonalList, ReadingDialog },
 	setup: () => ({ longDate, mdiCalendarOutline, mdiNewspaperVariantOutline }),
 	data: () => ({ state: 'loading', paraTi: null, reading: null }),
 	async mounted() {
