@@ -129,7 +129,7 @@ final class EditionsTest extends SeamTestCase {
 		self::assertSame([], self::editions(self::$dario));
 		self::assertSame(404, self::ocs(self::$dario, 'GET', self::API . "/editions/$id")['status']);
 		$told = array_filter(self::ocs(self::$dario, 'GET', '/apps/notifications/api/v2/notifications')['data'] ?? [],
-			static fn (array $notification): bool => $notification['app'] === 'ia');
+			static fn (array $notification): bool => $notification['app'] === 'ia' && $notification['object_id'] === (string)$id);
 		self::assertSame([], $told, 'nor is told of it');
 		self::assertSame(403, self::ocs(self::person(), 'GET', self::API . '/bulletins/' . self::$bulletin . '/editions')['status']);
 	}
