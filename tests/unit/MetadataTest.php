@@ -79,7 +79,8 @@ class MetadataTest extends TestCase {
 		$files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(self::APP_DIR . '/lib', \FilesystemIterator::SKIP_DOTS));
 		$checked = 0;
 		foreach ($files as $file) {
-			if ($file->getExtension() === 'php') {
+			// lib/Vendor holds a vendored library under its own licence (scripts/vendor-pdfparser.sh).
+			if ($file->getExtension() === 'php' && !str_starts_with($file->getPathname(), self::APP_DIR . '/lib/Vendor/')) {
 				$checked++;
 				self::assertStringContainsString('SPDX-License-Identifier: AGPL-3.0-or-later',
 					(string)file_get_contents($file->getPathname(), length: 4096), "{$file->getPathname()} must carry the SPDX header");
@@ -114,6 +115,16 @@ class MetadataTest extends TestCase {
 			$delegated = array_map(static fn ($attribute) => $attribute->getArguments()['settings'] ?? null, $method->getAttributes(AuthorizedAdminSetting::class));
 			self::assertTrue($open === 1 xor $delegated === [Admin::class],
 				"$name must be either #[NoAdminRequired] or #[AuthorizedAdminSetting(settings: Admin::class)]");
+		}
+	}
+
+	/**
+	 * The vendored library ships its licence beside its code: the LGPL-3.0, the GPL-3.0 it
+	 * supplements, and a NOTICE of the change made to it (scripts/vendor-pdfparser.sh).
+	 */
+	public function testEveryVendoredLibraryShipsItsLicence(): void {
+		foreach (['LICENSE.txt', 'COPYING', 'NOTICE'] as $file) {
+			self::assertFileExists(self::APP_DIR . "/lib/Vendor/Smalot/PdfParser/$file");
 		}
 	}
 }

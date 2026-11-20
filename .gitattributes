@@ -1,0 +1,2 @@
+# Hand-written PDFs hold byte offsets: never touch their line ends.
+tests/seam/fixtures/*.pdf binary

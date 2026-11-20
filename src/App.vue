@@ -48,6 +48,15 @@ import { ocsGet, ocsPost, refusal } from './api.js'
 import { mdiFileDocumentCheckOutline, mdiPlus, mdiStarOutline } from './icons.js'
 import { offHoursText } from './reviews.js'
 
+/** What «IA» reads (TextReader): PDF with text, DOCX, ODT, TXT and MD. */
+const FORMATS = [
+	'application/pdf',
+	'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+	'application/vnd.oasis.opendocument.text',
+	'text/plain',
+	'text/markdown',
+]
+
 /** The page's place, from the URL's hash: «Para ti», «Revisiones» or one Review's report. */
 function viewOf(hash) {
 	const [section, id] = hash.replace(/^#\/?/, '').split('/')
@@ -80,7 +89,7 @@ export default {
 		async pick() {
 			const picker = getFilePickerBuilder('Revisar un documento')
 				.setMultiSelect(false)
-				.setMimeTypeFilter(['text/plain', 'text/markdown'])
+				.setMimeTypeFilter(FORMATS)
 				.addButton({ label: 'Revisar', variant: 'primary', callback: ([node]) => this.review(node.fileid) })
 				.build()
 			try {

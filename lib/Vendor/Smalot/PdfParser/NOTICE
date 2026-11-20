@@ -1,0 +1,7 @@
+smalot/pdfparser 2.13.1 (https://github.com/smalot/pdfparser), by Sébastien Malot and its
+contributors, under the GNU Lesser General Public License version 3 (LICENSE.txt), which
+supplements the GNU General Public License version 3 (COPYING).
+
+Modified by APS Conecta on 2026-11-19, for the Nextcloud app «IA»: the namespace Smalot\PdfParser is
+renamed OCA\Ia\Vendor\Smalot\PdfParser in every file, so that it never meets another app's copy.
+Nothing else is changed. scripts/vendor-pdfparser.sh in the app's source makes this copy.

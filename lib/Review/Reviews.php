@@ -14,6 +14,7 @@ use OCA\Ia\Db\Run;
 use OCA\Ia\Db\RunMapper;
 use OCA\Ia\Db\StaleRun;
 use OCA\Ia\Model\ModelGateway;
+use OCA\Ia\Reading\Document;
 use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
@@ -106,7 +107,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			}
 			return $this->answer($report, $run, $file) + ['created' => false];
 		}
-		$text = $this->reader->read($file);
+		$document = $this->reader->read($file);
 		$report = new Report();
 		$report->setFileId($fileId);
 		$report->setEtag($file->getEtag());
@@ -118,7 +119,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$run->setActor($userId);
 		$run->setVersion(0);
 		$run->setUpdatedAt($this->time->getTime());
-		$chunks = $this->line($run, $text);
+		$chunks = $this->line($run, $document);
 		try {
 			$this->atomic(function () use ($report, $run): void {
 				$this->reports->insert($report);
@@ -186,12 +187,12 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		if ($source === null) {
 			return;
 		}
-		[$report, $file, $text] = $source;
+		[$report, $file, $document] = $source;
 		if ($file->getEtag() !== $report->getEtag()) {
-			$this->begin($run, $this->restart($report, $run, $file, $text));
+			$this->begin($run, $this->restart($report, $run, $file, $document));
 			return;
 		}
-		$this->ask($run, $this->prompt($run, self::chunks($text), self::results($run)['summaries']));
+		$this->ask($run, $this->prompt($run, self::chunks($document), self::results($run)['summaries']));
 	}
 
 	/**
@@ -216,22 +217,22 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			$this->model->forget($task);
 			return;
 		}
-		[$report, $file, $text] = $source;
+		[$report, $file, $document] = $source;
 		if ($file->getEtag() !== $report->getEtag()) {
 			$this->model->forget($task);
-			$this->begin($run, $this->restart($report, $run, $file, $text));
+			$this->begin($run, $this->restart($report, $run, $file, $document));
 			return;
 		}
 		$results = self::results($run);
 		$lines = ModelGateway::lines((string)($task->getOutput()['output'] ?? ''));
-		$chunks = self::chunks($text);
+		$chunks = self::chunks($document);
 		if ($run->getSteps() === 1) {
-			$results['findings'] = Findings::from($lines, $text, [Findings::ERROR, Findings::UNCLEAR, Findings::MISSING]);
+			$results['findings'] = Findings::from($lines, $document, [Findings::ERROR, Findings::UNCLEAR, Findings::MISSING]);
 		} elseif ($run->getStep() <= count($chunks)) {
-			$results['findings'] = [...$results['findings'], ...Findings::from($lines, $text, [Findings::ERROR, Findings::UNCLEAR])];
+			$results['findings'] = [...$results['findings'], ...Findings::from($lines, $document, [Findings::ERROR, Findings::UNCLEAR])];
 			$results['summaries'][] = self::summary($lines);
 		} else {
-			$results['findings'] = [...$results['findings'], ...Findings::from($lines, $text, [Findings::MISSING])];
+			$results['findings'] = [...$results['findings'], ...Findings::from($lines, $document, [Findings::MISSING])];
 		}
 		$this->model->forget($task);
 		$run->setResults(json_encode($results, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
@@ -265,10 +266,10 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	}
 
 	/**
-	 * The Run's report, its file as the actor opens it now, and its text; a Run whose file is gone
-	 * or unreadable fails, and null comes back.
+	 * The Run's report, its file as the actor opens it now, and the Document read from it; a Run
+	 * whose file is gone or unreadable fails, and null comes back.
 	 *
-	 * @return array{0: Report, 1: File, 2: string}|null
+	 * @return array{0: Report, 1: File, 2: Document}|null
 	 */
 	private function source(Run $run): ?array {
 		$report = $this->reports->byId((int)$run->getTarget());
@@ -286,29 +287,29 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	}
 
 	/**
-	 * The report's file reviewed from its current version, $text: the report starts over and the
-	 * Run goes back to its first step (Reviews::line).
+	 * The report's file reviewed from its current version, $document: the report starts over and
+	 * the Run goes back to its first step (Reviews::line).
 	 *
 	 * @return list<string> the chunks
 	 */
-	private function restart(Report $report, Run $run, File $file, string $text): array {
+	private function restart(Report $report, Run $run, File $file, Document $document): array {
 		$report->setEtag($file->getEtag());
 		$report->setFindings(null);
 		$this->reports->update($report);
-		return $this->line($run, $text);
+		return $this->line($run, $document);
 	}
 
 	/**
-	 * Puts the Run at the first step of a Review of $text, waiting, unsaved: Off hours for a
-	 * document over the short size.
+	 * Puts the Run at the first step of a Review of $document, waiting, unsaved: Off hours for a
+	 * document over the short size, as its own page count says.
 	 *
 	 * @return list<string> the chunks
 	 */
-	private function line(Run $run, string $text): array {
-		$chunks = self::chunks($text);
+	private function line(Run $run, Document $document): array {
+		$chunks = self::chunks($document);
 		$run->setStep(1);
 		$run->setSteps(count($chunks) === 1 ? 1 : count($chunks) + 1);
-		$run->setOffHours(TextReader::pages($text) > self::SHORT_PAGES);
+		$run->setOffHours($document->pages > self::SHORT_PAGES);
 		$run->setAttempts(0);
 		$run->setLastError(null);
 		$run->setResults(null);
@@ -392,9 +393,9 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		return '';
 	}
 
-	/** @return list<string> the chunks every step of a Review of $text uses */
-	private static function chunks(string $text): array {
-		return ModelGateway::chunks($text, mb_strlen(self::SINGLE) > mb_strlen(self::CHUNK) ? self::SINGLE : self::CHUNK);
+	/** @return list<string> the chunks every step of a Review of $document uses */
+	private static function chunks(Document $document): array {
+		return ModelGateway::chunks($document->text, mb_strlen(self::SINGLE) > mb_strlen(self::CHUNK) ? self::SINGLE : self::CHUNK);
 	}
 
 	/**

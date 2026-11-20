@@ -11,7 +11,7 @@
 		</NcNoteCard>
 		<NcEmptyContent v-else-if="reviews.length === 0"
 			name="Todavía no pides ninguna revisión"
-			description="Con «Revisar un documento» eliges un archivo TXT o MD de tus Archivos, y la IA te dice qué corregir.">
+			description="Con «Revisar un documento» eliges un archivo PDF, DOCX, ODT, TXT o MD de tus Archivos, y la IA te dice qué corregir.">
 			<template #icon>
 				<NcIconSvgWrapper :path="mdiFileDocumentCheckOutline" />
 			</template>

@@ -106,7 +106,7 @@ class ApiController extends OCSController {
 	 * 201: A new Review, under way or waiting for Off hours
 	 * 200: The caller's Review of this document
 	 * 404: The caller can't open the document
-	 * 422: «IA» can't read this document's format yet
+	 * 422: «IA» can't read this document: its format, a scan, or a damaged or protected file
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::REVIEW_LIMIT, period: self::PERIOD)]
@@ -150,7 +150,7 @@ class ApiController extends OCSController {
 	 *
 	 * 200: The Review, under way again or waiting for Off hours
 	 * 404: No such Review of the caller's, or they can't open its document any more
-	 * 422: The Review is still under way, or «IA» can't read the document's format
+	 * 422: The Review is still under way, or «IA» can't read the document: its format, a scan, or a damaged or protected file
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::REVIEW_LIMIT, period: self::PERIOD)]

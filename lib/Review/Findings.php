@@ -7,12 +7,13 @@ declare(strict_types=1);
 namespace OCA\Ia\Review;
 
 use OCA\Ia\Model\ModelGateway;
+use OCA\Ia\Reading\Document;
 use OCA\Ia\ResponseDefinitions;
 
 /**
  * A Review's findings from the Model's lines, validated against the document's text
  * (gestion-aio#162, Reviews): a finding that quotes what the text does not say is dropped, and a
- * quote kept is the text's own words, with the line it starts on as where it is.
+ * quote kept is the text's own words, with the page, section or line it starts in as where it is.
  *
  * @psalm-import-type IaFinding from ResponseDefinitions
  */
@@ -31,7 +32,7 @@ final class Findings {
 	 * @param list<string> $kinds the kinds this step asked for
 	 * @return list<IaFinding>
 	 */
-	public static function from(array $lines, string $text, array $kinds): array {
+	public static function from(array $lines, Document $document, array $kinds): array {
 		$findings = [];
 		foreach ($lines as $fields) {
 			$kind = self::KINDS[ModelGateway::fold($fields['TIPO'] ?? '')] ?? null;
@@ -47,12 +48,12 @@ final class Findings {
 				}
 				$finding = ['kind' => $kind, 'where' => trim($fields['DONDE'] ?? '') ?: self::WHOLE, 'quote' => null];
 			} else {
-				$found = self::find($quote, $text);
+				$found = self::find($quote, $document->text);
 				if ($found === null) {
 					continue;
 				}
 				[$quote, $offset] = $found;
-				$finding = ['kind' => $kind, 'where' => 'Línea ' . (substr_count($text, "\n", 0, $offset) + 1), 'quote' => $quote];
+				$finding = ['kind' => $kind, 'where' => $document->where($offset), 'quote' => $quote];
 			}
 			$findings[] = $finding + ['text' => $problem, 'fix' => $fix];
 		}

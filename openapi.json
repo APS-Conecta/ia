@@ -594,7 +594,7 @@
                         }
                     },
                     "422": {
-                        "description": "«IA» can't read this document's format yet",
+                        "description": "«IA» can't read this document: its format, a scan, or a damaged or protected file",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -930,7 +930,7 @@
                         }
                     },
                     "422": {
-                        "description": "The Review is still under way, or «IA» can't read the document's format",
+                        "description": "The Review is still under way, or «IA» can't read the document: its format, a scan, or a damaged or protected file",
                         "content": {
                             "application/json": {
                                 "schema": {
