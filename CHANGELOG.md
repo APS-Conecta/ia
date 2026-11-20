@@ -36,9 +36,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   expiry date kept only if the text says it, and Cargos only from the establishment's list) and writes the Resumen
   from the Readings, in context-sized rounds. The Edition is published whole, marked «Escrito por IA», with
   «Documentos nuevos y cambiados» since the previous one, «Protocolos por vencer» within 30 days (and those with no
-  date found) and «Fuentes que no se pudieron leer». Readers are notified and see it on the Bulletin's page only while
-  they can open every file it read that is still there; each document opens its Reading and the file. Deleting a
-  file deletes its Reading.
+  date found) and «Fuentes que no se pudieron leer»; a Reading's summary shows, marked, in its dialog (#27). Readers
+  are notified and see it on the Bulletin's page only while they can open every file it read that is still there;
+  each document opens its Reading and the file. Deleting a file deletes its Reading.
 - Automatic actions (#9): an Editor group puts a rule on a folder the whole group can open, with optional instructions,
   in «Acciones automáticas» under «Para editores». Every file added to it, changed in it, moved or copied into it is
   reviewed in Off hours, once, on its latest version, with those instructions, as whoever added or changed it (failing

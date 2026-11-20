@@ -34,8 +34,8 @@
 					<template #icon>
 						<NcIconSvgWrapper :path="mdiFileDocumentOutline" />
 					</template>
-					<template #subname>
-						{{ document.status === 'read' ? (document.summary ?? GONE) : UNREADABLE[document.status] }}
+					<template v-if="document.status !== 'read'" #subname>
+						{{ UNREADABLE[document.status] }}
 					</template>
 				</NcListItem>
 			</ul>
@@ -110,7 +110,7 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { ocsGet } from './api.js'
 import PersonalList from './PersonalList.vue'
 import ReadingDialog from './ReadingDialog.vue'
-import { GONE, longDate, UNREADABLE } from './bulletins.js'
+import { longDate, UNREADABLE } from './bulletins.js'
 import { mdiCalendarOutline, mdiCreation, mdiFileDocumentOutline } from './icons.js'
 
 /**
@@ -123,7 +123,7 @@ export default {
 	props: {
 		id: { type: Number, required: true },
 	},
-	setup: () => ({ GONE, longDate, mdiCalendarOutline, mdiCreation, mdiFileDocumentOutline, UNREADABLE }),
+	setup: () => ({ longDate, mdiCalendarOutline, mdiCreation, mdiFileDocumentOutline, UNREADABLE }),
 	data: () => ({ state: 'loading', edition: null, reading: null }),
 	computed: {
 		paragraphs() {
