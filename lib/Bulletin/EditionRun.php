@@ -264,7 +264,8 @@ class EditionRun implements Kind {
 					continue;
 				}
 			}
-			// A document Source this version of which can't be read, whoever tried it: told when the version is new to the Bulletin.
+			// A document Source this version of which can't be read, whoever tried it: told when the
+			// version is new to the Bulletin.
 			if (isset($documentSources[$id]) && $reading?->getStatus() !== Reading::READ && ($previous[$id] ?? null) !== $entry['etag']) {
 				$this->tell($this->editorsOf($bulletin), 'source_unreadable', $bulletin, $edition, null, ['source' => $entry['name']]);
 			}
