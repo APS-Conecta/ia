@@ -3193,7 +3193,7 @@
         "/ocs/v2.php/apps/ia/api/v1/editions/{id}": {
             "get": {
                 "operationId": "api-edition",
-                "summary": "An Edition: its Resumen, written by AI, and its sections, each document with its Reading",
+                "summary": "An Edition: its Resumen, written by AI ('' when no document could be read), and its sections, each document with its Reading",
                 "tags": [
                     "api"
                 ],

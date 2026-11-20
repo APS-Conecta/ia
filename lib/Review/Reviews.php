@@ -85,6 +85,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		private ITimeFactory $time,
 		private IDBConnection $db,
 		private Settings $settings,
+		private Steps $steps,
 	) {
 	}
 
