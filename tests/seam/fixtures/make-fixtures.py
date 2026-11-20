@@ -2,8 +2,9 @@
 """The binary seam fixtures, rebuilt from this file: python3 tests/seam/fixtures/make-fixtures.py
 
 One short CESFAM protocol, with a contradiction in it, as a PDF with a text layer, a DOCX and an ODT;
-a twelve-page PDF; a scanned PDF (an image, no text); a password-protected PDF (pypdf); and a damaged
-PDF. The PDFs, DOCX and ODT are written by hand so that nothing but pypdf is needed.
+twelve-page annexes as a PDF, a DOCX and an ODT (short text, twelve pages by their own count); a scanned
+PDF (an image, no text); a password-protected PDF (pypdf) and ODT (its content encrypted, here random
+bytes); and a damaged PDF. The files are written by hand so that nothing but pypdf is needed.
 """
 import io
 import zipfile
@@ -76,13 +77,13 @@ def protocol_lines():
     return lines
 
 
-def docx():
+def docx(sections=SECTIONS, pages=2):
     w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
     paragraph = lambda text, style=None: (
         "<w:p>" + (f'<w:pPr><w:pStyle w:val="{style}"/></w:pPr>' if style else "")
         + f'<w:r><w:t xml:space="preserve">{escape(text)}</w:t></w:r></w:p>')
     body = paragraph("Protocolo de curación de heridas", "Title")
-    for title, lines in SECTIONS:
+    for title, lines in sections:
         body += paragraph(title, "Heading1") + "".join(paragraph(line) for line in lines)
     files = {
         "[Content_Types].xml": '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
@@ -93,17 +94,17 @@ def docx():
         '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
         '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>',
         "word/document.xml": f'<?xml version="1.0" encoding="UTF-8"?><w:document {w}><w:body>{body}</w:body></w:document>',
-        "docProps/app.xml": '<?xml version="1.0" encoding="UTF-8"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Pages>2</Pages></Properties>',
+        "docProps/app.xml": f'<?xml version="1.0" encoding="UTF-8"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Pages>{pages}</Pages></Properties>',
     }
     return zipped(files)
 
 
-def odt():
+def odt(sections=SECTIONS, pages=2, content=None):
     ns = ('xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
           'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
           'xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"')
     body = '<text:h text:outline-level="1">Protocolo de curación de heridas</text:h>'
-    for title, lines in SECTIONS:
+    for title, lines in sections:
         body += f'<text:h text:outline-level="2">{escape(title)}</text:h>' + "".join(f"<text:p>{escape(line)}</text:p>" for line in lines)
     files = {
         "mimetype": "application/vnd.oasis.opendocument.text",
@@ -111,8 +112,8 @@ def odt():
         '<manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>'
         '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>'
         '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/></manifest:manifest>',
-        "content.xml": f'<?xml version="1.0" encoding="UTF-8"?><office:document-content {ns} office:version="1.3"><office:body><office:text>{body}</office:text></office:body></office:document-content>',
-        "meta.xml": f'<?xml version="1.0" encoding="UTF-8"?><office:document-meta {ns} office:version="1.3"><office:meta><meta:document-statistic meta:page-count="2"/></office:meta></office:document-meta>',
+        "content.xml": content or f'<?xml version="1.0" encoding="UTF-8"?><office:document-content {ns} office:version="1.3"><office:body><office:text>{body}</office:text></office:body></office:document-content>',
+        "meta.xml": f'<?xml version="1.0" encoding="UTF-8"?><office:document-meta {ns} office:version="1.3"><office:meta><meta:document-statistic meta:page-count="{pages}"/></office:meta></office:document-meta>',
     }
     return zipped(files)
 
@@ -138,9 +139,13 @@ if __name__ == "__main__":
     lines = protocol_lines()
     protocol = pdf([lines[: len(lines) // 2], lines[len(lines) // 2:]])
     twelve = [[f"Anexo {n}: hoja de registro de curaciones del sector {n}.", "Fecha, usuario, valoración y apósito usado."] for n in range(1, 13)]
+    annexes = [(f"Anexo {n}", lines) for n, lines in enumerate(twelve, start=1)]
     fixtures = {
         "protocolo.pdf": protocol,
         "protocolo-12-paginas.pdf": pdf(twelve),
+        "protocolo-12-paginas.docx": docx(annexes, pages=12),
+        "protocolo-12-paginas.odt": odt(annexes, pages=12),
+        "protegido.odt": odt(content=bytes((n * 73 + 41) % 256 for n in range(2048))),
         "escaneado.pdf": pdf([], image=True),
         "protegido.pdf": protected(protocol),
         "danado.pdf": protocol[: len(protocol) // 3],

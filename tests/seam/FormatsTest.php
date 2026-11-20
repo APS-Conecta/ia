@@ -47,7 +47,8 @@ final class FormatsTest extends SeamTestCase {
 	/** @return iterable<string, array{0: string, 1: string}> */
 	public static function unreadable(): iterable {
 		yield 'scan' => ['escaneado.pdf', 'escaneado'];
-		yield 'password' => ['protegido.pdf', 'protegido con contraseña'];
+		yield 'password PDF' => ['protegido.pdf', 'protegido con contraseña'];
+		yield 'password ODT' => ['protegido.odt', 'protegido con contraseña'];
 		yield 'damaged' => ['danado.pdf', 'dañado'];
 	}
 
@@ -61,19 +62,28 @@ final class FormatsTest extends SeamTestCase {
 		self::assertSame([], self::tasks());
 	}
 
-	public function testAPdfOverTenPagesWaitsForOffHoursWhateverItsLength(): void {
+	/** @return iterable<string, array{0: string}> twelve short pages, by each format's own count */
+	public static function twelvePages(): iterable {
+		yield 'PDF' => ['protocolo-12-paginas.pdf'];
+		yield 'DOCX' => ['protocolo-12-paginas.docx'];
+		yield 'ODT' => ['protocolo-12-paginas.odt'];
+	}
+
+	#[DataProvider('twelvePages')]
+	public function testAFileOverTenPagesWaitsForOffHoursAndFailsPlainlyIfItBreaksMeanwhile(string $name): void {
 		self::offHoursLater();
 		$owner = self::person();
-		$name = 'protocolo-12-paginas.pdf';
 		$created = self::ocs($owner, 'POST', '/apps/ia/api/v1/reviews', ['fileId' => self::upload($owner, $name, self::fixture($name))]);
-		self::assertSame(201, $created['status']);
+		self::assertSame(201, $created['status'], json_encode($created['data']));
 		self::assertSame('offHours', $created['data']['start'], 'twelve short pages are still twelve pages');
 
-		// Its Run must not take a later test's Off hours: with its file gone, it fails at its turn.
-		self::remove($owner, $name);
+		self::upload($owner, $name, self::fixture('danado.pdf'));
 		self::offHoursNow();
 		self::tick();
 		self::offHoursLater();
+		$review = self::ocs($owner, 'GET', '/apps/ia/api/v1/reviews/' . $created['data']['review']['id'])['data']['review'];
+		self::assertSame('failed', $review['state'], 'a Run whose file broke while it waited fails at its turn');
+		self::assertStringContainsString('dañado', (string)$review['error']);
 		self::assertSame([], self::tasks());
 	}
 

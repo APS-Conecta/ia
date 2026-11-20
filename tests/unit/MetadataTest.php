@@ -118,8 +118,13 @@ class MetadataTest extends TestCase {
 		}
 	}
 
-	/** Each vendored library ships its licence beside its code. */
+	/**
+	 * The vendored library ships its licence beside its code: the LGPL-3.0, the GPL-3.0 it
+	 * supplements, and a NOTICE of the change made to it (scripts/vendor-pdfparser.sh).
+	 */
 	public function testEveryVendoredLibraryShipsItsLicence(): void {
-		self::assertFileExists(self::APP_DIR . '/lib/Vendor/Smalot/PdfParser/LICENSE.txt');
+		foreach (['LICENSE.txt', 'COPYING', 'NOTICE'] as $file) {
+			self::assertFileExists(self::APP_DIR . "/lib/Vendor/Smalot/PdfParser/$file");
+		}
 	}
 }
