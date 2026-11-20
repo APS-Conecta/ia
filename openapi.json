@@ -492,8 +492,7 @@
                         "type": "string",
                         "enum": [
                             "manual",
-                            "action",
-                            "flow"
+                            "action"
                         ]
                     },
                     "instructions": {
