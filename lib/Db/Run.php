@@ -36,6 +36,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setActor(?string $actor)
  * @method string|null getResults()
  * @method void setResults(?string $results)
+ * @method int|null getRule()
+ * @method void setRule(?int $rule)
  * @method int getUpdatedAt()
  * @method void setUpdatedAt(int $updatedAt)
  * @method int|null getVersion()
@@ -64,6 +66,8 @@ class Run extends Entity {
 	protected ?int $attempts = null;
 	protected ?string $lastError = null;
 	protected ?string $actor = null;
+	/** The Automatic action (or Flow rule) an automatic Review is for; null for any other Run. */
+	protected ?int $rule = null;
 	protected ?string $results = null;
 	protected ?int $updatedAt = null;
 	/** Bumped by every save: a save from a Run read before another one's is refused (RunMapper::save). */
@@ -73,6 +77,7 @@ class Run extends Entity {
 		$this->addType('step', 'integer');
 		$this->addType('steps', 'integer');
 		$this->addType('taskId', 'integer');
+		$this->addType('rule', 'integer');
 		$this->addType('offHours', 'boolean');
 		$this->addType('attempts', 'integer');
 		$this->addType('updatedAt', 'integer');

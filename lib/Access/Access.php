@@ -57,6 +57,16 @@ class Access {
 		return $fits && $node->isReadable() ? $node : null;
 	}
 
+	/** Whether $userId can open the folder, document or calendar $id now. */
+	public function opens(string $userId, string $type, string $id): bool {
+		return $type === 'calendar' ? $this->calendar($userId, $id) !== null : $this->node($userId, (int)$id, $type) !== null;
+	}
+
+	/** @return list<IUser> the group's active members who can't open the folder, document or calendar $id now */
+	public function lockedOut(string $groupId, string $type, string $id): array {
+		return array_values(array_filter($this->members($groupId), fn (IUser $user): bool => !$this->opens($user->getUID(), $type, $id)));
+	}
+
 	/** Whether the file $fileId is still in someone's Files: one in a trash bin is gone. */
 	public function exists(int $fileId): bool {
 		foreach ($this->root->getById($fileId) as $node) {

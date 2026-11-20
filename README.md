@@ -11,11 +11,11 @@ modelo funciona en el servidor del establecimiento, y «IA» lee solo lo que la 
 abrir. La interfaz está en español; todo lo demás, en inglés. Licencia AGPL-3.0-or-later.
 
 **Estado:** en construcción. Hoy abre en «Para ti», vacío, y revisa documentos PDF, DOCX, ODT, TXT y MD (los largos,
-fuera de horario); los grupos editores preparan boletines, cuya edición se escribe fuera de horario y llega a sus
-lectores; en su página de
-administración se eligen los grupos editores y el fuera de horario. La
-especificación es [gestion-aio#162](https://github.com/APS-Conecta/gestion-aio/issues/162), y el trabajo pendiente
-está en los issues de este repositorio. «IA» se publica solo cuando pasen la revisión de privacidad
+fuera de horario) y, con acciones automáticas, los que llegan o cambian en una carpeta; los grupos editores preparan
+boletines, cuya edición se escribe fuera de horario y llega a sus lectores; en su página de administración se eligen
+los grupos editores y el fuera de horario. La especificación es
+[gestion-aio#162](https://github.com/APS-Conecta/gestion-aio/issues/162), y el trabajo pendiente está en los issues
+de este repositorio. «IA» se publica solo cuando pasen la revisión de privacidad
 ([gestion-aio#164](https://github.com/APS-Conecta/gestion-aio/issues/164)) y la prueba de calidad
 ([#17](https://github.com/APS-Conecta/ia/issues/17)).
 

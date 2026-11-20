@@ -42,6 +42,27 @@ class ReportMapper extends QBMapper {
 		}
 	}
 
+	/** The file's automatic report, or null. */
+	public function automaticOf(int $fileId): ?Report {
+		$query = $this->db->getQueryBuilder();
+		$query->select('*')->from($this->getTableName())
+			->where($query->expr()->eq('automatic_file', $query->createNamedParameter($fileId, IQueryBuilder::PARAM_INT)));
+		try {
+			return $this->findEntity($query);
+		} catch (DoesNotExistException) {
+			return null;
+		}
+	}
+
+	/** @return list<Report> every automatic report, newest first */
+	public function automatic(): array {
+		$query = $this->db->getQueryBuilder();
+		$query->select('*')->from($this->getTableName())
+			->where($query->expr()->isNotNull('automatic_file'))
+			->orderBy('created_at', 'DESC')->addOrderBy('id', 'DESC');
+		return $this->findEntities($query);
+	}
+
 	/** @return list<Report> the person's manual reports, newest first */
 	public function requestedBy(string $userId): array {
 		$query = $this->db->getQueryBuilder();

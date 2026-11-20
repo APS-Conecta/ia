@@ -34,6 +34,8 @@ namespace OCA\Ia;
  *     offHoursWindow: IaOffHours,
  *     error: ?string,
  *     requestedAt: int,
+ *     origin: 'manual'|'action'|'flow',
+ *     instructions: ?string,
  * }
  *
  * @psalm-type IaReview = IaReviewItem&array{
@@ -68,6 +70,14 @@ namespace OCA\Ia;
  *     readers: list<IaGroup>,
  *     schedule: IaSchedule,
  *     due: ?string,
+ * }
+ *
+ * @psalm-type IaAction = array{
+ *     id: int,
+ *     name: string,
+ *     editorGroup: IaGroup,
+ *     folder: array{id: string, name: string},
+ *     instructions: string,
  * }
  *
  * @psalm-type IaEditionItem = array{

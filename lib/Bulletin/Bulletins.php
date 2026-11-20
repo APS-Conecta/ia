@@ -215,16 +215,11 @@ class Bulletins {
 			throw new Refused('Escribe un nombre para el boletín, de hasta 200 caracteres.');
 		}
 		$sources = $this->sources($userId, $input['sources'] ?? null);
-		$members = $this->access->members($bulletin->getEditorGroup());
 		foreach ($sources as $source) {
-			$cannot = [];
-			foreach ($members as $member) {
-				if ($this->cannotOpen($member, [$source]) !== []) {
-					$cannot[] = $member->getDisplayName();
-				}
-			}
+			$cannot = $this->access->lockedOut($bulletin->getEditorGroup(), $source['type'], $source['id']);
 			if ($cannot !== []) {
-				throw new Refused('Todo el grupo editor debe poder abrir cada fuente, y «' . $source['name'] . '» no la puede abrir: ' . implode(', ', $cannot) . '.');
+				throw new Refused('Todo el grupo editor debe poder abrir cada fuente, y «' . $source['name'] . '» no la puede abrir: '
+					. implode(', ', array_map(static fn (IUser $user): string => $user->getDisplayName(), $cannot)) . '.');
 			}
 		}
 		$readers = $this->readerGroups($input['readers'] ?? null);
@@ -280,7 +275,7 @@ class Bulletins {
 	 * @return list<IaSource>
 	 */
 	private function cannotOpen(IUser $user, array $sources): array {
-		return array_values(array_filter($sources, fn (array $source): bool => $this->named($user->getUID(), $source['type'], $source['id']) === null));
+		return array_values(array_filter($sources, fn (array $source): bool => !$this->access->opens($user->getUID(), $source['type'], $source['id'])));
 	}
 
 	/**

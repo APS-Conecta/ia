@@ -226,6 +226,12 @@ abstract class SeamTestCase extends TestCase {
 		self::assertSame(200, $answer['status']);
 	}
 
+	/** Moves (MOVE) or copies (COPY) the person's file $from to $to, as their client would. */
+	protected static function transfer(string $person, string $method, string $from, string $to): void {
+		[$status] = self::http($person, $method, self::DAV . $person . '/' . self::path($from), ['Destination: ' . self::DAV . $person . '/' . self::path($to)]);
+		self::assertContains($status, [201, 204], "$method $from answered $status");
+	}
+
 	/** Moves the person's file to their trash, so they can no longer open it. */
 	protected static function remove(string $person, string $name): void {
 		[$status] = self::http($person, 'DELETE', self::DAV . $person . '/' . self::path($name), []);

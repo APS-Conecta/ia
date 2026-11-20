@@ -39,3 +39,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   date found) and «Fuentes que no se pudieron leer». Readers are notified and see it on the Bulletin's page only while
   they can open every file it read that is still there; each document opens its Reading and the file. Deleting a
   file deletes its Reading.
+- Automatic actions (#9): an Editor group puts a rule on a folder the whole group can open, with optional instructions,
+  in «Acciones automáticas» under «Para editores». Every file added to it, changed in it, moved or copied into it is
+  reviewed in Off hours, once, on its latest version, with those instructions, as whoever added or changed it (failing
+  that, a member of the Editor group who can open it); they are notified. Anyone who can open the file reads its
+  automatic report, which «Revisiones» lists with their own; each file keeps only its latest one. Deleting an action
+  asks for no new Reviews and keeps the reports.

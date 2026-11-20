@@ -21,7 +21,9 @@ export const offHoursText = (review) => `de ${review.offHoursWindow.start} a ${r
 export function progress(review) {
 	const step = review.steps > 1 && review.step > 1 ? ` Va en el paso ${review.step} de ${review.steps}.` : ''
 	if (review.state === 'waiting' && review.offHours) {
-		return `Es un documento largo: se revisa fuera de horario, ${offHoursText(review)}. Te avisaremos cuando esté lista.${step}`
+		return review.origin === 'manual'
+			? `Es un documento largo: se revisa fuera de horario, ${offHoursText(review)}. Te avisaremos cuando esté lista.${step}`
+			: `Revisión automática: se hace fuera de horario, ${offHoursText(review)}.${step}`
 	}
 	if (review.state === 'waiting') {
 		return 'En la fila del modelo.'
@@ -30,5 +32,8 @@ export function progress(review) {
 		? `Leyendo el documento y escribiendo la revisión: paso ${review.step} de ${review.steps}…`
 		: 'Leyendo el documento y escribiendo la revisión…'
 }
+
+/** When a Review was asked for, or, for an automatic one, when its file last arrived or changed. */
+export const askedText = (review) => review.origin === 'manual' ? `Pedida el ${when(review.requestedAt)}` : `Automática, del ${when(review.requestedAt)}`
 
 export const when = (seconds) => new Date(seconds * 1000).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })

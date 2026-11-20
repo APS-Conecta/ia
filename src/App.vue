@@ -32,8 +32,15 @@
 						<NcIconSvgWrapper :path="mdiFileDocumentCheckOutline" />
 					</template>
 				</NcAppNavigationItem>
-				<!-- Only Editors see this part; Documentos and Acciones automáticas join it (#9, #15). -->
-				<NcAppNavigationCaption v-if="editorGroups.length > 0" name="Para editores" />
+				<!-- Only Editors see this part; Documentos joins it (#15). -->
+				<template v-if="editorGroups.length > 0">
+					<NcAppNavigationCaption name="Para editores" />
+					<NcAppNavigationItem name="Acciones automáticas" href="#acciones" :active="view.name === 'acciones'">
+						<template #icon>
+							<NcIconSvgWrapper :path="mdiRobotOutline" />
+						</template>
+					</NcAppNavigationItem>
+				</template>
 			</template>
 		</NcAppNavigation>
 
@@ -42,23 +49,34 @@
 			<BulletinList v-else-if="view.name === 'boletines'"
 				:bulletins="bulletins"
 				:editor="editorGroups.length > 0"
-				@create="sidebar = { id: null }" />
+				@create="sidebar = { kind: 'bulletin', id: null }" />
 			<BulletinPage v-else-if="view.name === 'boletin'"
 				:id="view.id"
 				:key="view.id"
 				:edition="view.edition"
 				:version="version"
-				@edit="sidebar = { id: $event }" />
+				@edit="sidebar = { kind: 'bulletin', id: $event }" />
+			<ActionList v-else-if="view.name === 'acciones'"
+				:version="version"
+				@create="sidebar = { kind: 'action', id: null }"
+				@edit="sidebar = { kind: 'action', id: $event }" />
 			<ReviewList v-else-if="view.name === 'revisiones'" />
 			<ReviewReport v-else :id="view.id" :key="view.id" />
 		</NcAppContent>
-		<BulletinSidebar v-if="sidebar"
+		<BulletinSidebar v-if="sidebar?.kind === 'bulletin'"
 			:id="sidebar.id"
 			:key="sidebar.id ?? 'new'"
 			:editor-groups="editorGroups"
 			@close="sidebar = null"
 			@saved="saved"
 			@deleted="deleted" />
+		<ActionSidebar v-else-if="sidebar?.kind === 'action'"
+			:id="sidebar.id"
+			:key="'action' + (sidebar.id ?? 'new')"
+			:editor-groups="editorGroups"
+			@close="sidebar = null"
+			@saved="actionSaved"
+			@deleted="actionSaved" />
 	</NcContent>
 </template>
 
@@ -72,6 +90,8 @@ import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcAppNavigationNew from '@nextcloud/vue/components/NcAppNavigationNew'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
+import ActionList from './ActionList.vue'
+import ActionSidebar from './ActionSidebar.vue'
 import BulletinList from './BulletinList.vue'
 import BulletinPage from './BulletinPage.vue'
 import BulletinSidebar from './BulletinSidebar.vue'
@@ -79,7 +99,7 @@ import ParaTi from './ParaTi.vue'
 import ReviewList from './ReviewList.vue'
 import ReviewReport from './ReviewReport.vue'
 import { ocsGet, ocsPost, refusal } from './api.js'
-import { mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiStarOutline } from './icons.js'
+import { mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiRobotOutline, mdiStarOutline } from './icons.js'
 import { offHoursText } from './reviews.js'
 
 /** What «IA» reads (TextReader): PDF with text, DOCX, ODT, TXT and MD. */
@@ -92,11 +112,14 @@ const FORMATS = [
 ]
 
 /** Each place's page heading, for screen readers. */
-const HEADINGS = { 'para-ti': 'Para ti', boletines: 'Boletines', boletin: 'Boletines', revisiones: 'Revisiones', revision: 'Revisiones' }
+const HEADINGS = { 'para-ti': 'Para ti', boletines: 'Boletines', boletin: 'Boletines', revisiones: 'Revisiones', revision: 'Revisiones', acciones: 'Acciones automáticas' }
 
 /** The page's place, from the URL's hash: a section, one Bulletin or one Review in it, or one of a Bulletin's Editions. */
 function viewOf(hash) {
 	const [section, id, edition] = hash.replace(/^#\/?/, '').split('/')
+	if (section === 'acciones') {
+		return { name: 'acciones' }
+	}
 	const one = { boletines: 'boletin', revisiones: 'revision' }[section]
 	if (one === undefined) {
 		return { name: 'para-ti' }
@@ -109,8 +132,8 @@ function viewOf(hash) {
 
 export default {
 	name: 'App',
-	components: { BulletinList, BulletinPage, BulletinSidebar, NcAppContent, NcAppNavigation, NcAppNavigationCaption, NcAppNavigationItem, NcAppNavigationNew, NcContent, NcIconSvgWrapper, ParaTi, ReviewList, ReviewReport },
-	setup: () => ({ HEADINGS, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiStarOutline }),
+	components: { ActionList, ActionSidebar, BulletinList, BulletinPage, BulletinSidebar, NcAppContent, NcAppNavigation, NcAppNavigationCaption, NcAppNavigationItem, NcAppNavigationNew, NcContent, NcIconSvgWrapper, ParaTi, ReviewList, ReviewReport },
+	setup: () => ({ HEADINGS, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiRobotOutline, mdiStarOutline }),
 	data: () => ({ view: viewOf(window.location.hash), editorGroups: [], bulletins: [], sidebar: null, version: 0 }),
 	async mounted() {
 		window.addEventListener('hashchange', this.follow)
@@ -140,6 +163,10 @@ export default {
 			this.version++
 			await this.loadBulletins()
 			window.location.hash = `#boletines/${id}`
+		},
+		actionSaved() {
+			this.sidebar = null
+			this.version++
 		},
 		async deleted() {
 			this.sidebar = null
@@ -196,6 +223,12 @@ export default {
 .ia-lead,
 .ia-hint {
 	color: var(--color-text-maxcontrast);
+}
+
+.ia-form {
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--default-grid-baseline) * 3);
 }
 
 .ia-chips {
