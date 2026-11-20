@@ -80,6 +80,8 @@ class Version000100Date20261119000000 extends SimpleMigrationStep {
 			$bulletins->addColumn('sources', Types::TEXT, ['notnull' => true]);
 			$bulletins->addColumn('readers', Types::TEXT, ['notnull' => true]);
 			$bulletins->addColumn('schedule', Types::STRING, ['notnull' => true, 'length' => 32]);
+			$bulletins->addColumn('next', Types::STRING, ['notnull' => true, 'length' => 10]);
+			$bulletins->addColumn('fingerprint', Types::TEXT, ['notnull' => false]);
 			$bulletins->setPrimaryKey(['id']);
 			$bulletins->addIndex(['editor_group'], 'ia_bulletins_editors');
 		}
@@ -105,7 +107,6 @@ class Version000100Date20261119000000 extends SimpleMigrationStep {
 			$editions->addColumn('date', Types::STRING, ['notnull' => true, 'length' => 10]);
 			$editions->addColumn('until', Types::STRING, ['notnull' => true, 'length' => 10]);
 			$editions->addColumn('late', Types::BOOLEAN, ['notnull' => false, 'default' => false]);
-			$editions->addColumn('fingerprint', Types::TEXT, ['notnull' => false]);
 			$editions->addColumn('status', Types::STRING, ['notnull' => true, 'length' => 16]);
 			$editions->addColumn('resumen', Types::TEXT, ['notnull' => false]);
 			$editions->addColumn('files', Types::TEXT, ['notnull' => false]);

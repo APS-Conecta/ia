@@ -46,7 +46,7 @@ export function longDate(date) {
 /** When the next Edition is due, in a sentence. */
 export function dueText(bulletin) {
 	if (bulletin.due === null) {
-		return 'La primera edición se escribe fuera de horario la próxima noche; después, solo la noche después de que cambie una de sus fuentes.'
+		return 'La próxima edición se escribe la noche después de que cambie una de sus fuentes.'
 	}
 	return `La primera edición sale el ${longDate(bulletin.due)}, escrita fuera de horario la noche anterior.`
 }

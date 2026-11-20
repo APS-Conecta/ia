@@ -23,8 +23,6 @@ use OCP\AppFramework\Db\Entity;
  * @method void setUntil(string $until)
  * @method bool|null getLate()
  * @method void setLate(bool $late)
- * @method string|null getFingerprint()
- * @method void setFingerprint(?string $fingerprint)
  * @method string getStatus()
  * @method void setStatus(string $status)
  * @method string|null getResumen()
@@ -41,12 +39,13 @@ class Edition extends Entity {
 	// Null until set: Entity writes only the fields a setter changed.
 	protected ?int $bulletinId = null;
 	protected ?string $date = null;
-	/** The end of its period, exclusive (Y-m-d): the next Edition's date as the schedule had it then. */
+	/**
+	 * The end of its period, exclusive (Y-m-d): the next Edition's date as the schedule had it then;
+	 * for a Bulletin that comes «cuando cambien sus fuentes», a week on, then the next Edition's date.
+	 */
 	protected ?string $until = null;
 	/** Whether the Off hours of its date ended before it was published. */
 	protected ?bool $late = null;
-	/** Its Sources' state when it was opened (Db\Changes), for a Bulletin that comes when they change. */
-	protected ?string $fingerprint = null;
 	protected ?string $status = null;
 	protected ?string $resumen = null;
 	protected ?string $files = null;

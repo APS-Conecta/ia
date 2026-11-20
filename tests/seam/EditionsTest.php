@@ -6,8 +6,6 @@ declare(strict_types=1);
 
 namespace OCA\Ia\Tests\Seam;
 
-use RuntimeException;
-
 /**
  * The first Edition (APS-Conecta/ia#10): on its date, in Off hours, a Bulletin's Run takes the
  * Readings it lacks, writes the Resumen with the real Model and publishes the Edition whole; its
@@ -15,7 +13,8 @@ use RuntimeException;
  * Each Reader's Personal list, «Para ti» and the Dashboard widget read it (APS-Conecta/ia#12).
  *
  * An Edition is for the date its Off hours end, in the server's timezone: the first one is written
- * at Pago Pago's time (UTC−11) and the next at Kiritimati's (UTC+14), whose date is always later.
+ * at Pago Pago's time (UTC−11) in Off hours that don't cross midnight, the next at Kiritimati's
+ * (UTC+14) in ones that do, which ends them a day later: at least two dates later.
  */
 final class EditionsTest extends SeamTestCase {
 	private const API = '/apps/ia/api/v1';
@@ -26,7 +25,6 @@ final class EditionsTest extends SeamTestCase {
 	/** Seconds an Edition may take: four Readings and the Resumen on the CPU, behind other Bulletins' Runs. */
 	private const WRITING = 900;
 
-	private static ?string $timezone = null;
 	private static string $ana;
 	private static string $carla;
 	private static string $dario;
@@ -37,12 +35,9 @@ final class EditionsTest extends SeamTestCase {
 	private static string $sentinel;
 
 	public static function setUpBeforeClass(): void {
-		try {
-			self::$timezone = trim(self::occ('config:system:get', 'default_timezone'));
-		} catch (RuntimeException) {
-			self::$timezone = null;
-		}
-		self::occ('config:system:set', 'default_timezone', '--value=' . self::TIMEZONE);
+		self::timezone(self::TIMEZONE);
+		// Off hours all day, ending today: the Bulletins' first date and their first Edition's.
+		self::offHoursWindow('00:00', '23:59');
 		self::$ana = self::person();
 		$editors = self::group(self::$ana, self::person());
 		self::$carla = self::person();
@@ -82,21 +77,19 @@ final class EditionsTest extends SeamTestCase {
 	}
 
 	public static function tearDownAfterClass(): void {
-		self::occ(...(self::$timezone === null ? ['config:system:delete', 'default_timezone'] : ['config:system:set', 'default_timezone', '--value=' . self::$timezone]));
 		self::occ('config:app:delete', 'ia', 'cargos');
 		parent::tearDownAfterClass();
 	}
 
 	public function testNothingShowsWhileTheEditionIsWritten(): void {
-		self::offHoursNow();
 		self::tick();
-		self::assertSame([], self::editions(self::$ana));
-		self::assertSame([], self::editions(self::$carla));
+		self::assertSame([], self::editions(self::$ana, self::$bulletin));
+		self::assertSame([], self::editions(self::$carla, self::$bulletin));
 	}
 
 	/** @depends testNothingShowsWhileTheEditionIsWritten */
 	public function testItIsPublishedWholeAndItsReadersAreTold(): int {
-		$id = self::published(1)[0]['id'];
+		$id = self::published(self::$carla, self::$bulletin, 1, self::WRITING)[0]['id'];
 		$told = array_filter(self::ocs(self::$carla, 'GET', '/apps/notifications/api/v2/notifications')['data'],
 			static fn (array $notification): bool => $notification['app'] === 'ia' && $notification['object_id'] === (string)$id);
 		self::assertCount(1, $told, 'a Reader is told');
@@ -124,7 +117,7 @@ final class EditionsTest extends SeamTestCase {
 
 	/** @depends testItIsPublishedWholeAndItsReadersAreTold */
 	public function testAnEditionWithNothingToReadHasNoResumen(): void {
-		$edition = self::edition(self::$carla, self::published(1, self::$sheets)[0]['id']);
+		$edition = self::edition(self::$carla, self::published(self::$carla, self::$sheets, 1, self::WRITING)[0]['id']);
 		self::assertSame('', $edition['resumen']);
 		self::assertSame([['turnos.xlsx', 'failed']], array_map(static fn (array $document): array => [$document['name'], $document['status']], $edition['unreadable']));
 	}
@@ -182,7 +175,7 @@ final class EditionsTest extends SeamTestCase {
 
 	/** @depends testItIsPublishedWholeAndItsReadersAreTold */
 	public function testAReaderWhoCannotOpenAFileItReadDoesNotSeeIt(int $id): void {
-		self::assertSame([], self::editions(self::$dario));
+		self::assertSame([], self::editions(self::$dario, self::$bulletin));
 		self::assertSame(404, self::ocs(self::$dario, 'GET', self::API . "/editions/$id")['status']);
 		$told = array_filter(self::ocs(self::$dario, 'GET', '/apps/notifications/api/v2/notifications')['data'] ?? [],
 			static fn (array $notification): bool => $notification['app'] === 'ia' && $notification['object_id'] === (string)$id);
@@ -202,12 +195,19 @@ final class EditionsTest extends SeamTestCase {
 	public function testTheNextEditionListsWhatChangedAndKeepsTheReadingsOfTheRest(int $first): void {
 		$before = self::edition(self::$carla, $first);
 		self::upload(self::$ana, 'Protocolos/visitas.md', self::visits("\nSe agrega la evaluación del riesgo de caídas en cada visita.\n"));
-		self::occ('config:system:set', 'default_timezone', '--value=Pacific/Kiritimati');
-		self::offHoursNow();
-		self::tick();
-		$editions = self::published(2);
+		self::timezone('Pacific/Kiritimati');
+		// Off hours that began a minute ago and end a minute before that tomorrow: today's date plus one.
+		$now = self::now();
+		if ($now->format('H:i') < '00:03') {
+			sleep(180);
+			$now = self::now();
+		}
+		self::offHoursWindow($now->modify('-1 minute')->format('H:i'), $now->modify('-2 minutes')->format('H:i'));
+		$editions = self::published(self::$carla, self::$bulletin, 2, self::WRITING);
 		self::assertSame($first, $editions[1]['id']);
-		self::assertGreaterThan($editions[1]['date'], $editions[0]['date']);
+		$today = $now->modify('+1 day')->format('Y-m-d');
+		self::assertGreaterThanOrEqual(2, (new \DateTimeImmutable($editions[1]['date']))->diff(new \DateTimeImmutable($today))->days, 'dates missed between the two');
+		self::assertSame([$today], array_column(array_slice($editions, 0, 1), 'date'), 'one Edition, for today, not one per missed date');
 
 		$next = self::edition(self::$carla, $editions[0]['id']);
 		self::assertSame(['visitas.md'], self::names($next['changed']), 'only the changed document; the deleted one is not a Source any more');
@@ -237,53 +237,6 @@ final class EditionsTest extends SeamTestCase {
 		]);
 		self::assertSame(201, $created['status'], json_encode($created['data']));
 		return $created['data']['bulletin']['id'];
-	}
-
-	/** @return list<array{id: int, date: string}> the Editions of the Bulletin (the protocols' by default) $person sees */
-	private static function editions(string $person, ?int $bulletin = null): array {
-		$answer = self::ocs($person, 'GET', self::API . '/bulletins/' . ($bulletin ?? self::$bulletin) . '/editions');
-		self::assertSame(200, $answer['status'], json_encode($answer['data']));
-		return $answer['data']['editions'];
-	}
-
-	/**
-	 * Ticks as the scheduler would until Carla sees $count Editions of the Bulletin (the protocols'
-	 * by default), or fails after WRITING seconds.
-	 *
-	 * @return list<array{id: int, date: string}>
-	 */
-	private static function published(int $count, ?int $bulletin = null): array {
-		$until = time() + self::WRITING;
-		do {
-			$editions = self::editions(self::$carla, $bulletin);
-			if (count($editions) === $count) {
-				return $editions;
-			}
-			sleep(5);
-			self::tick();
-		} while (time() < $until);
-		self::fail("Carla did not see $count Editions after " . self::WRITING . ' s');
-	}
-
-	/** A time as iCalendar writes it in UTC. */
-	private function utc(\DateTimeImmutable $time): string {
-		return $time->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
-	}
-
-	/** Puts an event in Carla's «reuniones» calendar: $times holds its DTSTART and DTEND lines. */
-	private static function event(string $uid, string $times, string $title): void {
-		$ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//ia seam//ES\r\nBEGIN:VEVENT\r\nUID:$uid-" . bin2hex(random_bytes(4))
-			. "\r\nDTSTAMP:20260101T000000Z\r\n$times\r\nSUMMARY:$title\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
-		self::assertSame(201, self::dav(self::$carla, 'PUT', '/remote.php/dav/calendars/' . self::$carla . "/reuniones/$uid.ics", $ics, 'text/calendar'));
-	}
-
-	/** @return list<string> the titles the «Boletines» Dashboard widget shows $person, sorted */
-	private static function widget(string $person): array {
-		$answer = self::ocs($person, 'GET', '/apps/dashboard/api/v2/widget-items?widgets%5B%5D=ia-boletines');
-		self::assertSame(200, $answer['status']);
-		$titles = array_column($answer['data']['ia-boletines']['items'], 'title');
-		sort($titles);
-		return $titles;
 	}
 
 	/** @return array<string, mixed> */

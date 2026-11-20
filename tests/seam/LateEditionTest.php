@@ -6,13 +6,11 @@ declare(strict_types=1);
 
 namespace OCA\Ia\Tests\Seam;
 
-use RuntimeException;
-
 /**
  * Late Editions (APS-Conecta/ia#13): an Edition that its Off hours couldn't finish waits, shows its
  * Editors step i of n, turns «atrasada» once its date is past, telling them once, and continues
- * the next night from its last finished step, as the one Edition: no second one opens meanwhile.
- * A Source gone since it was set up is told to the Editors.
+ * the next night from its last finished step, as the one Edition: none opens meanwhile, nor the
+ * same night it is published. A Source gone since it was set up is told to the Editors, once.
  *
  * Its date passes by moving the server's timezone from Pago Pago's (UTC−11) to Kiritimati's
  * (UTC+14), whose date is always later.
@@ -22,18 +20,13 @@ final class LateEditionTest extends SeamTestCase {
 	/** Seconds the Model may take for one short step on the CPU, behind other Runs. */
 	private const STEP = 600;
 
-	private static ?string $timezone = null;
 	private static string $ana;
 	private static string $carla;
 	private static int $bulletin;
 
 	public static function setUpBeforeClass(): void {
-		try {
-			self::$timezone = trim(self::occ('config:system:get', 'default_timezone'));
-		} catch (RuntimeException) {
-			self::$timezone = null;
-		}
-		self::occ('config:system:set', 'default_timezone', '--value=Pacific/Pago_Pago');
+		self::timezone('Pacific/Pago_Pago');
+		self::offHoursNow();
 		self::$ana = self::person();
 		self::$carla = self::person();
 		$editors = self::group(self::$ana);
@@ -56,13 +49,7 @@ final class LateEditionTest extends SeamTestCase {
 		self::remove(self::$ana, 'retirada.txt');
 	}
 
-	public static function tearDownAfterClass(): void {
-		self::occ(...(self::$timezone === null ? ['config:system:delete', 'default_timezone'] : ['config:system:set', 'default_timezone', '--value=' . self::$timezone]));
-		parent::tearDownAfterClass();
-	}
-
 	public function testAnEditionItsOffHoursCannotFinishWaitsAndShowsItsStep(): string {
-		self::offHoursNow();
 		self::tick();
 		// Off hours end while its first step is asked: it stops after that step.
 		self::offHoursLater();
@@ -74,17 +61,17 @@ final class LateEditionTest extends SeamTestCase {
 			}
 			sleep(5);
 		} while (time() < $until);
-		self::assertSame(2, $writing['step'] ?? null, 'its first step done: two Readings and the Resumen to go');
+		self::assertSame(2, $writing['step'] ?? null, 'its first step done');
 		self::assertSame([3, false], [$writing['steps'], $writing['late']], 'two Readings and a Resumen');
-		self::assertSame([], self::editions(), 'nothing shows while it is written');
-		self::assertCount(1, self::told(self::$ana, 'Una fuente no se pudo leer'), 'its Editors are told a Source is gone');
-		self::assertSame([], self::told(self::$carla, 'Una fuente no se pudo leer'), 'its Readers are not');
+		self::assertSame([], self::editions(self::$carla, self::$bulletin), 'nothing shows while it is written');
+		self::assertCount(1, self::told(self::$ana, 'Una fuente de Boletín de normas ya no está'), 'its Editors are told a Source is gone');
+		self::assertSame([], self::told(self::$carla, 'Una fuente'), 'its Readers are not');
 		return $writing['date'];
 	}
 
 	/** @depends testAnEditionItsOffHoursCannotFinishWaitsAndShowsItsStep */
 	public function testOnceItsDateIsPastItIsLateAndItsEditorsAreToldOnce(string $date): void {
-		self::occ('config:system:set', 'default_timezone', '--value=Pacific/Kiritimati');
+		self::timezone('Pacific/Kiritimati');
 		self::offHoursLater();
 		self::tick();
 		self::tick();
@@ -96,28 +83,22 @@ final class LateEditionTest extends SeamTestCase {
 	/** @depends testAnEditionItsOffHoursCannotFinishWaitsAndShowsItsStep */
 	public function testTheNextOffHoursFinishItAsTheOneEdition(string $date): void {
 		self::offHoursNow();
-		$until = time() + 3 * self::STEP;
-		do {
-			self::tick();
-			$editions = self::editions();
-			if ($editions !== []) {
-				break;
-			}
+		$editions = self::published(self::$carla, self::$bulletin, 1, 3 * self::STEP);
+		foreach (range(1, 3) as $tick) {
 			sleep(5);
-		} while (time() < $until);
+			self::tick();
+		}
+		$editions = self::editions(self::$carla, self::$bulletin);
 		self::assertSame([['date' => $date, 'late' => true]], array_map(static fn (array $edition): array => ['date' => $edition['date'], 'late' => $edition['late']], $editions),
-			'the late one, published; no Edition opened for the new date meanwhile');
+			'the late one, published; none opened for the new date, that night either');
+		self::assertNull(self::writing());
 		self::assertTrue(self::ocs(self::$carla, 'GET', self::API . '/editions/' . $editions[0]['id'])['data']['edition']['late']);
+		self::assertCount(1, self::told(self::$ana, 'Una fuente de Boletín de normas ya no está'), 'the gone Source is told once');
 	}
 
 	/** @return array<string, mixed>|null the Edition being written, as the Bulletin's Editor sees it */
 	private static function writing(): ?array {
 		return self::ocs(self::$ana, 'GET', self::API . '/bulletins/' . self::$bulletin)['data']['bulletin']['writing'];
-	}
-
-	/** @return list<array<string, mixed>> the Editions Carla sees */
-	private static function editions(): array {
-		return self::ocs(self::$carla, 'GET', self::API . '/bulletins/' . self::$bulletin . '/editions')['data']['editions'];
 	}
 
 	/** @return list<array<string, mixed>> $person's «IA» notifications whose subject starts with $subject */

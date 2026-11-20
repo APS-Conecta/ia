@@ -26,26 +26,45 @@ class Changes {
 	 * @param list<array{type: string, id: string}> $sources
 	 */
 	public function of(array $sources): string {
-		$files = array_map(static fn (array $source): int => (int)$source['id'], array_filter($sources, static fn (array $source): bool => $source['type'] !== 'calendar'));
-		$calendars = array_map(static fn (array $source): int => (int)$source['id'], array_filter($sources, static fn (array $source): bool => $source['type'] === 'calendar'));
+		$files = [];
+		$calendars = [];
+		foreach ($sources as $source) {
+			if ($source['type'] === 'calendar') {
+				$calendars[] = (int)$source['id'];
+			} else {
+				$files[] = (int)$source['id'];
+			}
+		}
+		$etags = $this->column('filecache', 'fileid', 'etag', $files);
+		$tokens = $this->column('calendars', 'id', 'synctoken', $calendars);
 		$state = [];
-		foreach ([['filecache', 'fileid', 'etag', 'file', $files], ['calendars', 'id', 'synctoken', 'calendar', $calendars]] as [$table, $key, $column, $type, $ids]) {
-			$found = [];
-			if ($ids !== []) {
-				$query = $this->db->getQueryBuilder();
-				$query->select($key, $column)->from($table)
-					->where($query->expr()->in($key, $query->createNamedParameter(array_values($ids), IQueryBuilder::PARAM_INT_ARRAY)));
-				$result = $query->executeQuery();
-				while ($row = $result->fetch()) {
-					$found[(int)$row[$key]] = (string)$row[$column];
-				}
-				$result->closeCursor();
-			}
-			foreach ($ids as $id) {
-				$state["$type:$id"] = $found[$id] ?? null;
-			}
+		foreach ($files as $id) {
+			$state["file:$id"] = $etags[$id] ?? null;
+		}
+		foreach ($calendars as $id) {
+			$state["calendar:$id"] = $tokens[$id] ?? null;
 		}
 		ksort($state);
 		return json_encode($state, JSON_THROW_ON_ERROR);
+	}
+
+	/**
+	 * @param list<int> $ids
+	 * @return array<int, string> $value of the rows of $table whose $key is one of $ids, by $key
+	 */
+	private function column(string $table, string $key, string $value, array $ids): array {
+		if ($ids === []) {
+			return [];
+		}
+		$query = $this->db->getQueryBuilder();
+		$query->select($key, $value)->from($table)
+			->where($query->expr()->in($key, $query->createNamedParameter($ids, IQueryBuilder::PARAM_INT_ARRAY)));
+		$result = $query->executeQuery();
+		$found = [];
+		while ($row = $result->fetch()) {
+			$found[(int)$row[$key]] = (string)$row[$value];
+		}
+		$result->closeCursor();
+		return $found;
 	}
 }

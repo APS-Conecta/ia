@@ -25,7 +25,8 @@ use Throwable;
  *    cancelled and its Run put back in line; a task still waiting in TaskProcessing's queue is
  *    never touched. An answer whose event was lost is taken.
  * 2. **Schedule.** Every waiting short Run is asked at once; an Edition past its date is marked
- *    late (EditionRun::overdue). In Off hours, the Editions due open their Runs; when no Off-hours Run is working, the next waiting one is asked, Reviews asked
+ *    late (EditionRun::overdue). In Off hours, the Editions due open their Runs; when no Off-hours
+ *    Run is working, the next waiting one is asked, Reviews asked
  *    for by hand before Editions, oldest first: at most one Off-hours task in flight.
  * 3. **Fail.** The third failed attempt in a row fails a Run with its last error (Run::retry).
  *

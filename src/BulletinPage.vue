@@ -26,8 +26,13 @@
 					@update:model-value="show" />
 			</div>
 			<NcNoteCard v-if="bulletin.writing" type="info">
-				Se está escribiendo la edición del {{ longDate(bulletin.writing.date) }}{{ bulletin.writing.late ? ', atrasada' : '' }}: paso {{ Math.min(bulletin.writing.step, bulletin.writing.steps) }} de {{ bulletin.writing.steps }}.
-				Sigue fuera de horario.
+				<template v-if="bulletin.writing.steps === 0">
+					La edición del {{ longDate(bulletin.writing.date) }}{{ bulletin.writing.late ? ', atrasada,' : '' }} espera su turno fuera de horario.
+				</template>
+				<template v-else>
+					Se está escribiendo la edición del {{ longDate(bulletin.writing.date) }}{{ bulletin.writing.late ? ', atrasada' : '' }}: paso {{ bulletin.writing.step }} de {{ bulletin.writing.steps }}.
+					Sigue fuera de horario.
+				</template>
 			</NcNoteCard>
 			<NcEmptyContent v-if="editions.length === 0" name="Todavía no hay ediciones" :description="dueText(bulletin)">
 				<template #icon>

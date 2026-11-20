@@ -140,12 +140,18 @@ class Editions {
 
 	/** @return array<int, string> the versions the Bulletin's last Edition published before $edition read, by file id */
 	public function previous(Edition $edition): array {
+		$earlier = $this->before($edition);
+		return $earlier === null ? [] : array_column(self::files($earlier), 'etag', 'fileId');
+	}
+
+	/** The Bulletin's last Edition published before $edition, or null. */
+	public function before(Edition $edition): ?Edition {
 		foreach ($this->editions->ofBulletin($edition->getBulletinId()) as $earlier) {
 			if ($earlier->getStatus() === Edition::PUBLISHED && $earlier->getDate() < $edition->getDate()) {
-				return array_column(self::files($earlier), 'etag', 'fileId');
+				return $earlier;
 			}
 		}
-		return [];
+		return null;
 	}
 
 	/** @return list<string> the Bulletin's Readers who can see the Edition */

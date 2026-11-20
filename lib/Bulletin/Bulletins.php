@@ -11,6 +11,7 @@ use DateTimeZone;
 use OCA\Ia\Access\Access;
 use OCA\Ia\Db\Bulletin;
 use OCA\Ia\Db\BulletinMapper;
+use OCA\Ia\Db\Changes;
 use OCA\Ia\Db\Edition;
 use OCA\Ia\Db\EditionMapper;
 use OCA\Ia\Db\Run;
@@ -21,6 +22,7 @@ use OCA\Ia\ResponseDefinitions;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\TTransactional;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IUser;
@@ -58,6 +60,8 @@ class Bulletins {
 		private IGroupManager $groups,
 		private Settings $settings,
 		private IDBConnection $db,
+		private Changes $changes,
+		private ITimeFactory $time,
 	) {
 	}
 
@@ -99,6 +103,8 @@ class Bulletins {
 		}
 		$bulletin = new Bulletin();
 		$bulletin->setEditorGroup($group);
+		// Its first Edition is for its first date from the coming Off hours on.
+		$bulletin->setNext($this->settings->offHoursDate($this->time->getDateTime()));
 		$this->fill($userId, $bulletin, $input);
 		$this->bulletins->insert($bulletin);
 		return $this->view($userId, $bulletin, 'editor');
@@ -233,6 +239,10 @@ class Bulletins {
 		$bulletin->setName($name);
 		$bulletin->setSources(json_encode(array_map(static fn (array $source): array => ['type' => $source['type'], 'id' => $source['id']], $sources), JSON_THROW_ON_ERROR));
 		$bulletin->setReaders(json_encode($readers, JSON_THROW_ON_ERROR));
+		// One that now comes «cuando cambien sus fuentes» waits for a change from what they are now.
+		if ($schedule->kind === 'sources' && ($bulletin->getId() === null || Schedule::parse((string)$bulletin->getSchedule())->kind !== 'sources')) {
+			$bulletin->setFingerprint($this->changes->of(array_map(static fn (array $source): array => ['type' => $source['type'], 'id' => $source['id']], $sources)));
+		}
 		$bulletin->setSchedule($schedule->stored());
 	}
 
@@ -318,23 +328,36 @@ class Bulletins {
 			'readers' => $role === 'editor' ? array_map($this->group(...), self::decode($bulletin->getReaders())) : [],
 			'schedule' => $schedule->view(),
 			'due' => $schedule->due($today),
-			'writing' => $role === 'editor' ? $this->writing($bulletin) : null,
+			'writing' => $role === 'editor' ? $this->progress($bulletin) : null,
 		];
 	}
 
 	/**
-	 * The Edition being written, for its Editors: its date, step i of n and whether it is late.
+	 * The Bulletin's Edition being written, and its Run: one not yet published whose Run hasn't
+	 * failed. Only one is written at a time.
+	 *
+	 * @return array{0: Edition, 1: Run}|null
+	 */
+	public function writing(Bulletin $bulletin): ?array {
+		$edition = $this->editions->ofBulletin($bulletin->getId())[0] ?? null;
+		$run = $edition?->getStatus() === Edition::WRITING ? $this->runs->of(Run::EDITION, (string)$edition->getId()) : null;
+		return $run === null || $run->getState() === Run::FAILED ? null : [$edition, $run];
+	}
+
+	/**
+	 * The Edition being written, for its Editors: its date, step i of n (0 of 0 while it waits for
+	 * its turn) and whether it is late.
 	 *
 	 * @return IaWriting|null
 	 */
-	private function writing(Bulletin $bulletin): ?array {
-		foreach ($this->editions->ofBulletin($bulletin->getId()) as $edition) {
-			$run = $edition->getStatus() === Edition::WRITING ? $this->runs->of(Run::EDITION, (string)$edition->getId()) : null;
-			if ($run !== null && $run->getState() !== Run::FAILED) {
-				return ['date' => $edition->getDate(), 'step' => $run->getStep(), 'steps' => $run->getSteps(), 'late' => (bool)$edition->getLate()];
-			}
-		}
-		return null;
+	private function progress(Bulletin $bulletin): ?array {
+		[$edition, $run] = $this->writing($bulletin) ?? [null, null];
+		return $edition === null ? null : [
+			'date' => $edition->getDate(),
+			'step' => min($run->getStep(), $run->getSteps()),
+			'steps' => $run->getSteps(),
+			'late' => (bool)$edition->getLate(),
+		];
 	}
 
 	/**
