@@ -27,6 +27,8 @@ abstract class SeamTestCase extends TestCase {
 	private static array $people = [];
 	/** @var list<string> each group this class made */
 	private static array $groups = [];
+	/** @var string|false|null the server's timezone before this class moved it: false while unmoved, null when it had none */
+	private static string|false|null $timezone = false;
 
 	public static function tearDownAfterClass(): void {
 		foreach (array_keys(self::$people) as $name) {
@@ -37,6 +39,22 @@ abstract class SeamTestCase extends TestCase {
 		}
 		self::$people = [];
 		self::$groups = [];
+		if (self::$timezone !== false) {
+			self::occ(...(self::$timezone === null ? ['config:system:delete', 'default_timezone'] : ['config:system:set', 'default_timezone', '--value=' . self::$timezone]));
+			self::$timezone = false;
+		}
+	}
+
+	/** Moves the server's timezone, which decides the date an Edition is for; the class's end puts it back. */
+	protected static function timezone(string $zone): void {
+		if (self::$timezone === false) {
+			try {
+				self::$timezone = trim(self::occ('config:system:get', 'default_timezone'));
+			} catch (RuntimeException) {
+				self::$timezone = null;
+			}
+		}
+		self::occ('config:system:set', 'default_timezone', '--value=' . $zone);
 	}
 
 	/** A fresh account, unique to this run, and its login name. */
@@ -78,16 +96,58 @@ abstract class SeamTestCase extends TestCase {
 	 * @return array{start: string, end: string}
 	 */
 	protected static function offHours(int $from, int $to): array {
+		$now = self::now();
+		return self::offHoursWindow($now->modify("$from hours")->format('H:i'), $now->modify("$to hours")->format('H:i'));
+	}
+
+	/**
+	 * Sets Off hours, through the admin setting, to the window from $start to $end (H:i) in the
+	 * server's timezone; the Editor groups stay.
+	 *
+	 * @return array{start: string, end: string}
+	 */
+	protected static function offHoursWindow(string $start, string $end): array {
 		$admin = self::admin();
 		$settings = self::ocs($admin, 'GET', '/apps/ia/api/v1/admin/settings')['data'];
-		$now = new \DateTimeImmutable('now', new \DateTimeZone($settings['timezone']));
-		$hours = ['start' => $now->modify("$from hours")->format('H:i'), 'end' => $now->modify("$to hours")->format('H:i')];
+		$hours = ['start' => $start, 'end' => $end];
 		$answer = self::ocs($admin, 'PUT', '/apps/ia/api/v1/admin/settings', [
 			'editorGroups' => array_column($settings['editorGroups'], 'id'),
 			'offHours' => $hours,
 		]);
 		self::assertSame(200, $answer['status']);
 		return $hours;
+	}
+
+	/** Now, in the server's timezone. */
+	protected static function now(): \DateTimeImmutable {
+		$settings = self::ocs(self::admin(), 'GET', '/apps/ia/api/v1/admin/settings')['data'];
+		return new \DateTimeImmutable('now', new \DateTimeZone($settings['timezone']));
+	}
+
+	/** @return list<array<string, mixed>> the Editions of the Bulletin $person sees, newest first */
+	protected static function editions(string $person, int $bulletin): array {
+		$answer = self::ocs($person, 'GET', "/apps/ia/api/v1/bulletins/$bulletin/editions");
+		self::assertSame(200, $answer['status'], json_encode($answer['data']));
+		return $answer['data']['editions'];
+	}
+
+	/**
+	 * Ticks as the scheduler would until $person sees $count Editions of the Bulletin, or fails after
+	 * $seconds.
+	 *
+	 * @return list<array<string, mixed>> those Editions, newest first
+	 */
+	protected static function published(string $person, int $bulletin, int $count, int $seconds): array {
+		$until = time() + $seconds;
+		do {
+			self::tick();
+			$editions = self::editions($person, $bulletin);
+			if (count($editions) >= $count) {
+				return $editions;
+			}
+			sleep(5);
+		} while (time() < $until);
+		self::fail("$person did not see $count Editions of the Bulletin $bulletin after $seconds s");
 	}
 
 	/** Off hours that cover the test run: from an hour ago to three hours from now. */

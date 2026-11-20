@@ -23,6 +23,10 @@ use OCP\AppFramework\Db\Entity;
  * @method void setReaders(string $readers)
  * @method string getSchedule()
  * @method void setSchedule(string $schedule)
+ * @method string getNext()
+ * @method void setNext(string $next)
+ * @method string|null getFingerprint()
+ * @method void setFingerprint(?string $fingerprint)
  */
 class Bulletin extends Entity {
 	// Null until set: Entity writes only the fields a setter changed.
@@ -31,4 +35,8 @@ class Bulletin extends Entity {
 	protected ?string $sources = null;
 	protected ?string $readers = null;
 	protected ?string $schedule = null;
+	/** The earliest date (Y-m-d) its next Edition may be for: one Edition however many dates were missed. */
+	protected ?string $next = null;
+	/** The Sources' state its Editions are up to (Db\Changes), when it comes «cuando cambien sus fuentes». */
+	protected ?string $fingerprint = null;
 }

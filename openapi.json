@@ -94,7 +94,8 @@
                             "sources",
                             "readers",
                             "schedule",
-                            "due"
+                            "due",
+                            "writing"
                         ],
                         "properties": {
                             "editorGroup": {
@@ -118,6 +119,14 @@
                             "due": {
                                 "type": "string",
                                 "nullable": true
+                            },
+                            "writing": {
+                                "nullable": true,
+                                "allOf": [
+                                    {
+                                        "$ref": "#/components/schemas/Writing"
+                                    }
+                                ]
                             }
                         }
                     }
@@ -253,7 +262,8 @@
                 "type": "object",
                 "required": [
                     "id",
-                    "date"
+                    "date",
+                    "late"
                 ],
                 "properties": {
                     "id": {
@@ -262,6 +272,9 @@
                     },
                     "date": {
                         "type": "string"
+                    },
+                    "late": {
+                        "type": "boolean"
                     }
                 }
             },
@@ -656,6 +669,31 @@
                     },
                     "name": {
                         "type": "string"
+                    }
+                }
+            },
+            "Writing": {
+                "type": "object",
+                "required": [
+                    "date",
+                    "step",
+                    "steps",
+                    "late"
+                ],
+                "properties": {
+                    "date": {
+                        "type": "string"
+                    },
+                    "step": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "steps": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "late": {
+                        "type": "boolean"
                     }
                 }
             }

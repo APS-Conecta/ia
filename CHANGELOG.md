@@ -52,3 +52,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   protocols about to expire and those Editions, and says they come from their calendar and Cargo, not from the Model.
   The Dashboard shows the latest Editions each person can see. «IA» reads the Cargo list from its app config as the
   Cargo groups' ids; a Reading keeps the ids it names.
+- Missed dates, late Editions and «cuando cambien sus fuentes» (#13): after missed dates the next Off hours write one
+  Edition, for the latest date due, and none opens while another is being written or before the night after the last
+  one was published. An Edition still unpublished once the Off hours of its date are over is «atrasada»: its Editors
+  are told once, it continues the next night from its last finished step, and it shows «atrasada» once published;
+  meanwhile its Editors see step i of n. They are told once when a Source is gone and once per version when a
+  document Source can't be read. A Bulletin that comes «cuando cambien sus fuentes» gets an Edition only after a
+  folder's or document's etag or a calendar's sync token changed from what its Editions are up to. Each Edition keeps
+  its period for the Personal list's meetings: to the next date due, or, «cuando cambien sus fuentes», to the next
+  Edition's date and a week on while it is the latest.

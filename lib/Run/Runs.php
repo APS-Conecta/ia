@@ -24,8 +24,9 @@ use Throwable;
  *    attempt spent. A task running longer than the connector's request timeout plus 5 minutes is
  *    cancelled and its Run put back in line; a task still waiting in TaskProcessing's queue is
  *    never touched. An answer whose event was lost is taken.
- * 2. **Schedule.** Every waiting short Run is asked at once. In Off hours, the Editions due open
- *    their Runs; when no Off-hours Run is working, the next waiting one is asked, Reviews asked
+ * 2. **Schedule.** Every waiting short Run is asked at once; an Edition past its date is marked
+ *    late (EditionRun::overdue). In Off hours, the Editions due open their Runs; when no Off-hours
+ *    Run is working, the next waiting one is asked, Reviews asked
  *    for by hand before Editions, oldest first: at most one Off-hours task in flight.
  * 3. **Fail.** The third failed attempt in a row fails a Run with its last error (Run::retry).
  *
@@ -50,6 +51,11 @@ class Runs {
 	public function tick(): void {
 		foreach ($this->runs->inState(Run::WORKING) as $run) {
 			$this->move($run, $this->recover(...));
+		}
+		try {
+			$this->editions->overdue($this->time->getDateTime());
+		} catch (Throwable $e) {
+			$this->logger->error('The run engine could not mark the late Editions: {error}', ['error' => $e::class]);
 		}
 		foreach ($this->runs->inState(Run::WAITING) as $run) {
 			if (!$run->getOffHours()) {
