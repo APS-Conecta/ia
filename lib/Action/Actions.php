@@ -24,13 +24,13 @@ use OCP\IUser;
  *
  * - **Only the Editor group's members** list, create, change and delete its actions.
  * - **A folder the whole Editor group can open**: one a member can't open is refused, naming who.
- * - **The innermost rule wins** when folders with actions nest.
+ * - **One action per folder**; when folders with actions nest, the innermost one's wins.
  *
  * @psalm-import-type IaAction from ResponseDefinitions
  */
 class Actions {
 	/** Instructions longer than this would crowd the document out of the Model's context. */
-	public const INSTRUCTIONS = 1000;
+	public const MAX_INSTRUCTIONS = 1000;
 	private const NOT_THEIRS = 'Solo los miembros del grupo editor de una acción automática pueden verla o cambiarla.';
 
 	/** @var list<Action>|null this request's actions, read once: a folder copy fires an event per file */
@@ -98,18 +98,33 @@ class Actions {
 		return $this->actions->byId($id);
 	}
 
-	/** The action whose folder holds the file $fileId, at any depth: the innermost one; null when none. */
-	public function of(int $fileId): ?Action {
+	/**
+	 * Who an automatic Review of the file $fileId acts as when whoever changed it can't open it: the
+	 * first active member, by id, of the action's Editor group who can; null when none can.
+	 */
+	public function actor(Action $action, int $fileId): ?string {
+		$members = $this->access->members($action->getEditorGroup());
+		usort($members, static fn (IUser $a, IUser $b): int => strcmp($a->getUID(), $b->getUID()));
+		foreach ($members as $member) {
+			if ($this->access->file($member->getUID(), $fileId) !== null) {
+				return $member->getUID();
+			}
+		}
+		return null;
+	}
+
+	/** The action whose folder holds the file or folder $nodeId, or is it, at any depth: the innermost one; null when none. */
+	public function of(int $nodeId): ?Action {
 		$this->known ??= $this->actions->all();
 		if ($this->known === []) {
 			return null;
 		}
-		$places = $this->places->of([$fileId, ...array_map(static fn (Action $action): int => $action->getFolder(), $this->known)]);
-		$file = $places[$fileId] ?? null;
+		$places = $this->places->of([$nodeId, ...array_map(static fn (Action $action): int => $action->getFolder(), $this->known)]);
+		$file = $places[$nodeId] ?? null;
 		$found = null;
 		foreach ($file === null ? [] : $this->known as $action) {
 			$folder = $places[$action->getFolder()] ?? null;
-			if ($folder !== null && Places::within($file, $folder)
+			if ($folder !== null && ($file === $folder || Places::within($file, $folder))
 				&& ($found === null || strlen($folder['path']) > strlen($places[$found->getFolder()]['path']))) {
 				$found = $action;
 			}
@@ -150,14 +165,18 @@ class Actions {
 		if ($folder === null) {
 			throw new Refused('Elige una carpeta que puedas abrir.');
 		}
+		foreach ($this->actions->all() as $other) {
+			if ($other->getFolder() === (int)$id && $other->getId() !== $action->getId()) {
+				throw new Refused('Esa carpeta ya tiene una acción automática.');
+			}
+		}
 		$cannot = $this->access->lockedOut($action->getEditorGroup(), 'folder', (string)$id);
 		if ($cannot !== []) {
-			throw new Refused('Todo el grupo editor debe poder abrir la carpeta, y «' . $folder->getName() . '» no la puede abrir: '
-				. implode(', ', array_map(static fn (IUser $user): string => $user->getDisplayName(), $cannot)) . '.');
+			throw new Refused('Todo el grupo editor debe poder abrir la carpeta, y «' . $folder->getName() . '» no la puede abrir: ' . implode(', ', $cannot) . '.');
 		}
 		$instructions = trim((string)($input['instructions'] ?? ''));
-		if (mb_strlen($instructions) > self::INSTRUCTIONS) {
-			throw new Refused('Las instrucciones pueden tener hasta ' . self::INSTRUCTIONS . ' caracteres.');
+		if (mb_strlen($instructions) > self::MAX_INSTRUCTIONS) {
+			throw new Refused('Las instrucciones pueden tener hasta ' . self::MAX_INSTRUCTIONS . ' caracteres.');
 		}
 		$action->setName($name);
 		$action->setFolder((int)$id);

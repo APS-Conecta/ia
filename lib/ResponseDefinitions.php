@@ -34,7 +34,7 @@ namespace OCA\Ia;
  *     offHoursWindow: IaOffHours,
  *     error: ?string,
  *     requestedAt: int,
- *     origin: 'manual'|'action'|'flow',
+ *     origin: 'manual'|'action',
  *     instructions: ?string,
  * }
  *

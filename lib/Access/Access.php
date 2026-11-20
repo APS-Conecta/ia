@@ -62,9 +62,10 @@ class Access {
 		return $type === 'calendar' ? $this->calendar($userId, $id) !== null : $this->node($userId, (int)$id, $type) !== null;
 	}
 
-	/** @return list<IUser> the group's active members who can't open the folder, document or calendar $id now */
+	/** @return list<string> the names of the group's active members who can't open the folder, document or calendar $id now */
 	public function lockedOut(string $groupId, string $type, string $id): array {
-		return array_values(array_filter($this->members($groupId), fn (IUser $user): bool => !$this->opens($user->getUID(), $type, $id)));
+		$out = array_filter($this->members($groupId), fn (IUser $user): bool => !$this->opens($user->getUID(), $type, $id));
+		return array_values(array_map(static fn (IUser $user): string => $user->getDisplayName(), $out));
 	}
 
 	/** Whether the file $fileId is still in someone's Files: one in a trash bin is gone. */

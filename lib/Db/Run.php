@@ -66,7 +66,7 @@ class Run extends Entity {
 	protected ?int $attempts = null;
 	protected ?string $lastError = null;
 	protected ?string $actor = null;
-	/** The Automatic action (or Flow rule) an automatic Review is for; null for any other Run. */
+	/** The Automatic action an automatic Review is for; null for any other Run. */
 	protected ?int $rule = null;
 	protected ?string $results = null;
 	protected ?int $updatedAt = null;

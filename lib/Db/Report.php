@@ -41,7 +41,7 @@ class Report extends Entity {
 	protected ?string $origin = null;
 	/** Who asked for a manual report; who added or changed the file, for an automatic one (null when unknown). */
 	protected ?string $requester = null;
-	/** The Automatic action (or Flow rule) of an automatic report. */
+	/** The Automatic action of an automatic report. */
 	protected ?int $rule = null;
 	/** The instructions the Review used, from its rule. */
 	protected ?string $instructions = null;
@@ -50,7 +50,7 @@ class Report extends Entity {
 	protected ?string $findings = null;
 	protected ?int $createdAt = null;
 
-	/** Whether an Automatic action (or a Flow rule) asked for it. */
+	/** Whether an Automatic action asked for it. */
 	public function isAutomatic(): bool {
 		return $this->automaticFile !== null;
 	}

@@ -218,8 +218,7 @@ class Bulletins {
 		foreach ($sources as $source) {
 			$cannot = $this->access->lockedOut($bulletin->getEditorGroup(), $source['type'], $source['id']);
 			if ($cannot !== []) {
-				throw new Refused('Todo el grupo editor debe poder abrir cada fuente, y «' . $source['name'] . '» no la puede abrir: '
-					. implode(', ', array_map(static fn (IUser $user): string => $user->getDisplayName(), $cannot)) . '.');
+				throw new Refused('Todo el grupo editor debe poder abrir cada fuente, y «' . $source['name'] . '» no la puede abrir: ' . implode(', ', $cannot) . '.');
 			}
 		}
 		$readers = $this->readerGroups($input['readers'] ?? null);

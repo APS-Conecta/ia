@@ -75,8 +75,8 @@
 			:key="'action' + (sidebar.id ?? 'new')"
 			:editor-groups="editorGroups"
 			@close="sidebar = null"
-			@saved="actionSaved"
-			@deleted="actionSaved" />
+			@saved="actionsChanged"
+			@deleted="actionsChanged" />
 	</NcContent>
 </template>
 
@@ -164,7 +164,7 @@ export default {
 			await this.loadBulletins()
 			window.location.hash = `#boletines/${id}`
 		},
-		actionSaved() {
+		actionsChanged() {
 			this.sidebar = null
 			this.version++
 		},

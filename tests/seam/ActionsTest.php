@@ -53,6 +53,7 @@ final class ActionsTest extends SeamTestCase {
 		self::assertSame(201, $created['status'], json_encode($created['data']));
 		$id = $created['data']['action']['id'];
 		self::assertSame(['Normas', ''], [$created['data']['action']['folder']['name'], $created['data']['action']['instructions']]);
+		self::assertSame(422, self::ocs(self::$beto, 'POST', self::API . '/actions', self::draft())['status'], 'a folder has one action');
 		$changed = self::ocs(self::$beto, 'PUT', self::API . "/actions/$id", ['name' => 'Revisar normas', 'folder' => (string)self::$folder, 'instructions' => self::INSTRUCTIONS]);
 		self::assertSame(200, $changed['status'], json_encode($changed['data']));
 		self::assertSame([['id' => $id, 'name' => 'Revisar normas', 'instructions' => self::INSTRUCTIONS]],
@@ -109,6 +110,13 @@ final class ActionsTest extends SeamTestCase {
 		$names = array_column(self::ocs(self::$ana, 'GET', self::API . '/reviews')['data']['reviews'], 'name');
 		self::assertNotContains('despues.txt', $names, 'a deleted action asks for no new Review');
 		self::assertContains('norma.txt', $names, 'its reports stay');
+
+		self::offHoursNow();
+		self::tick();
+		$moved = self::automatic(self::$ana, 'movida.txt');
+		self::assertSame(['failed', 'Se eliminó la acción automática.'], [$moved['state'], $moved['error']], 'nor does one it had lined up');
+		self::assertSame([], self::told(self::$ana, $moved['id']));
+		self::assertSame([], self::tasks());
 	}
 
 	/**
