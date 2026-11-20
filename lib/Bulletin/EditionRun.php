@@ -101,13 +101,10 @@ class EditionRun implements Kind {
 				continue;
 			}
 			$schedule = Schedule::parse($bulletin->getSchedule());
-			if ($schedule->kind === 'sources') {
-				if ($this->changes->of($this->setUp->stored($bulletin)) !== $bulletin->getFingerprint()) {
-					$this->open($bulletin, $today->format('Y-m-d'), $schedule);
-				}
-				continue;
-			}
 			$date = $schedule->last($today);
+			if ($schedule->kind === 'sources' && $this->changes->of($this->setUp->stored($bulletin)) !== $bulletin->getFingerprint()) {
+				$date = $today->format('Y-m-d');
+			}
 			$previous = $this->editionMapper->ofBulletin($bulletin->getId())[0] ?? null;
 			if ($date !== null && $date >= $bulletin->getNext() && ($previous === null || $date > $previous->getDate())) {
 				$this->open($bulletin, $date, $schedule);
@@ -233,6 +230,8 @@ class EditionRun implements Kind {
 		}
 		$run->setActor($actor->getUID());
 		$stored = $this->setUp->stored($bulletin);
+		// What its Sources are before they are read: the state this Edition brings its Bulletin up to.
+		$fingerprint = $this->changes->of($stored);
 		$files = [];
 		$found = [];
 		$documentSources = [];
@@ -243,7 +242,7 @@ class EditionRun implements Kind {
 			$node = $this->access->node($actor->getUID(), (int)$source['id'], $source['type']);
 			if ($node === null) {
 				// Gone since it was set up (Bulletins::actor skips it): told once to each Editor.
-				$this->tell($this->editorsOf($bulletin), 'source_gone', $bulletin, $edition, ['source', $source['type'] . ':' . $source['id']]);
+				$this->tell($this->editorsOf($bulletin), 'source_gone', $bulletin, $edition, ['source', $bulletin->getId() . ':' . $source['type'] . ':' . $source['id']]);
 			} elseif ($source['type'] === 'file') {
 				$documentSources[$node->getId()] = true;
 			}
@@ -252,18 +251,21 @@ class EditionRun implements Kind {
 				$found[$file->getId()] = $file;
 			}
 		}
+		$previous = $this->editions->previous($edition);
 		$queue = [];
 		$asks = 0;
 		foreach ($files as $id => $entry) {
-			if ($this->readings->of($id, $entry['etag']) !== null) {
-				continue;
+			$reading = $this->readings->of($id, $entry['etag']);
+			if ($reading === null) {
+				$document = $this->readable($found[$id], $entry['etag']);
+				if ($document !== null) {
+					$queue[] = $id;
+					$asks += self::asks(count($this->readings->parts($document)));
+					continue;
+				}
 			}
-			$document = $this->readable($found[$id], $entry['etag']);
-			if ($document !== null) {
-				$queue[] = $id;
-				$asks += self::asks(count($this->readings->parts($document)));
-			} elseif (isset($documentSources[$id])) {
-				// A document Source this version of which can't be read: told once per version.
+			// A document Source this version of which can't be read, whoever tried it: told when the version is new to the Bulletin.
+			if (isset($documentSources[$id]) && $reading?->getStatus() !== Reading::READ && ($previous[$id] ?? null) !== $entry['etag']) {
 				$this->tell($this->editorsOf($bulletin), 'source_unreadable', $bulletin, $edition, null, ['source' => $entry['name']]);
 			}
 		}
@@ -272,8 +274,7 @@ class EditionRun implements Kind {
 		$run->setSteps($asks + 1);
 		return [
 			'files' => array_values($files), 'queue' => $queue, 'part' => 0, 'parts' => [], 'batches' => null, 'partials' => [], 'resumen' => null,
-			// What its Sources were when read: the state this Edition brings its Bulletin up to.
-			'fingerprint' => $this->changes->of($stored),
+			'fingerprint' => $fingerprint,
 		];
 	}
 

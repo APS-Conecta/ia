@@ -239,6 +239,26 @@ final class EditionsTest extends SeamTestCase {
 		return $created['data']['bulletin']['id'];
 	}
 
+	private function utc(\DateTimeImmutable $time): string {
+		return $time->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
+	}
+
+	/** Puts an event in Carla's «reuniones» calendar: $times holds its DTSTART and DTEND lines. */
+	private static function event(string $uid, string $times, string $title): void {
+		$ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//ia seam//ES\r\nBEGIN:VEVENT\r\nUID:$uid-" . bin2hex(random_bytes(4))
+			. "\r\nDTSTAMP:20260101T000000Z\r\n$times\r\nSUMMARY:$title\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+		self::assertSame(201, self::dav(self::$carla, 'PUT', '/remote.php/dav/calendars/' . self::$carla . "/reuniones/$uid.ics", $ics, 'text/calendar'));
+	}
+
+	/** @return list<string> the titles the «Boletines» Dashboard widget shows $person, sorted */
+	private static function widget(string $person): array {
+		$answer = self::ocs($person, 'GET', '/apps/dashboard/api/v2/widget-items?widgets%5B%5D=ia-boletines');
+		self::assertSame(200, $answer['status']);
+		$titles = array_column($answer['data']['ia-boletines']['items'], 'title');
+		sort($titles);
+		return $titles;
+	}
+
 	/** @return array<string, mixed> */
 	private static function edition(string $person, int $id): array {
 		$answer = self::ocs($person, 'GET', self::API . "/editions/$id");
