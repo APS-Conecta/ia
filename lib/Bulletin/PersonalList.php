@@ -6,8 +6,10 @@ declare(strict_types=1);
 
 namespace OCA\Ia\Bulletin;
 
+use DateInterval;
 use DateTimeImmutable;
 use DateTimeInterface;
+use Exception;
 use OCA\Ia\Access\Access;
 use OCA\Ia\ResponseDefinitions;
 
@@ -35,7 +37,7 @@ class PersonalList {
 					if (!$start instanceof DateTimeInterface || self::allDay($parameters) || strtoupper((string)($event['STATUS'][0] ?? '')) === 'CANCELLED') {
 						continue;
 					}
-					$end = $event['DTEND'][0] ?? null;
+					$end = $event['DTEND'][0] ?? self::after($start, $event['DURATION'][0] ?? null);
 					$id = $object['uid'] . '@' . $start->getTimestamp();
 					$meetings[$id] = [
 						'id' => $id,
@@ -57,6 +59,18 @@ class PersonalList {
 	 */
 	public function cargosOf(string $userId, array $cargos): array {
 		return array_values(array_intersect(array_map(strval(...), array_keys($cargos)), $this->access->groupsOf($userId)));
+	}
+
+	/** When an event written with a DURATION instead of a DTEND ends; null without one or with an invalid one. */
+	private static function after(DateTimeInterface $start, mixed $duration): ?DateTimeImmutable {
+		if (!is_string($duration)) {
+			return null;
+		}
+		try {
+			return DateTimeImmutable::createFromInterface($start)->add(new DateInterval($duration));
+		} catch (Exception) {
+			return null;
+		}
 	}
 
 	/** @param array<array-key, mixed> $parameters a DTSTART's: an all-day event's is a DATE */

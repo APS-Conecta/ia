@@ -19,6 +19,8 @@ use RuntimeException;
  */
 final class EditionsTest extends SeamTestCase {
 	private const API = '/apps/ia/api/v1';
+	/** The server's timezone for the first Edition (UTC−11); the next is written at Kiritimati's. */
+	private const TIMEZONE = 'Pacific/Pago_Pago';
 	private const CARGOS = ['Enfermera', 'Médico', 'TENS'];
 	private const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 	/** Seconds an Edition may take: four Readings and the Resumen on the CPU, behind other Bulletins' Runs. */
@@ -40,7 +42,7 @@ final class EditionsTest extends SeamTestCase {
 		} catch (RuntimeException) {
 			self::$timezone = null;
 		}
-		self::occ('config:system:set', 'default_timezone', '--value=Pacific/Pago_Pago');
+		self::occ('config:system:set', 'default_timezone', '--value=' . self::TIMEZONE);
 		self::$ana = self::person();
 		$editors = self::group(self::$ana, self::person());
 		self::$carla = self::person();
@@ -131,7 +133,7 @@ final class EditionsTest extends SeamTestCase {
 	public function testAReaderSeesTheirOwnMeetingsAndTheDocumentsForTheirCargo(int $id): void {
 		$date = self::edition(self::$carla, $id)['date'];
 		self::occ('dav:create-calendar', self::$carla, 'reuniones');
-		$day = new \DateTimeImmutable($date, new \DateTimeZone('Pacific/Pago_Pago'));
+		$day = new \DateTimeImmutable($date, new \DateTimeZone(self::TIMEZONE));
 		self::event('sector', "DTSTART:{$this->utc($day->modify('10:00'))}\r\nDTEND:{$this->utc($day->modify('11:00'))}", 'Reunión de sector');
 		self::event('later', "DTSTART:{$this->utc($day->modify('+3 days 10:00'))}\r\nDTEND:{$this->utc($day->modify('+3 days 11:00'))}", 'Reunión de otra semana');
 		self::event('all-day', 'DTSTART;VALUE=DATE:' . $day->format('Ymd') . "\r\nDTEND;VALUE=DATE:" . $day->modify('+1 day')->format('Ymd'), 'Aniversario del centro');
@@ -145,13 +147,28 @@ final class EditionsTest extends SeamTestCase {
 	}
 
 	/** @depends testItIsPublishedWholeAndItsReadersAreTold */
-	public function testParaTiMergesTheLatestEditionsOfTheBulletinsSheReads(int $id): void {
+	public function testParaTiMergesWhatIsAheadInTheLatestEditionsOfTheBulletinsSheReads(int $id): void {
+		// A meeting still ahead within the Edition's period, whatever the time of day the test runs.
+		$timezone = new \DateTimeZone(self::TIMEZONE);
+		$date = self::edition(self::$carla, $id)['date'];
+		$start = max(new \DateTimeImmutable('+10 minutes', $timezone), new \DateTimeImmutable("$date 00:01", $timezone));
+		self::event('ahead', "DTSTART:{$this->utc($start)}\r\nDTEND:{$this->utc($start->modify('+20 minutes'))}", 'Reunión próxima');
+		// One under way, written with a DURATION, that reaches into the Edition's period.
+		$began = new \DateTimeImmutable('-5 minutes', $timezone);
+		$ends = max(new \DateTimeImmutable('now', $timezone), new \DateTimeImmutable("$date 00:00", $timezone))->modify('+30 minutes');
+		self::event('under-way', "DTSTART:{$this->utc($began)}\r\nDURATION:PT" . ($ends->getTimestamp() - $began->getTimestamp()) . 'S', 'Reunión en curso');
+
+		$edition = self::edition(self::$carla, $id);
 		$paraTi = self::ocs(self::$carla, 'GET', self::API . '/para-ti')['data'];
 		self::assertSame(['Boletín de protocolos', 'Boletín de turnos'], array_column($paraTi['bulletins'], 'name'));
 		self::assertContains($id, array_column($paraTi['editions'], 'id'));
 		self::assertCount(2, $paraTi['editions'], 'the latest Edition of each');
-		self::assertSame(['Reunión de sector'], array_column($paraTi['meetings'], 'title'));
-		self::assertSame(self::names(self::edition(self::$carla, $id)['personal']['documents']), self::names($paraTi['documents']));
+		$ahead = array_filter($edition['personal']['meetings'], static fn (array $meeting): bool => ($meeting['end'] ?? $meeting['start']) >= time());
+		self::assertContains('Reunión próxima', array_column($paraTi['meetings'], 'title'));
+		self::assertContains('Reunión en curso', array_column($paraTi['meetings'], 'title'), 'one in progress stays');
+		self::assertSame(array_column(array_values($ahead), 'title'), array_column($paraTi['meetings'], 'title'), 'only the meetings not yet ended (#28)');
+		$new = array_filter($edition['personal']['documents'], static fn (array $document): bool => $document['new']);
+		self::assertSame(self::names(array_values($new)), self::names($paraTi['documents']), 'only the documents new or changed in their Edition (#28)');
 		self::assertSame(['curaciones.txt'], array_column($paraTi['expiring'], 'name'));
 		self::assertSame(['bulletins' => [], 'editions' => [], 'meetings' => [], 'documents' => [], 'expiring' => []],
 			self::ocs(self::$ana, 'GET', self::API . '/para-ti')['data'], 'editing a Bulletin is not reading it');
@@ -198,6 +215,11 @@ final class EditionsTest extends SeamTestCase {
 		self::assertSame($readAt($before, 'curaciones.txt'), $readAt($next, 'curaciones.txt'), 'an unchanged version keeps its Reading');
 		self::assertGreaterThan($readAt($before, 'visitas.md'), $readAt($next, 'visitas.md'));
 		self::assertNull($readAt(self::edition(self::$carla, $first), 'visitas.md'), 'a newer version replaces the Reading');
+
+		$forHer = self::names($next['personal']['documents']);
+		$paraTi = self::names(self::ocs(self::$carla, 'GET', self::API . '/para-ti')['data']['documents']);
+		self::assertSame(array_values(array_intersect($forHer, ['visitas.md'])), $paraTi, '«Para ti» keeps, of her documents, only the one that changed (#28)');
+		self::assertNotContains('curaciones.txt', $paraTi);
 	}
 
 	/**

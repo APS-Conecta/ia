@@ -51,7 +51,8 @@ The Nextcloud group the suite keeps for a Cargo; «IA» stores its id and shows 
 The part of an Edition built for one Reader from their own calendar and Cargo, without the Model.
 
 **«Para ti»**:
-Everyone's start page: the Personal lists of the Bulletins the person reads, merged.
+Everyone's start page: what is ahead in the Personal lists of the Bulletins the person reads (the meetings not yet
+ended, the documents new or changed), merged.
 
 **Editor group** (grupo editor):
 A group whose members jointly own Bulletins and Automatic actions.

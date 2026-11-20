@@ -3,9 +3,9 @@
 		<NcNoteCard type="info">
 			Estas listas vienen de tu calendario y de tu cargo, no del modelo.
 		</NcNoteCard>
-		<h3>Tus reuniones</h3>
+		<h3>{{ ahead ? 'Tus próximas reuniones' : 'Tus reuniones' }}</h3>
 		<p v-if="meetings.length === 0" class="ia-hint">
-			No tienes reuniones en tus calendarios para este período.
+			{{ ahead ? 'No tienes reuniones próximas en tus calendarios.' : 'No tienes reuniones en tus calendarios para este período.' }}
 		</p>
 		<ul v-else>
 			<NcListItem v-for="meeting in meetings"
@@ -20,9 +20,9 @@
 				</template>
 			</NcListItem>
 		</ul>
-		<h3>Documentos para tu cargo</h3>
+		<h3>{{ ahead ? 'Documentos nuevos o cambiados para tu cargo' : 'Documentos para tu cargo' }}</h3>
 		<p v-if="documents.length === 0" class="ia-hint">
-			Ningún documento nombra tu cargo.
+			{{ ahead ? 'Ningún documento nuevo o cambiado nombra tu cargo.' : 'Ningún documento nombra tu cargo.' }}
 		</p>
 		<ul v-else>
 			<NcListItem v-for="document in documents"
@@ -55,6 +55,8 @@ export default {
 	props: {
 		meetings: { type: Array, required: true },
 		documents: { type: Array, required: true },
+		/** «Para ti»'s view: only what is ahead, the meetings not yet ended and the new or changed documents. */
+		ahead: { type: Boolean, default: false },
 	},
 	emits: ['open'],
 	setup: () => ({ mdiCalendarOutline, mdiFileDocumentOutline, meetingText }),
