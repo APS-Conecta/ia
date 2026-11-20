@@ -17,6 +17,7 @@ use OCA\Ia\Forbidden;
 use OCA\Ia\Reading\Readings;
 use OCA\Ia\ResponseDefinitions;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\IUser;
 
 /**
  * Editions as their Readers read them (gestion-aio#162, Bulletins).
@@ -53,7 +54,7 @@ class Editions {
 	 */
 	public function all(string $userId, int $bulletinId): array {
 		$bulletin = $this->bulletins->byId($bulletinId) ?? throw new DoesNotExistException('No such Bulletin');
-		if ($this->setUp->roleOf($userId, $bulletin) === null) {
+		if ($this->setUp->role($userId, $bulletin) === null) {
 			throw new Forbidden('Solo sus editores y lectores ven las ediciones de un boletín.');
 		}
 		$opens = $this->opener($userId);
@@ -73,7 +74,7 @@ class Editions {
 	public function one(string $userId, int $id): array {
 		$edition = $this->editions->byId($id);
 		$bulletin = $edition === null ? null : $this->bulletins->byId($edition->getBulletinId());
-		if ($edition?->getStatus() !== Edition::PUBLISHED || $bulletin === null || $this->setUp->roleOf($userId, $bulletin) === null
+		if ($edition?->getStatus() !== Edition::PUBLISHED || $bulletin === null || $this->setUp->role($userId, $bulletin) === null
 			|| !self::seenBy($edition, $this->opener($userId))) {
 			throw new DoesNotExistException('No such Edition');
 		}
@@ -104,15 +105,10 @@ class Editions {
 		return [];
 	}
 
-	/** @return list<string> the Bulletin's Readers who can see the Edition: its Reader groups' active members */
+	/** @return list<string> the Bulletin's Readers who can see the Edition */
 	public function readers(Bulletin $bulletin, Edition $edition): array {
-		$readers = [];
-		foreach (json_decode($bulletin->getReaders(), true) ?: [] as $group) {
-			foreach ($this->access->members($group) as $user) {
-				$readers[$user->getUID()] = true;
-			}
-		}
-		return array_values(array_filter(array_map('strval', array_keys($readers)), fn (string $reader): bool => self::seenBy($edition, $this->opener($reader))));
+		$readers = array_map(static fn (IUser $user): string => $user->getUID(), $this->setUp->readers($bulletin));
+		return array_values(array_filter($readers, fn (string $reader): bool => self::seenBy($edition, $this->opener($reader))));
 	}
 
 	/**
@@ -145,8 +141,7 @@ class Editions {
 	 * @return IaEditionDocument
 	 */
 	private function document(array $document): array {
-		$reading = $this->readings->ofFile($document['fileId']);
-		$current = $reading?->getEtag() === $document['etag'] ? $reading : null;
+		$current = $this->readings->of($document['fileId'], $document['etag']);
 		return [
 			'fileId' => $document['fileId'],
 			'name' => $document['name'],

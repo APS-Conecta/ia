@@ -377,7 +377,8 @@ class ApiController extends OCSController {
 	}
 
 	/**
-	 * An Edition: its Resumen, written by AI, and its sections, each document with its Reading
+	 * An Edition: its Resumen, written by AI ('' when no document could be read), and its sections,
+	 * each document with its Reading
 	 *
 	 * @param int $id The Edition's id
 	 * @return DataResponse<Http::STATUS_OK, array{edition: IaEdition}, array{}>|DataResponse<Http::STATUS_NOT_FOUND, array{message: string}, array{}>

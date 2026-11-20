@@ -202,7 +202,7 @@ abstract class SeamTestCase extends TestCase {
 
 	/** Makes the folder $name in the person's Files, and answers its file id. */
 	protected static function folder(string $person, string $name): int {
-		[$status] = self::http($person, 'MKCOL', self::DAV . $person . '/' . rawurlencode($name), []);
+		[$status] = self::http($person, 'MKCOL', self::DAV . $person . '/' . self::path($name), []);
 		self::assertSame(201, $status, "MKCOL $name answered $status");
 		return self::file($person, $name)['fileId'];
 	}

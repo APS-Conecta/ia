@@ -29,8 +29,12 @@ A recurring summary that the Model writes from chosen Sources for a set of Reade
 _Avoid_: informe semanal, digest, newsletter
 
 **Edition** (edición):
-One published run of a Bulletin: its shared summary plus each Reader's Personal list.
+One published run of a Bulletin: its Resumen plus each Reader's Personal list.
 _Avoid_: issue, número, informe
+
+**Resumen** (resumen):
+The part of an Edition the Model writes from its Readings, the same for every Reader, marked as written by AI.
+_Avoid_: summary, digest
 
 **Source** (fuente):
 A folder, document or calendar that a Bulletin draws on.

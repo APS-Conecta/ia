@@ -25,6 +25,7 @@ use OCA\Ia\Reading\Scanned;
 use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
 use OCA\Ia\Run\Kind;
+use OCA\Ia\Run\Steps;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -35,18 +36,20 @@ use OCP\Files\Node;
 use OCP\IDBConnection;
 use OCP\Notification\IManager as INotificationManager;
 use OCP\TaskProcessing\Task;
-use Throwable;
 
 /**
  * An Edition's Run (gestion-aio#162, Bulletins and Readings): on its date, in Off hours, it
  * writes the Edition and publishes it whole; its Readers are told.
  *
  * 1. **Survey**, without the Model: the Run acts as an active member of the Editor group who can
- *    open every Source, lists the Sources' documents and keeps each one's Reading when it is of
- *    the same version. A calendar is only access-checked: its meetings come with the Personal
- *    list (APS-Conecta/ia#12).
- * 2. **Readings**: each document missing one is read, part by part when long.
- * 3. **The Resumen**, from the Readings, in context-sized rounds until one is left.
+ *    open every Source, lists the Sources' documents (a document Source whatever its format, so
+ *    one «IA» can't read is listed as such) and keeps each one's Reading when it is of the same
+ *    version. A calendar is only access-checked: its meetings come with the Personal list
+ *    (APS-Conecta/ia#12).
+ * 2. **Readings**: each document missing one is read, part by part when long; one that changed
+ *    since the survey is read in its new version, from its first part.
+ * 3. **The Resumen**, from the Readings, in context-sized rounds until one is left; none when no
+ *    document could be read.
  * 4. **Publish**, with each document's version, whether it is new or changed, and its Reading.
  *
  * Its progress is the Run's results, so it resumes from its last finished step; an empty answer
@@ -58,7 +61,6 @@ class EditionRun implements Kind {
 	private const RESUMEN = 'Escribe el resumen del boletín «%s» para sus lectores de un centro de salud, a partir de las lecturas de sus documentos que están entre las marcas <<< y >>>. '
 		. 'En uno o dos párrafos breves: qué documentos son nuevos o cambiaron y lo más importante de ellos. No agregues nada que no esté en las lecturas. ' . ModelGateway::CLOSE;
 	private const ROUND = 'Resume en un párrafo estas lecturas de documentos de un centro de salud, que están entre las marcas <<< y >>>: qué es nuevo o cambió y lo más importante. ' . ModelGateway::CLOSE;
-	private const EMPTY = 'Las fuentes de este boletín no tienen documentos que «IA» pueda leer.';
 
 	public function __construct(
 		private BulletinMapper $bulletins,
@@ -69,6 +71,7 @@ class EditionRun implements Kind {
 		private Readings $readings,
 		private TextReader $reader,
 		private ModelGateway $model,
+		private Steps $steps,
 		private Access $access,
 		private Settings $settings,
 		private INotificationManager $notifications,
@@ -195,7 +198,7 @@ class EditionRun implements Kind {
 		}
 		$queue = [];
 		foreach ($files as $id => $entry) {
-			if ($this->readings->ofFile($id)?->getEtag() !== $entry['etag'] && $this->readable($entry['file'], $entry['etag']) !== null) {
+			if ($this->readings->of($id, $entry['etag']) === null && $this->readable($entry['file'], $entry['etag']) !== null) {
 				$queue[] = $id;
 			}
 			unset($files[$id]['file']);
@@ -215,26 +218,12 @@ class EditionRun implements Kind {
 			return;
 		}
 		$run->setResults(json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
-		try {
-			// The task and the Run that names it are saved together (Reviews::ask's rule).
-			$this->atomic(function () use ($run, $prompt): void {
-				$run->setTaskId($this->model->ask($run->getId(), $prompt));
-				$run->setState(Run::WORKING);
-				if (!$this->runs->save($run)) {
-					throw new StaleRun();
-				}
-			}, $this->db);
-		} catch (StaleRun) {
-			return;
-		} catch (Throwable) {
-			$run->retry('El modelo no está disponible.');
-			$this->runs->save($run);
-		}
+		$this->steps->ask($run, $prompt);
 	}
 
 	/**
 	 * The next ask: the first queued document's next part, or its parts' merge; then the
-	 * Resumen's rounds. Null once the Resumen is written.
+	 * Resumen's rounds. Null once the Resumen is written, or when there is nothing to write it from.
 	 *
 	 * @param array<string, mixed> $state
 	 */
@@ -242,7 +231,7 @@ class EditionRun implements Kind {
 		while ($state['queue'] !== []) {
 			$document = $this->queued($run, $state);
 			if ($document !== null) {
-				$chunks = self::parts($document, $this->readings);
+				$chunks = $this->readings->parts($document);
 				$part = $state['part'];
 				return $part < count($chunks)
 					? $this->readings->prompt($part + 1, count($chunks), $chunks[$part])
@@ -253,9 +242,8 @@ class EditionRun implements Kind {
 		if ($state['batches'] === null) {
 			$digest = $this->digest($edition, $state['files']);
 			$state['batches'] = $digest === '' ? [] : ModelGateway::chunks($digest, $resumen);
-			$state['resumen'] = $digest === '' ? self::EMPTY : null;
 		}
-		while ($state['resumen'] === null) {
+		while ($state['resumen'] === null && $state['batches'] !== []) {
 			$batches = $state['batches'];
 			$done = count($state['partials']);
 			if (count($batches) === 1) {
@@ -289,11 +277,14 @@ class EditionRun implements Kind {
 			}
 			return true;
 		}
+		$id = $state['queue'][0];
+		$asked = self::entry($state, $id)['etag'];
 		$document = $this->queued($run, $state);
-		if ($document === null) {
+		if ($document === null || self::entry($state, $id)['etag'] !== $asked) {
+			// Gone, unreadable now, or changed since the ask: the answer is of no version to keep.
 			return true;
 		}
-		$parts = count(self::parts($document, $this->readings));
+		$parts = count($this->readings->parts($document));
 		if ($state['part'] < $parts) {
 			$part = $this->readings->part($answer, $document);
 			if ($part['summary'] === '') {
@@ -311,7 +302,6 @@ class EditionRun implements Kind {
 				return false;
 			}
 		}
-		$id = $state['queue'][0];
 		$found = array_values(array_filter(array_column($state['parts'], 'expires')));
 		$this->readings->store($id, self::entry($state, $id)['etag'], Reading::READ, $summary, $found[0] ?? null,
 			array_values(array_unique(array_merge(...array_column($state['parts'], 'cargos')))));
@@ -320,15 +310,23 @@ class EditionRun implements Kind {
 	}
 
 	/**
-	 * The first queued document's text now. When it is gone, or can't be read any more, it leaves
-	 * the queue (a gone one leaves the Edition too) and null comes back.
+	 * The first queued document's text now. One that changed since the survey is listed in its new
+	 * version, from its first part. When it is gone, or can't be read any more, it leaves the queue
+	 * (a gone one leaves the Edition too) and null comes back.
 	 *
 	 * @param array<string, mixed> $state
 	 */
 	private function queued(Run $run, array &$state): ?Document {
 		$id = $state['queue'][0];
 		$file = $this->access->file((string)$run->getActor(), $id);
-		$document = $file === null ? null : $this->readable($file, self::entry($state, $id)['etag']);
+		if ($file !== null && $file->getEtag() !== self::entry($state, $id)['etag']) {
+			$state['files'] = array_map(static fn (array $entry): array => $entry['fileId'] === $id
+				? ['fileId' => $id, 'etag' => $file->getEtag(), 'name' => $file->getName()]
+				: $entry, $state['files']);
+			$state['part'] = 0;
+			$state['parts'] = [];
+		}
+		$document = $file === null ? null : $this->readable($file, $file->getEtag());
 		if ($document === null) {
 			self::dequeue($state);
 			if ($file === null) {
@@ -359,8 +357,8 @@ class EditionRun implements Kind {
 		$previous = $this->editions->previous($edition);
 		$lines = [];
 		foreach ($files as $entry) {
-			$reading = $this->readings->ofFile($entry['fileId']);
-			if ($reading?->getStatus() === Reading::READ && $reading->getEtag() === $entry['etag']) {
+			$reading = $this->readings->of($entry['fileId'], $entry['etag']);
+			if ($reading?->getStatus() === Reading::READ) {
 				$change = match ($previous[$entry['fileId']] ?? null) {
 					null => 'nuevo',
 					$entry['etag'] => 'sin cambios',
@@ -381,8 +379,7 @@ class EditionRun implements Kind {
 		$previous = $this->editions->previous($edition);
 		$documents = [];
 		foreach ($state['files'] as $entry) {
-			$reading = $this->readings->ofFile($entry['fileId']);
-			$reading = $reading?->getEtag() === $entry['etag'] ? $reading : null;
+			$reading = $this->readings->of($entry['fileId'], $entry['etag']);
 			$documents[] = $entry + [
 				'new' => ($previous[$entry['fileId']] ?? null) !== $entry['etag'],
 				'status' => $reading?->getStatus() ?? Reading::FAILED,
@@ -438,23 +435,23 @@ class EditionRun implements Kind {
 		$state['parts'] = [];
 	}
 
-	/** @return list<string> the document in parts that each fit a Reading's ask */
-	private static function parts(Document $document, Readings $readings): array {
-		return ModelGateway::chunks($document->text, $readings->prompt(1, 2, ''));
-	}
-
 	/**
-	 * The documents «IA» reads under a folder Source, at any depth, or the document Source itself.
+	 * A Source's documents: a document Source itself, whatever its format; under a folder Source,
+	 * at any depth, those of the formats «IA» reads.
 	 *
 	 * @return list<File>
 	 */
 	private static function documents(?Node $node): array {
 		if ($node instanceof File) {
-			return TextReader::reads($node->getName()) ? [$node] : [];
+			return [$node];
 		}
 		$found = [];
 		foreach ($node instanceof Folder ? $node->getDirectoryListing() : [] as $child) {
-			array_push($found, ...self::documents($child));
+			if ($child instanceof Folder) {
+				array_push($found, ...self::documents($child));
+			} elseif ($child instanceof File && TextReader::reads($child->getName())) {
+				$found[] = $child;
+			}
 		}
 		return $found;
 	}

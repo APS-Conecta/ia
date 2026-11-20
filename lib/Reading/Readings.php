@@ -35,8 +35,15 @@ class Readings {
 	) {
 	}
 
-	public function ofFile(int $fileId): ?Reading {
-		return $this->readings->ofFile($fileId);
+	/** The file's Reading when it is of version $etag, else null. */
+	public function of(int $fileId, string $etag): ?Reading {
+		$reading = $this->readings->ofFile($fileId);
+		return $reading?->getEtag() === $etag ? $reading : null;
+	}
+
+	/** @return list<string> the document in parts that each fit a Reading's ask */
+	public function parts(Document $document): array {
+		return ModelGateway::chunks($document->text, $this->prompt(1, 2, ''));
 	}
 
 	/** The prompt for part $part of $parts of a document, whose text is $chunk. */
@@ -92,9 +99,9 @@ class Readings {
 		$this->readings->forget($fileIds);
 	}
 
-	/** @return list<int> the files with a Reading under a folder: its storage's id and internal path */
-	public function under(int $storageId, string $path): array {
-		return $this->readings->under($storageId, $path);
+	/** @return list<int> the files with a Reading under the folder $folderId, at any depth */
+	public function under(int $folderId): array {
+		return $this->readings->under($folderId);
 	}
 
 	/**

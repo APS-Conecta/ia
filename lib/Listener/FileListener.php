@@ -34,9 +34,7 @@ class FileListener implements IEventListener {
 		}
 		$node = $event->getNode();
 		try {
-			$this->readings->forget($node instanceof Folder
-				? $this->readings->under($node->getStorage()->getCache()->getNumericStorageId(), $node->getInternalPath())
-				: [$node->getId()]);
+			$this->readings->forget($node instanceof Folder ? $this->readings->under($node->getId()) : [$node->getId()]);
 		} catch (Throwable $e) {
 			// Never in the way of a deletion; by class only, as a message may name the file.
 			$this->logger->error('«IA» could not forget the Readings of a deleted node: {error}', ['error' => $e::class]);

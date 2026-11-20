@@ -19,6 +19,7 @@ use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
 use OCA\Ia\Run\Kind;
+use OCA\Ia\Run\Steps;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -28,7 +29,6 @@ use OCP\Files\NotFoundException;
 use OCP\IDBConnection;
 use OCP\Notification\IManager as INotificationManager;
 use OCP\TaskProcessing\Task;
-use Throwable;
 
 /**
  * Reviews (CONTEXT.md; gestion-aio#162, Reviews): the Model checks one document and reports its
@@ -133,7 +133,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			return $this->create($userId, $fileId);
 		}
 		if (!$run->getOffHours()) {
-			$this->ask($run, $this->prompt($run, $chunks, []));
+			$this->steps->ask($run, $this->prompt($run, $chunks, []));
 		}
 		return $this->answer($report, $run, $file) + ['created' => true];
 	}
@@ -192,7 +192,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			$this->begin($run, $this->restart($report, $run, $file, $document));
 			return;
 		}
-		$this->ask($run, $this->prompt($run, self::chunks($document), self::results($run)['summaries']));
+		$this->steps->ask($run, $this->prompt($run, self::chunks($document), self::results($run)['summaries']));
 	}
 
 	/**
@@ -245,7 +245,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 				$this->runs->save($run);
 				return;
 			}
-			$this->ask($run, $this->prompt($run, $chunks, $results['summaries']));
+			$this->steps->ask($run, $this->prompt($run, $chunks, $results['summaries']));
 			return;
 		}
 		$report->setFindings(json_encode(array_values(array_unique($results['findings'], SORT_REGULAR)), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
@@ -328,29 +328,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			$this->runs->save($run);
 			return;
 		}
-		$this->ask($run, $this->prompt($run, $chunks, []));
-	}
-
-	/**
-	 * Asks the Model the Run's current step. The task and the Run that names it are saved in one
-	 * transaction, so the worker never finishes a task before its Run expects it, and a Run another
-	 * process saved first rolls the new task back. A failed ask is a failed attempt.
-	 */
-	private function ask(Run $run, string $prompt): void {
-		try {
-			$this->atomic(function () use ($run, $prompt): void {
-				$run->setTaskId($this->model->ask($run->getId(), $prompt));
-				$run->setState(Run::WORKING);
-				if (!$this->runs->save($run)) {
-					throw new StaleRun();
-				}
-			}, $this->db);
-		} catch (StaleRun) {
-			return;
-		} catch (Throwable) {
-			$run->retry('El modelo no está disponible.');
-			$this->runs->save($run);
-		}
+		$this->steps->ask($run, $this->prompt($run, $chunks, []));
 	}
 
 	/**

@@ -40,10 +40,21 @@ class ReadingMapper extends QBMapper {
 	}
 
 	/**
-	 * @return list<int> the files with a Reading under the folder at $path (internal, '' for the
-	 *                   root) of the storage $storageId, at any depth
+	 * @return list<int> the files with a Reading under the folder $folderId, at any depth: found by
+	 *                   the folder's own row, as a share or a Team folder shows it at another path
 	 */
-	public function under(int $storageId, string $path): array {
+	public function under(int $folderId): array {
+		$query = $this->db->getQueryBuilder();
+		$query->select('storage', 'path')->from('filecache')
+			->where($query->expr()->eq('fileid', $query->createNamedParameter($folderId, IQueryBuilder::PARAM_INT)));
+		$result = $query->executeQuery();
+		$folder = $result->fetch();
+		$result->closeCursor();
+		if ($folder === false) {
+			return [];
+		}
+		$storageId = (int)$folder['storage'];
+		$path = (string)$folder['path'];
 		$query = $this->db->getQueryBuilder();
 		$query->select('r.file_id')->from($this->getTableName(), 'r')
 			->innerJoin('r', 'filecache', 'f', $query->expr()->eq('f.fileid', 'r.file_id'))

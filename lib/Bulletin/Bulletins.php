@@ -143,12 +143,7 @@ class Bulletins {
 			throw new Forbidden('Solo los editores preparan boletines.');
 		}
 		$sources = $this->sources($userId, $input['sources'] ?? null);
-		$readers = [];
-		foreach ($this->readerGroups($input['readers'] ?? null) as $group) {
-			foreach ($this->access->members($group) as $user) {
-				$readers[$user->getUID()] = $user;
-			}
-		}
+		$readers = $this->membersOf($this->readerGroups($input['readers'] ?? null));
 		$leftOut = [];
 		foreach ($readers as $user) {
 			$cannot = $this->cannotOpen($user, $sources);
@@ -157,6 +152,11 @@ class Bulletins {
 			}
 		}
 		return ['readers' => count($readers) - count($leftOut), 'leftOut' => $leftOut];
+	}
+
+	/** @return list<IUser> the Bulletin's Readers: its Reader groups' active members, each once */
+	public function readers(Bulletin $bulletin): array {
+		return $this->membersOf(self::decode($bulletin->getReaders()));
 	}
 
 	/**
@@ -181,11 +181,6 @@ class Bulletins {
 		return array_map(static fn (array $source): array => ['type' => $source['type'], 'id' => (string)$source['id'], 'name' => ''], self::decode($bulletin->getSources()));
 	}
 
-	/** Whether $userId edits or reads the Bulletin; null when neither. */
-	public function roleOf(string $userId, Bulletin $bulletin): ?string {
-		return $this->role($userId, $bulletin);
-	}
-
 	/**
 	 * The Bulletin $id, when $userId is in its Editor group.
 	 *
@@ -201,7 +196,7 @@ class Bulletins {
 	}
 
 	/** 'editor' when $userId is in its Editor group (still an Editor group), 'reader' when in a Reader group, else null. */
-	private function role(string $userId, Bulletin $bulletin): ?string {
+	public function role(string $userId, Bulletin $bulletin): ?string {
 		if (in_array($bulletin->getEditorGroup(), $this->access->editorGroups($userId), true)) {
 			return 'editor';
 		}
@@ -323,6 +318,20 @@ class Bulletins {
 			'schedule' => $schedule->view(),
 			'due' => $schedule->due($today),
 		];
+	}
+
+	/**
+	 * @param list<string> $groups
+	 * @return list<IUser> the groups' active members, each once
+	 */
+	private function membersOf(array $groups): array {
+		$members = [];
+		foreach ($groups as $group) {
+			foreach ($this->access->members($group) as $user) {
+				$members[$user->getUID()] = $user;
+			}
+		}
+		return array_values($members);
 	}
 
 	/** @return IaGroup */

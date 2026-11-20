@@ -29,8 +29,8 @@ use Throwable;
  *    for by hand before Editions, oldest first: at most one Off-hours task in flight.
  * 3. **Fail.** The third failed attempt in a row fails a Run with its last error (Run::retry).
  *
- * A Run that can't be moved is logged by its id and the error's message only, never its text,
- * and the tick goes on with the others.
+ * A Run that can't be moved is logged by its id and the error's class only (a message may name a
+ * file), and the tick goes on with the others.
  */
 class Runs {
 	/** Seconds a task may run: the connector's request timeout, as the suite sets it (gestion-aio#167), plus 5 minutes. */
@@ -62,7 +62,7 @@ class Runs {
 		try {
 			$this->editions->due($this->time->getDateTime());
 		} catch (Throwable $e) {
-			$this->logger->error('The run engine could not open the Editions due: {error}', ['error' => $e->getMessage()]);
+			$this->logger->error('The run engine could not open the Editions due: {error}', ['error' => $e::class]);
 		}
 		if ($this->offHoursWorking()) {
 			return;
@@ -93,7 +93,7 @@ class Runs {
 			$step($run);
 			return true;
 		} catch (Throwable $e) {
-			$this->logger->error('The run engine could not move the Run {run}: {error}', ['run' => $run->getId(), 'error' => $e->getMessage()]);
+			$this->logger->error('The run engine could not move the Run {run}: {error}', ['run' => $run->getId(), 'error' => $e::class]);
 			return false;
 		}
 	}

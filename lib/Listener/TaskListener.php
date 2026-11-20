@@ -51,7 +51,7 @@ class TaskListener implements IEventListener {
 				$this->kinds->of($run)->finish($run, $task, $event instanceof TaskFailedEvent ? 'El modelo no respondió.' : null);
 			}
 		} catch (Throwable $e) {
-			$this->logger->error('Taking the result of the Run {run} failed: {error}', ['run' => $task->getCustomId(), 'error' => $e->getMessage()]);
+			$this->logger->error('Taking the result of the Run {run} failed: {error}', ['run' => $task->getCustomId(), 'error' => $e::class]);
 		}
 	}
 }

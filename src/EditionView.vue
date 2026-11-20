@@ -6,11 +6,16 @@
 		</NcNoteCard>
 		<template v-else>
 			<h3>Edición del {{ longDate(edition.date) }}</h3>
-			<div class="ia-chips">
-				<NcChip text="Escrito por IA" variant="primary" :icon-path="mdiCreation" no-close />
-			</div>
-			<p v-for="(paragraph, index) in paragraphs" :key="index">
-				{{ paragraph }}
+			<template v-if="paragraphs.length > 0">
+				<div class="ia-chips">
+					<NcChip text="Escrito por IA" variant="primary" :icon-path="mdiCreation" no-close />
+				</div>
+				<p v-for="(paragraph, index) in paragraphs" :key="index">
+					{{ paragraph }}
+				</p>
+			</template>
+			<p v-else class="ia-hint">
+				Las fuentes de este boletín no tienen documentos que «IA» pueda leer, así que esta edición no tiene resumen.
 			</p>
 
 			<h3>Documentos nuevos y cambiados</h3>
