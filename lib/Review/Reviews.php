@@ -156,13 +156,10 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$report->setRule($action->getId());
 		$report->setInstructions($action->getInstructions());
 		$report->setCreatedAt($this->time->getTime());
-		$run->setRule($action->getId());
-		if (!self::underWay($run)) {
+		if ($report->getId() === null) {
+			$run->setRule($action->getId());
 			$run->setState(Run::WAITING);
 			$run->setOffHours(true);
-			$run->setTaskId(null);
-		}
-		if ($report->getId() === null) {
 			$run->setStep(0);
 			$run->setSteps(0);
 			$run->setAttempts(0);
@@ -172,6 +169,14 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			return;
 		}
 		$this->reports->update($report);
+		// A Run in line or under way is the engine's to move: the blank version restarts it there.
+		if (self::underWay($run)) {
+			return;
+		}
+		$run->setRule($action->getId());
+		$run->setState(Run::WAITING);
+		$run->setOffHours(true);
+		$run->setTaskId(null);
 		if (!$this->runs->save($run)) {
 			// Another process moved the Run since it was read: line it up again from what it saved.
 			$this->automatic($file, $action, $changer);
