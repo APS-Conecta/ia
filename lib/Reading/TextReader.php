@@ -33,7 +33,7 @@ class TextReader {
 	/** A page of text, about 500 words: what "about 10 pages" counts in when a file doesn't say. */
 	private const CHARS_PER_PAGE = 3000;
 
-	/** Letters a PDF page has on average below which it is a scanned image, not text. */
+	/** Letters below which a PDF page is a scanned image, not text; a PDF is a scan when most pages are. */
 	private const SCAN_LETTERS = 40;
 
 	private const FORMATS = 'Por ahora «IA» revisa archivos PDF, DOCX, ODT, TXT y MD.';
