@@ -22,6 +22,22 @@ export function scheduleText({ kind, day }) {
 	}[kind]
 }
 
+/** Why a document has no summary, by its Reading's status. */
+export const UNREADABLE = {
+	scan: 'Es un documento escaneado: «IA» todavía no lee escaneos.',
+	failed: 'No se pudo leer: puede estar dañado o protegido con contraseña.',
+}
+
+/** A document whose Reading went with its version: it changed or was deleted since. */
+export const GONE = 'Su lectura ya no está: el documento cambió o se eliminó después de esta edición.'
+
+/** «lunes, 23 de noviembre, de 10:00 a 11:00», from a meeting's start and end (seconds). */
+export function meetingText({ start, end }) {
+	const day = new Date(start * 1000).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
+	const time = (seconds) => new Date(seconds * 1000).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+	return end === null ? `${day}, a las ${time(start)}` : `${day}, de ${time(start)} a ${time(end)}`
+}
+
 /** «viernes, 20 de noviembre», from a date (Y-m-d). */
 export function longDate(date) {
 	return new Date(`${date}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })

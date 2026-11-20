@@ -24,7 +24,7 @@ class Settings {
 	private const OFF_HOURS = ['start' => '22:00', 'end' => '06:00'];
 
 	private const GROUPS = 'editor_groups';
-	/** The establishment's Cargo list, an array-typed key of names, written by «IA local» (gestion-aio#167). */
+	/** The establishment's Cargo list: an array-typed key of the Cargo groups' ids, written by «IA local» (gestion-aio#167). */
 	private const CARGOS = 'cargos';
 	private const HOURS = 'off_hours';
 	private const HH_MM = '/^([01]\d|2[0-3]):[0-5]\d$/';
@@ -68,10 +68,20 @@ class Settings {
 		return ($start > $end && $local->format('H:i') >= $start ? $local->modify('+1 day') : $local)->format('Y-m-d');
 	}
 
-	/** @return list<string> the establishment's Cargos, the only ones a Reading may name; read afresh, as isOffHours */
+	/**
+	 * @return array<string, string> the establishment's Cargos, the only ones a Reading may name:
+	 *                               each Cargo group's name by its id, of groups that exist; read afresh, as isOffHours
+	 */
 	public function cargos(): array {
 		$this->appConfig->clearCache();
-		return array_values(array_filter($this->appConfig->getValueArray(Application::APP_ID, self::CARGOS), 'is_string'));
+		$cargos = [];
+		foreach ($this->appConfig->getValueArray(Application::APP_ID, self::CARGOS) as $id) {
+			$group = is_string($id) ? $this->groups->get($id) : null;
+			if ($group !== null) {
+				$cargos[$id] = $group->getDisplayName();
+			}
+		}
+		return $cargos;
 	}
 
 	/** The timezone Off hours are read in: the server's, which the suite sets to the centre's. */

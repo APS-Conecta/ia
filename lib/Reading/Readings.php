@@ -17,7 +17,8 @@ use OCP\AppFramework\Utility\ITimeFactory;
  * document — a short summary, its expiry date and the Cargos it concerns.
  *
  * - **Checked against the document.** An expiry date is kept only if the text says it, in one of
- *   the ways Chilean documents write dates; a Cargo only if it is on the establishment's list.
+ *   the ways Chilean documents write dates; a Cargo only if it is on the establishment's list,
+ *   kept as its group's id.
  * - **A long document** is read part by part; the parts' summaries are merged in one more ask,
  *   and their dates and Cargos pooled.
  */
@@ -26,7 +27,7 @@ class Readings {
 	private const FORMAT = "Responde con estas líneas, exactamente así:\n"
 		. "RESUMEN: qué establece, en dos o tres oraciones\n"
 		. 'VENCE: la fecha de vencimiento o de próxima revisión que dice el texto, como AAAA-MM-DD, o - si no la dice';
-	private const CARGOS = "\nCARGOS: los cargos de esta lista a los que se dirige, separados por coma, o - si ninguno: %s";
+	private const CARGOS = "\nCARGOS: los cargos de esta lista a los que se dirige, escritos tal como aparecen y separados por punto y coma, o - si ninguno: %s";
 
 	public function __construct(
 		private ReadingMapper $readings,
@@ -50,7 +51,7 @@ class Readings {
 	public function prompt(int $part, int $parts, string $chunk): string {
 		$what = $parts === 1 ? 'el documento de un centro de salud' : "la parte $part de $parts de un documento de un centro de salud";
 		$cargos = $this->settings->cargos();
-		return "Lee $what que está entre las marcas <<< y >>>. " . self::FORMAT . ($cargos === [] ? '' : sprintf(self::CARGOS, implode(', ', $cargos)))
+		return "Lee $what que está entre las marcas <<< y >>>. " . self::FORMAT . ($cargos === [] ? '' : sprintf(self::CARGOS, implode('; ', $cargos)))
 			. "\n" . ModelGateway::CLOSE . "\n\n<<<\n$chunk\n>>>";
 	}
 
@@ -139,9 +140,17 @@ class Readings {
 		return array_merge(...(ModelGateway::lines($answer) ?: [[]]));
 	}
 
-	/** @return list<string> the Cargos of the establishment's list that $value names, as the list writes them */
+	/**
+	 * @return list<string> the ids of the establishment's Cargo groups that $value names: each part
+	 *                      between commas or semicolons, or a piece of it between «y» («Abastecimiento
+	 *                      y Finanzas» is one Cargo, «Enfermera y TENS» two)
+	 */
 	private function cargosIn(string $value): array {
-		$named = array_map(ModelGateway::fold(...), preg_split('/\s*[,;]\s*|\s+y\s+/u', $value) ?: []);
-		return array_values(array_filter($this->settings->cargos(), static fn (string $cargo): bool => in_array(ModelGateway::fold($cargo), $named, true)));
+		$named = [];
+		foreach (preg_split('/\s*[,;]\s*/u', $value) ?: [] as $part) {
+			array_push($named, ModelGateway::fold($part), ...array_map(ModelGateway::fold(...), preg_split('/\s+y\s+/u', $part) ?: []));
+		}
+		$found = array_filter($this->settings->cargos(), static fn (string $cargo): bool => in_array(ModelGateway::fold($cargo), $named, true));
+		return array_map(strval(...), array_keys($found));
 	}
 }

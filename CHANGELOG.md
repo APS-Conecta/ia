@@ -9,7 +9,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- «IA» in the suite menu, opening on «Para ti», which says the person reads no Bulletin yet.
+- «IA» in the suite menu, opening on «Para ti».
 - Reviews of short TXT and MD documents (#2): «Revisar un documento» picks a file, and the report in «Revisiones»
   lists its errors, gaps and unclear parts, each with where it is and a fix, marked «Escrito por IA». The requester
   is notified when it is ready, sees it only while they can open the file, and can review the current version
@@ -45,3 +45,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   that, a member of the Editor group who can open it); they are notified. Anyone who can open the file reads its
   automatic report, which «Revisiones» lists with their own; each file keeps only its latest one. Deleting an action
   asks for no new Reviews and keeps the reports.
+- The Personal list, «Para ti» and the «Boletines» widget (#12): opening an Edition, each Reader sees their own part,
+  computed then and never stored: the timed events in their calendars during the Edition's period and its documents
+  whose Reading names one of their Cargo groups. «Para ti» merges these lists from the latest Edition of each Bulletin
+  the person reads, with the protocols about to expire and those Editions, and says they come from their calendar and
+  Cargo, not from the Model. The Dashboard shows the latest Editions each person can see. «IA» reads the Cargo list
+  from its app config as the Cargo groups' ids; a Reading keeps the ids it names.

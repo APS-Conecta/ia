@@ -96,13 +96,38 @@ namespace OCA\Ia;
  *     cargos: list<string>,
  * }
  *
- * @psalm-type IaEdition = IaEditionItem&array{
+ * @psalm-type IaMeeting = array{
+ *     id: string,
+ *     title: string,
+ *     start: int,
+ *     end: ?int,
+ *     calendar: string,
+ * }
+ *
+ * @psalm-type IaPersonalList = array{
+ *     meetings: list<IaMeeting>,
+ *     documents: list<IaEditionDocument>,
+ * }
+ *
+ * @psalm-type IaEditionSummary = IaEditionItem&array{
  *     bulletin: array{id: int, name: string},
+ * }
+ *
+ * @psalm-type IaEdition = IaEditionSummary&array{
  *     resumen: string,
  *     changed: list<IaEditionDocument>,
  *     expiring: list<IaEditionDocument>,
  *     undated: list<IaEditionDocument>,
  *     unreadable: list<IaEditionDocument>,
+ *     personal: IaPersonalList,
+ * }
+ *
+ * @psalm-type IaParaTi = array{
+ *     bulletins: list<IaBulletinItem>,
+ *     editions: list<IaEditionSummary>,
+ *     meetings: list<IaMeeting>,
+ *     documents: list<IaEditionDocument>,
+ *     expiring: list<IaEditionDocument>,
  * }
  *
  * @psalm-type IaReadersPreview = array{

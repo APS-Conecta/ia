@@ -11,6 +11,7 @@ use OCA\Ia\Action\Actions;
 use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Bulletin\Bulletins;
 use OCA\Ia\Bulletin\Editions;
+use OCA\Ia\Bulletin\ParaTi;
 use OCA\Ia\Forbidden;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
@@ -47,6 +48,7 @@ use OCP\IUserSession;
  * @psalm-import-type IaReadersPreview from ResponseDefinitions
  * @psalm-import-type IaGroup from ResponseDefinitions
  * @psalm-import-type IaOffHours from ResponseDefinitions
+ * @psalm-import-type IaParaTi from ResponseDefinitions
  * @psalm-import-type IaReview from ResponseDefinitions
  * @psalm-import-type IaReviewItem from ResponseDefinitions
  */
@@ -75,24 +77,24 @@ class ApiController extends OCSController {
 		private Bulletins $bulletins,
 		private Editions $editions,
 		private Actions $actions,
+		private ParaTi $paraTi,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
 
 	/**
-	 * «Para ti», the caller's start page: the Bulletins they read
+	 * «Para ti», the caller's start page: the Bulletins they read, the latest Edition of each, and
+	 * those Editions' Personal lists and protocols about to expire, merged
 	 *
-	 * No Bulletin exists yet, so every person reads none and gets the empty state.
+	 * @return DataResponse<Http::STATUS_OK, IaParaTi, array{}>
 	 *
-	 * @return DataResponse<Http::STATUS_OK, array{bulletins: list<empty>}, array{}>
-	 *
-	 * 200: The caller's «Para ti»
+	 * 200: The caller's «Para ti»; empty lists when they read no Bulletin
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
 	#[ApiRoute(verb: 'GET', url: '/api/v1/para-ti')]
 	public function paraTi(): DataResponse {
-		return new DataResponse(['bulletins' => []]);
+		return new DataResponse($this->paraTi->of($this->user()));
 	}
 
 	/**
@@ -382,8 +384,8 @@ class ApiController extends OCSController {
 	}
 
 	/**
-	 * An Edition: its Resumen, written by AI ('' when no document could be read), and its sections,
-	 * each document with its Reading
+	 * An Edition: its Resumen, written by AI ('' when no document could be read), its sections, each
+	 * document with its Reading, and the caller's Personal list
 	 *
 	 * @param int $id The Edition's id
 	 * @return DataResponse<Http::STATUS_OK, array{edition: IaEdition}, array{}>|DataResponse<Http::STATUS_NOT_FOUND, array{message: string}, array{}>

@@ -59,12 +59,12 @@ class Bulletins {
 	) {
 	}
 
-	/** @return list<IaBulletinItem> the Bulletins $userId edits or reads, by name */
-	public function all(string $userId): array {
+	/** @return list<IaBulletinItem> the Bulletins $userId edits or reads (only those they read, when $read), by name */
+	public function all(string $userId, bool $read = false): array {
 		$items = [];
 		foreach ($this->bulletins->all() as $bulletin) {
 			$role = $this->role($userId, $bulletin);
-			if ($role !== null) {
+			if ($role !== null && (!$read || $this->reads($userId, $bulletin))) {
 				$items[] = ['id' => $bulletin->getId(), 'name' => $bulletin->getName(), 'role' => $role];
 			}
 		}
@@ -200,7 +200,12 @@ class Bulletins {
 		if (in_array($bulletin->getEditorGroup(), $this->access->editorGroups($userId), true)) {
 			return 'editor';
 		}
-		return array_intersect(self::decode($bulletin->getReaders()), $this->access->groupsOf($userId)) === [] ? null : 'reader';
+		return $this->reads($userId, $bulletin) ? 'reader' : null;
+	}
+
+	/** Whether $userId is in one of the Bulletin's Reader groups. */
+	public function reads(string $userId, Bulletin $bulletin): bool {
+		return array_intersect(self::decode($bulletin->getReaders()), $this->access->groupsOf($userId)) !== [];
 	}
 
 	/**

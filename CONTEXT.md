@@ -44,6 +44,9 @@ What the Model takes, once, from one version of a document: a short summary, its
 concerns.
 _Avoid_: ficha, profile, metadata
 
+**Cargo group** (grupo de cargo):
+The Nextcloud group the suite keeps for a Cargo; «IA» stores its id and shows its name.
+
 **Personal list** (lista personal):
 The part of an Edition built for one Reader from their own calendar and Cargo, without the Model.
 
