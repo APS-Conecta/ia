@@ -7,10 +7,9 @@ declare(strict_types=1);
 namespace OCA\Ia\Listener;
 
 use OCA\Ia\AppInfo\Application;
-use OCA\Ia\Db\Run;
 use OCA\Ia\Db\RunMapper;
 use OCA\Ia\Model\ModelGateway;
-use OCA\Ia\Review\Reviews;
+use OCA\Ia\Run\Kinds;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use OCP\TaskProcessing\Events\TaskFailedEvent;
@@ -29,7 +28,7 @@ use Throwable;
 class TaskListener implements IEventListener {
 	public function __construct(
 		private RunMapper $runs,
-		private Reviews $reviews,
+		private Kinds $kinds,
 		private ModelGateway $model,
 		private LoggerInterface $logger,
 	) {
@@ -46,10 +45,10 @@ class TaskListener implements IEventListener {
 		}
 		try {
 			$run = $this->runs->byId((int)$task->getCustomId());
-			if ($run?->getKind() === Run::REVIEW) {
-				$this->reviews->finish($run, $task, $event instanceof TaskFailedEvent ? 'El modelo no respondió.' : null);
-			} else {
+			if ($run === null) {
 				$this->model->forget($task);
+			} else {
+				$this->kinds->of($run)->finish($run, $task, $event instanceof TaskFailedEvent ? 'El modelo no respondió.' : null);
 			}
 		} catch (Throwable $e) {
 			$this->logger->error('Taking the result of the Run {run} failed: {error}', ['run' => $task->getCustomId(), 'error' => $e->getMessage()]);

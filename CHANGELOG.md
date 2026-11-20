@@ -31,3 +31,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   refused, naming who), Readers are Nextcloud groups, and the schedule is daily, weekly or monthly on a day, or «cuando
   cambien sus fuentes». A preview counts the Readers and names those left out; «Boletines» lists the Bulletins each
   person edits or reads, and a Bulletin's page says when its first Edition is due.
+- The first Edition (#10): on its date, in the Off hours before it, a Bulletin's Run reads its Sources as a member of
+  the Editor group who can open them all. The Model takes a Reading of each document once per version (a summary, an
+  expiry date kept only if the text says it, and Cargos only from the establishment's list) and writes the Resumen
+  from the Readings, in context-sized rounds. The Edition is published whole, marked «Escrito por IA», with
+  «Documentos nuevos y cambiados» since the previous one, «Protocolos por vencer» within 30 days (and those with no
+  date found) and «Fuentes que no se pudieron leer». Readers are notified and see it on the Bulletin's page only while
+  they can open every file it read that is still there; each document opens its Reading and the file. Deleting a
+  file deletes its Reading.

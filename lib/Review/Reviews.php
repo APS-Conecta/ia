@@ -18,6 +18,7 @@ use OCA\Ia\Reading\Document;
 use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
+use OCA\Ia\Run\Kind;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -49,7 +50,7 @@ use Throwable;
  * @psalm-import-type IaReview from ResponseDefinitions
  * @psalm-import-type IaReviewItem from ResponseDefinitions
  */
-class Reviews {
+class Reviews implements Kind {
 	use TTransactional;
 
 	/** A short document, reviewed at once: about 10 pages. */
@@ -62,18 +63,17 @@ class Reviews {
 	private const FORMAT = 'Escribe un hallazgo por línea, con este formato exacto:
 TIPO: Error | CITA: frase copiada del documento, tal cual | PROBLEMA: qué está mal | ARREGLO: cómo corregirlo
 En CITA copia las palabras exactas del documento, sin cambiarlas.';
-	private const CLOSE = 'Al terminar, escribe una última línea con la palabra ' . ModelGateway::END . '.';
 
 	private const SINGLE = 'Revisa el documento de un centro de salud que está entre las marcas <<< y >>>. ' . self::KINDS . "\n" . self::MISSING . "\n\n"
 		. self::FORMAT . ' En una Falta escribe CITA: - y agrega | DONDE: sección donde debería ir' . "\n"
-		. 'Escribe solo los hallazgos, sin títulos ni explicaciones. ' . self::CLOSE;
+		. 'Escribe solo los hallazgos, sin títulos ni explicaciones. ' . ModelGateway::CLOSE;
 	private const CHUNK = 'Revisa la parte %d de %d de un documento de un centro de salud; la parte está entre las marcas <<< y >>>. ' . self::KINDS . "\n\n"
 		. "Primero escribe una línea con un resumen de la parte, así:\nRESUMEN: qué dice esta parte, en dos o tres oraciones\nDespués:\n"
-		. self::FORMAT . "\n" . 'Escribe solo el resumen y los hallazgos, sin títulos ni explicaciones. ' . self::CLOSE;
+		. self::FORMAT . "\n" . 'Escribe solo el resumen y los hallazgos, sin títulos ni explicaciones. ' . ModelGateway::CLOSE;
 	private const GAPS = 'Estos son los resúmenes de las %d partes de un documento de un centro de salud, entre las marcas <<< y >>>. '
 		. "Di qué le falta: algo que un documento así debería tener y no tiene.\n\n"
 		. "Escribe una falta por línea, con este formato exacto:\nTIPO: Falta | DONDE: parte o sección donde debería ir | PROBLEMA: qué falta | ARREGLO: qué agregar\n"
-		. 'Escribe solo las faltas, sin títulos ni explicaciones. ' . self::CLOSE;
+		. 'Escribe solo las faltas, sin títulos ni explicaciones. ' . ModelGateway::CLOSE;
 
 	public function __construct(
 		private Access $access,

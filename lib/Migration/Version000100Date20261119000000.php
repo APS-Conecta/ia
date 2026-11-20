@@ -13,7 +13,8 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * The Runs, the Reviews' reports and the Bulletins (gestion-aio#162, Schema). Later tickets add the other
+ * The Runs, the Reviews' reports, the Bulletins, their Editions and the Readings (gestion-aio#162,
+ * Schema). Later tickets add the other
  * tables and the columns their work needs.
  */
 class Version000100Date20261119000000 extends SimpleMigrationStep {
@@ -65,6 +66,33 @@ class Version000100Date20261119000000 extends SimpleMigrationStep {
 			$bulletins->addColumn('schedule', Types::STRING, ['notnull' => true, 'length' => 32]);
 			$bulletins->setPrimaryKey(['id']);
 			$bulletins->addIndex(['editor_group'], 'ia_bulletins_editors');
+		}
+
+		if (!$schema->hasTable('ia_readings')) {
+			$readings = $schema->createTable('ia_readings');
+			$readings->addColumn('id', Types::BIGINT, ['autoincrement' => true, 'notnull' => true, 'unsigned' => true]);
+			$readings->addColumn('file_id', Types::BIGINT, ['notnull' => true, 'unsigned' => true]);
+			$readings->addColumn('etag', Types::STRING, ['notnull' => true, 'length' => 64]);
+			$readings->addColumn('status', Types::STRING, ['notnull' => true, 'length' => 8]);
+			$readings->addColumn('summary', Types::TEXT, ['notnull' => false]);
+			$readings->addColumn('expires', Types::STRING, ['notnull' => false, 'length' => 10]);
+			$readings->addColumn('cargos', Types::TEXT, ['notnull' => false]);
+			$readings->addColumn('read_at', Types::BIGINT, ['notnull' => true, 'unsigned' => true]);
+			$readings->setPrimaryKey(['id']);
+			$readings->addUniqueIndex(['file_id'], 'ia_readings_file');
+		}
+
+		if (!$schema->hasTable('ia_editions')) {
+			$editions = $schema->createTable('ia_editions');
+			$editions->addColumn('id', Types::BIGINT, ['autoincrement' => true, 'notnull' => true, 'unsigned' => true]);
+			$editions->addColumn('bulletin_id', Types::BIGINT, ['notnull' => true, 'unsigned' => true]);
+			$editions->addColumn('date', Types::STRING, ['notnull' => true, 'length' => 10]);
+			$editions->addColumn('status', Types::STRING, ['notnull' => true, 'length' => 16]);
+			$editions->addColumn('resumen', Types::TEXT, ['notnull' => false]);
+			$editions->addColumn('files', Types::TEXT, ['notnull' => false]);
+			$editions->addColumn('published_at', Types::BIGINT, ['notnull' => false, 'unsigned' => true]);
+			$editions->setPrimaryKey(['id']);
+			$editions->addUniqueIndex(['bulletin_id', 'date'], 'ia_editions_date');
 		}
 
 		return $schema;

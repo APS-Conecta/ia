@@ -175,7 +175,7 @@ abstract class SeamTestCase extends TestCase {
 
 	/** Puts $content in the person's Files as $name, as their client would, and answers its file id. */
 	protected static function upload(string $person, string $name, string $content): int {
-		[$status] = self::http($person, 'PUT', self::DAV . $person . '/' . rawurlencode($name), [], $content);
+		[$status] = self::http($person, 'PUT', self::DAV . $person . '/' . self::path($name), [], $content);
 		self::assertContains($status, [201, 204], "PUT $name answered $status");
 		return self::file($person, $name)['fileId'];
 	}
@@ -188,11 +188,16 @@ abstract class SeamTestCase extends TestCase {
 	protected static function file(string $person, string $name): array {
 		$query = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">'
 			. '<d:prop><d:getetag/><oc:fileid/></d:prop></d:propfind>';
-		[$status, $text] = self::http($person, 'PROPFIND', self::DAV . $person . '/' . rawurlencode($name), ['Depth: 0'], $query);
+		[$status, $text] = self::http($person, 'PROPFIND', self::DAV . $person . '/' . self::path($name), ['Depth: 0'], $query);
 		self::assertSame(207, $status, "PROPFIND $name answered $status");
 		preg_match('~<oc:fileid>(\d+)</oc:fileid>~', $text, $id);
 		preg_match('~<d:getetag>&quot;?([^<&]+)&quot;?</d:getetag>~', $text, $etag);
 		return ['fileId' => (int)($id[1] ?? 0), 'etag' => $etag[1] ?? ''];
+	}
+
+	/** $name, a path in someone's Files, as a URL's path: each folder and file name encoded. */
+	private static function path(string $name): string {
+		return implode('/', array_map('rawurlencode', explode('/', $name)));
 	}
 
 	/** Makes the folder $name in the person's Files, and answers its file id. */
@@ -223,7 +228,7 @@ abstract class SeamTestCase extends TestCase {
 
 	/** Moves the person's file to their trash, so they can no longer open it. */
 	protected static function remove(string $person, string $name): void {
-		[$status] = self::http($person, 'DELETE', self::DAV . $person . '/' . rawurlencode($name), []);
+		[$status] = self::http($person, 'DELETE', self::DAV . $person . '/' . self::path($name), []);
 		self::assertSame(204, $status, "DELETE $name answered $status");
 	}
 

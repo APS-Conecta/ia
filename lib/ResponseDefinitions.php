@@ -70,6 +70,31 @@ namespace OCA\Ia;
  *     due: ?string,
  * }
  *
+ * @psalm-type IaEditionItem = array{
+ *     id: int,
+ *     date: string,
+ * }
+ *
+ * @psalm-type IaEditionDocument = array{
+ *     fileId: int,
+ *     name: string,
+ *     new: bool,
+ *     status: 'read'|'scan'|'failed',
+ *     summary: ?string,
+ *     readAt: ?int,
+ *     expires: ?string,
+ *     cargos: list<string>,
+ * }
+ *
+ * @psalm-type IaEdition = IaEditionItem&array{
+ *     bulletin: array{id: int, name: string},
+ *     resumen: string,
+ *     changed: list<IaEditionDocument>,
+ *     expiring: list<IaEditionDocument>,
+ *     undated: list<IaEditionDocument>,
+ *     unreadable: list<IaEditionDocument>,
+ * }
+ *
  * @psalm-type IaReadersPreview = array{
  *     readers: int,
  *     leftOut: list<array{id: string, name: string, sources: list<string>}>,

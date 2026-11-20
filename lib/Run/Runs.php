@@ -6,10 +6,10 @@ declare(strict_types=1);
 
 namespace OCA\Ia\Run;
 
+use OCA\Ia\Bulletin\EditionRun;
 use OCA\Ia\Db\Run;
 use OCA\Ia\Db\RunMapper;
 use OCA\Ia\Model\ModelGateway;
-use OCA\Ia\Review\Reviews;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\TaskProcessing\Task;
@@ -24,8 +24,9 @@ use Throwable;
  *    attempt spent. A task running longer than the connector's request timeout plus 5 minutes is
  *    cancelled and its Run put back in line; a task still waiting in TaskProcessing's queue is
  *    never touched. An answer whose event was lost is taken.
- * 2. **Schedule.** Every waiting short Run is asked at once. In Off hours, when no Off-hours Run is
- *    working, the oldest waiting one is asked: at most one Off-hours task in flight.
+ * 2. **Schedule.** Every waiting short Run is asked at once. In Off hours, the Editions due open
+ *    their Runs; when no Off-hours Run is working, the next waiting one is asked, Reviews asked
+ *    for by hand before Editions, oldest first: at most one Off-hours task in flight.
  * 3. **Fail.** The third failed attempt in a row fails a Run with its last error (Run::retry).
  *
  * A Run that can't be moved is logged by its id and the error's message only, never its text,
@@ -38,7 +39,8 @@ class Runs {
 	public function __construct(
 		private RunMapper $runs,
 		private ModelGateway $model,
-		private Reviews $reviews,
+		private Kinds $kinds,
+		private EditionRun $editions,
 		private Settings $settings,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
@@ -49,20 +51,34 @@ class Runs {
 		foreach ($this->runs->inState(Run::WORKING) as $run) {
 			$this->move($run, $this->recover(...));
 		}
-		$waiting = $this->runs->inState(Run::WAITING);
-		foreach ($waiting as $run) {
+		foreach ($this->runs->inState(Run::WAITING) as $run) {
 			if (!$run->getOffHours()) {
-				$this->move($run, $this->reviews->resume(...));
+				$this->move($run, $this->resume(...));
 			}
 		}
-		if (!$this->settings->isOffHours($this->time->getDateTime()) || $this->offHoursWorking()) {
+		if (!$this->settings->isOffHours($this->time->getDateTime())) {
 			return;
 		}
+		try {
+			$this->editions->due($this->time->getDateTime());
+		} catch (Throwable $e) {
+			$this->logger->error('The run engine could not open the Editions due: {error}', ['error' => $e->getMessage()]);
+		}
+		if ($this->offHoursWorking()) {
+			return;
+		}
+		$waiting = $this->runs->inState(Run::WAITING);
+		usort($waiting, static fn (Run $a, Run $b): int => [$a->getKind() !== Run::REVIEW, $a->getId()] <=> [$b->getKind() !== Run::REVIEW, $b->getId()]);
 		foreach ($waiting as $run) {
-			if ($run->getOffHours() && $this->move($run, $this->reviews->resume(...))) {
+			// One that failed, or finished without the Model, leaves the turn to the next.
+			if ($run->getOffHours() && $this->move($run, $this->resume(...)) && $run->getState() === Run::WORKING) {
 				return;
 			}
 		}
+	}
+
+	private function resume(Run $run): void {
+		$this->kinds->of($run)->resume($run);
 	}
 
 	/**
@@ -88,7 +104,7 @@ class Runs {
 			case Task::STATUS_SCHEDULED:
 				return;
 			case Task::STATUS_SUCCESSFUL:
-				$this->reviews->finish($run, $task, null);
+				$this->kinds->of($run)->finish($run, $task, null);
 				return;
 			case Task::STATUS_RUNNING:
 				if ($task->getStartedAt() > $this->time->getTime() - self::STUCK) {

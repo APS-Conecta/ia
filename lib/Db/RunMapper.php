@@ -67,6 +67,17 @@ class RunMapper extends QBMapper {
 		}
 	}
 
+	/** Deletes the Runs of $kind for these targets. @param list<string> $targets */
+	public function forget(string $kind, array $targets): void {
+		foreach (array_chunk($targets, 1000) as $chunk) {
+			$query = $this->db->getQueryBuilder();
+			$query->delete($this->getTableName())
+				->where($query->expr()->eq('kind', $query->createNamedParameter($kind)))
+				->andWhere($query->expr()->in('target', $query->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)))
+				->executeStatement();
+		}
+	}
+
 	public function of(string $kind, string $target): ?Run {
 		$query = $this->db->getQueryBuilder();
 		$query->select('*')->from($this->getTableName())

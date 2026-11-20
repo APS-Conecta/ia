@@ -10,19 +10,27 @@
 			<p class="ia-lead">
 				{{ scheduleText(bulletin.schedule) }} · de {{ bulletin.editorGroup.name }}
 			</p>
-			<div v-if="bulletin.role === 'editor'" class="ia-chips">
-				<NcButton variant="secondary" @click="$emit('edit', bulletin.id)">
+			<div class="ia-chips">
+				<NcButton v-if="bulletin.role === 'editor'" variant="secondary" @click="$emit('edit', bulletin.id)">
 					<template #icon>
 						<NcIconSvgWrapper :path="mdiPencilOutline" />
 					</template>
 					Editar
 				</NcButton>
+				<NcSelect v-if="editions.length > 1"
+					:model-value="shown"
+					input-label="Edición"
+					:options="editions"
+					:get-option-label="(option) => longDate(option.date)"
+					:clearable="false"
+					@update:model-value="show" />
 			</div>
-			<NcEmptyContent name="Todavía no hay ediciones" :description="dueText(bulletin)">
+			<NcEmptyContent v-if="editions.length === 0" name="Todavía no hay ediciones" :description="dueText(bulletin)">
 				<template #icon>
 					<NcIconSvgWrapper :path="mdiNewspaperVariantOutline" />
 				</template>
 			</NcEmptyContent>
+			<EditionView v-else :id="shown.id" :key="shown.id" />
 		</template>
 	</div>
 </template>
@@ -33,22 +41,34 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import NcSelect from '@nextcloud/vue/components/NcSelect'
+import EditionView from './EditionView.vue'
 import { ocsGet } from './api.js'
-import { dueText, scheduleText } from './bulletins.js'
+import { dueText, longDate, scheduleText } from './bulletins.js'
 import { mdiNewspaperVariantOutline, mdiPencilOutline } from './icons.js'
 
-/** One Bulletin's page: until its first Edition, when that is due; «Editar» for its Editors. */
+/**
+ * One Bulletin's page: its Edition, the latest or the one in the URL, with the others to pick from;
+ * until the first, when it is due. «Editar» for its Editors.
+ */
 export default {
 	name: 'BulletinPage',
-	components: { NcButton, NcEmptyContent, NcIconSvgWrapper, NcLoadingIcon, NcNoteCard },
+	components: { EditionView, NcButton, NcEmptyContent, NcIconSvgWrapper, NcLoadingIcon, NcNoteCard, NcSelect },
 	props: {
 		id: { type: Number, required: true },
+		/** The Edition the URL names, or null for the latest. */
+		edition: { type: Number, default: null },
 		/** Bumped by the app after the sidebar saves, so the page shows the saved Bulletin. */
 		version: { type: Number, default: 0 },
 	},
 	emits: ['edit'],
-	setup: () => ({ dueText, mdiNewspaperVariantOutline, mdiPencilOutline, scheduleText }),
-	data: () => ({ state: 'loading', bulletin: null }),
+	setup: () => ({ dueText, longDate, mdiNewspaperVariantOutline, mdiPencilOutline, scheduleText }),
+	data: () => ({ state: 'loading', bulletin: null, editions: [] }),
+	computed: {
+		shown() {
+			return this.editions.find((edition) => edition.id === this.edition) ?? this.editions[0]
+		},
+	},
 	watch: {
 		version() {
 			this.load()
@@ -60,11 +80,16 @@ export default {
 	methods: {
 		async load() {
 			try {
-				this.bulletin = (await ocsGet(`bulletins/${this.id}`)).bulletin
+				const [{ bulletin }, { editions }] = await Promise.all([ocsGet(`bulletins/${this.id}`), ocsGet(`bulletins/${this.id}/editions`)])
+				this.bulletin = bulletin
+				this.editions = editions
 				this.state = 'ready'
 			} catch (error) {
 				this.state = [403, 404].includes(error?.response?.status) ? 'gone' : 'failed'
 			}
+		},
+		show(edition) {
+			window.location.hash = `#boletines/${this.id}/${edition.id}`
 		},
 	},
 }

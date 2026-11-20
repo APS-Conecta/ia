@@ -43,6 +43,7 @@ use OCP\AppFramework\Db\Entity;
  */
 class Run extends Entity {
 	public const REVIEW = 'review';
+	public const EDITION = 'edition';
 
 	public const WAITING = 'waiting';
 	public const WORKING = 'working';
