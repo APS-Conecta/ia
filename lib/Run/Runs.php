@@ -70,8 +70,9 @@ class Runs {
 		$waiting = $this->runs->inState(Run::WAITING);
 		usort($waiting, static fn (Run $a, Run $b): int => [$a->getKind() !== Run::REVIEW, $a->getId()] <=> [$b->getKind() !== Run::REVIEW, $b->getId()]);
 		foreach ($waiting as $run) {
-			// One that failed, or finished without the Model, leaves the turn to the next.
-			if ($run->getOffHours() && $this->move($run, $this->resume(...)) && $run->getState() === Run::WORKING) {
+			// One that ended (failed, or published without the Model) leaves the turn to the next; one
+			// put back in line keeps it, so the oldest still starts first.
+			if ($run->getOffHours() && $this->move($run, $this->resume(...)) && !in_array($run->getState(), [Run::DONE, Run::FAILED], true)) {
 				return;
 			}
 		}
