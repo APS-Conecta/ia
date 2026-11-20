@@ -72,7 +72,7 @@ namespace OCA\Ia;
  *
  * @psalm-type IaReadersPreview = array{
  *     readers: int,
- *     leftOut: list<array{id: string, name: string}>,
+ *     leftOut: list<array{id: string, name: string, sources: list<string>}>,
  * }
  *
  * @psalm-type IaAdminSettings = array{

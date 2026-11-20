@@ -63,7 +63,6 @@ class Version000100Date20261119000000 extends SimpleMigrationStep {
 			$bulletins->addColumn('sources', Types::TEXT, ['notnull' => true]);
 			$bulletins->addColumn('readers', Types::TEXT, ['notnull' => true]);
 			$bulletins->addColumn('schedule', Types::STRING, ['notnull' => true, 'length' => 32]);
-			$bulletins->addColumn('created_at', Types::BIGINT, ['notnull' => true, 'unsigned' => true]);
 			$bulletins->setPrimaryKey(['id']);
 			$bulletins->addIndex(['editor_group'], 'ia_bulletins_editors');
 		}

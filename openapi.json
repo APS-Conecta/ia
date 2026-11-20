@@ -211,7 +211,8 @@
                             "type": "object",
                             "required": [
                                 "id",
-                                "name"
+                                "name",
+                                "sources"
                             ],
                             "properties": {
                                 "id": {
@@ -219,6 +220,12 @@
                                 },
                                 "name": {
                                     "type": "string"
+                                },
+                                "sources": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
                                 }
                             }
                         }

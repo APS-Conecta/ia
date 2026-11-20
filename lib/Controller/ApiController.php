@@ -15,6 +15,7 @@ use OCA\Ia\ResponseDefinitions;
 use OCA\Ia\Review\Reviews;
 use OCA\Ia\Settings\Admin;
 use OCA\Ia\Settings\Settings;
+use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\ApiRoute;
 use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
@@ -364,7 +365,7 @@ class ApiController extends OCSController {
 	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
 	#[ApiRoute(verb: 'GET', url: '/api/v1/calendars')]
 	public function calendars(): DataResponse {
-		$calendars = array_map(static fn ($calendar): array => ['id' => $calendar->getKey(), 'name' => (string)($calendar->getDisplayName() ?? $calendar->getUri())],
+		$calendars = array_map(static fn ($calendar): array => ['id' => $calendar->getKey(), 'name' => Access::calendarName($calendar)],
 			$this->access->calendarsOf($this->user()));
 		return new DataResponse(['calendars' => $calendars]);
 	}
@@ -403,7 +404,7 @@ class ApiController extends OCSController {
 			return $answer();
 		} catch (Forbidden $e) {
 			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_FORBIDDEN);
-		} catch (NotFoundException) {
+		} catch (DoesNotExistException) {
 			return new DataResponse(['message' => 'No encontramos ese boletín.'], Http::STATUS_NOT_FOUND);
 		} catch (Refused $e) {
 			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);

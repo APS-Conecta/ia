@@ -2,6 +2,9 @@
 
 export const DAYS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
+/** The last day a schedule's day can be, by its kind: a week's Sunday, a month's 28th (every month has it). */
+export const LAST_DAY = { weekly: 7, monthly: 28 }
+
 export const KINDS = [
 	{ kind: 'daily', label: 'Cada día' },
 	{ kind: 'weekly', label: 'Cada semana' },

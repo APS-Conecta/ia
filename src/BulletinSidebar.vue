@@ -20,12 +20,18 @@
 			<template #icon>
 				<NcIconSvgWrapper :path="mdiFolderOutline" />
 			</template>
+			<NcSelect v-if="id === null"
+				v-model="draft.editorGroup"
+				input-label="Grupo editor"
+				:options="editorGroups"
+				:reduce="(group) => group.id"
+				label="name" />
 			<p class="ia-hint">
 				Carpetas, documentos y calendarios que todo el grupo editor puede abrir.
 			</p>
 			<ul>
 				<li v-for="source in draft.sources" :key="source.type + source.id" class="ia-chips">
-					<NcIconSvgWrapper :path="source.type === 'calendar' ? mdiCalendarOutline : source.type === 'folder' ? mdiFolderOutline : mdiFileDocumentOutline" />
+					<NcIconSvgWrapper :path="ICONS[source.type]" />
 					<span>{{ source.name }}</span>
 					<NcButton variant="tertiary" :aria-label="`Quitar ${source.name}`" @click="remove(source)">
 						<template #icon>
@@ -60,7 +66,7 @@
 				@update:model-value="setKind">
 				{{ option.label }}
 			</NcCheckboxRadioSwitch>
-			<NcSelect v-if="draft.schedule.kind === 'weekly' || draft.schedule.kind === 'monthly'"
+			<NcSelect v-if="LAST_DAY[draft.schedule.kind]"
 				v-model="draft.schedule.day"
 				:input-label="draft.schedule.kind === 'weekly' ? 'Día de la semana' : 'Día del mes'"
 				:options="days"
@@ -75,12 +81,6 @@
 			<template #icon>
 				<NcIconSvgWrapper :path="mdiAccountGroupOutline" />
 			</template>
-			<NcSelect v-if="id === null"
-				v-model="draft.editorGroup"
-				input-label="Grupo editor"
-				:options="editorGroups"
-				:reduce="(group) => group.id"
-				label="name" />
 			<NcSelect v-model="draft.readers"
 				input-label="Grupos lectores"
 				placeholder="Agregar un grupo…"
@@ -92,7 +92,7 @@
 			<p v-if="preview" class="ia-hint" role="status">
 				Llega a {{ preview.readers }} {{ preview.readers === 1 ? 'persona' : 'personas' }}.
 				<template v-if="preview.leftOut.length > 0">
-					No lo recibirán, porque no pueden abrir una fuente: {{ preview.leftOut.map((person) => person.name).join(', ') }}.
+					No lo recibirán, porque no pueden abrir una fuente: {{ preview.leftOut.map((person) => `${person.name} (no puede abrir ${person.sources.join(', ')})`).join('; ') }}.
 				</template>
 			</p>
 		</NcAppSidebarTab>
@@ -101,7 +101,7 @@
 	<NcDialog v-if="confirming"
 		name="Eliminar el boletín"
 		:message="`¿Eliminar «${draft.name}»? Sus lectores dejarán de recibirlo.`"
-		:buttons="[{ label: 'Cancelar', callback: () => { confirming = false } }, { label: 'Eliminar', variant: 'error', callback: destroy }]"
+		:buttons="[{ label: 'Cancelar' }, { label: 'Eliminar', variant: 'error', callback: destroy }]"
 		@closing="confirming = false" />
 </template>
 
@@ -115,8 +115,11 @@ import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import { ocsDelete, ocsGet, ocsPost, ocsPut, refusal } from './api.js'
-import { DAYS, KINDS } from './bulletins.js'
+import { DAYS, KINDS, LAST_DAY } from './bulletins.js'
 import { mdiAccountGroupOutline, mdiCalendarOutline, mdiClose, mdiFileDocumentOutline, mdiFolderOutline } from './icons.js'
+
+/** Each Source's icon, by its type. */
+const ICONS = { folder: mdiFolderOutline, file: mdiFileDocumentOutline, calendar: mdiCalendarOutline }
 
 /**
  * A Bulletin's set-up, for its Editors: tabs Fuentes, Horario and Lectores. The Readers' count is
@@ -132,7 +135,7 @@ export default {
 		editorGroups: { type: Array, required: true },
 	},
 	emits: ['close', 'saved', 'deleted'],
-	setup: () => ({ KINDS, mdiAccountGroupOutline, mdiCalendarOutline, mdiClose, mdiFileDocumentOutline, mdiFolderOutline }),
+	setup: () => ({ ICONS, KINDS, LAST_DAY, mdiAccountGroupOutline, mdiCalendarOutline, mdiClose, mdiFolderOutline }),
 	data() {
 		return {
 			tab: 'fuentes',
@@ -150,7 +153,7 @@ export default {
 		days() {
 			return this.draft.schedule.kind === 'weekly'
 				? DAYS.map((day, index) => ({ value: index + 1, label: day }))
-				: Array.from({ length: 28 }, (_, index) => ({ value: index + 1, label: String(index + 1) }))
+				: Array.from({ length: LAST_DAY.monthly }, (_, index) => ({ value: index + 1, label: String(index + 1) }))
 		},
 		reach() {
 			return JSON.stringify([this.draft.sources.map((source) => source.type + source.id), this.draft.readers.map((group) => group.id)])
@@ -162,12 +165,18 @@ export default {
 		},
 	},
 	async mounted() {
-		if (this.id !== null) {
-			const { bulletin } = await ocsGet(`bulletins/${this.id}`)
-			this.draft = { name: bulletin.name, editorGroup: bulletin.editorGroup.id, sources: bulletin.sources, readers: bulletin.readers, schedule: { ...bulletin.schedule } }
-			this.groupName = bulletin.editorGroup.name
+		try {
+			if (this.id !== null) {
+				const { bulletin } = await ocsGet(`bulletins/${this.id}`)
+				this.draft = { name: bulletin.name, editorGroup: bulletin.editorGroup.id, sources: bulletin.sources, readers: bulletin.readers, schedule: { ...bulletin.schedule } }
+				this.groupName = bulletin.editorGroup.name
+			}
+			this.calendars = (await ocsGet('calendars')).calendars
+		} catch (error) {
+			showError(refusal(error) ?? 'No se pudo cargar el boletín.')
+			this.$emit('close')
+			return
 		}
-		this.calendars = (await ocsGet('calendars')).calendars
 		this.search('')
 	},
 	methods: {
@@ -188,7 +197,7 @@ export default {
 			}
 		},
 		setKind(kind) {
-			this.draft.schedule = { kind, day: kind === 'weekly' || kind === 'monthly' ? 1 : null }
+			this.draft.schedule = { kind, day: LAST_DAY[kind] ? 1 : null }
 		},
 		addCalendar(calendar) {
 			if (calendar) {
@@ -216,8 +225,12 @@ export default {
 				this.preview = null
 				return
 			}
+			const asked = this.reach
 			try {
-				this.preview = await ocsPost('bulletins/preview', this.request())
+				const preview = await ocsPost('bulletins/preview', this.request())
+				if (asked === this.reach) {
+					this.preview = preview
+				}
 			} catch {
 				this.preview = null
 			}

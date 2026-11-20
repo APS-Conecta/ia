@@ -68,7 +68,8 @@ final class BulletinsTest extends SeamTestCase {
 		$readers = self::group($reader);
 		self::ocs(self::$ana, 'PUT', self::API . "/$id", self::draft(self::$editors, self::$folder, self::WEEKLY, [$readers]));
 		self::assertSame([['id' => $id, 'name' => 'Boletín clínico', 'role' => 'reader']], self::ocs($reader, 'GET', self::API)['data']['bulletins']);
-		self::assertSame('reader', self::ocs($reader, 'GET', self::API . "/$id")['data']['bulletin']['role']);
+		$read = self::ocs($reader, 'GET', self::API . "/$id")['data']['bulletin'];
+		self::assertSame(['reader', [], []], [$read['role'], $read['sources'], $read['readers']], 'a Reader sees neither Sources nor Reader groups');
 	}
 
 	public function testThePreviewCountsTheReadersAndNamesThoseLeftOut(): void {
@@ -78,7 +79,27 @@ final class BulletinsTest extends SeamTestCase {
 		self::assertSame(200, $preview['status'], json_encode($preview['data']));
 		self::assertSame(1, $preview['data']['readers'], 'Beto opens the folder through the Editor group');
 		self::assertSame([$outsider], array_column($preview['data']['leftOut'], 'id'));
+		self::assertSame(['Protocolos'], $preview['data']['leftOut'][0]['sources'], 'each one left out is told which Source they can\'t open');
 		self::assertSame(403, self::ocs(self::person(), 'POST', self::API . '/preview', ['sources' => [], 'readers' => [$readers]])['status']);
+	}
+
+	public function testADocumentIsASourceAndAnUnknownReaderGroupIsRefused(): void {
+		$document = self::upload(self::$ana, 'circular.txt', "Circular 14: cambio de horario de la sala de procedimientos.\n");
+		self::shareWithGroup(self::$ana, '/circular.txt', self::$editors);
+		$created = self::ocs(self::$ana, 'POST', self::API, ['sources' => [['type' => 'file', 'id' => (string)$document]]] + self::draft(self::$editors, self::$folder));
+		self::assertSame(201, $created['status'], json_encode($created['data']));
+		self::assertSame([['type' => 'file', 'id' => (string)$document, 'name' => 'circular.txt']], $created['data']['bulletin']['sources']);
+		$unknown = self::ocs(self::$ana, 'POST', self::API, self::draft(self::$editors, self::$folder, self::WEEKLY, ['no-such-group-' . bin2hex(random_bytes(4))]));
+		self::assertSame(422, $unknown['status']);
+	}
+
+	public function testASubscriptionIsNoCalendarSource(): void {
+		$body = '<?xml version="1.0"?><d:mkcol xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/"><d:set><d:prop>'
+			. '<d:resourcetype><d:collection/><cs:subscribed/></d:resourcetype><d:displayname>suscripcion-feriados</d:displayname>'
+			. '<cs:source><d:href>https://example.com/feriados.ics</d:href></cs:source></d:prop></d:set></d:mkcol>';
+		self::assertSame(201, self::dav(self::$ana, 'MKCOL', '/remote.php/dav/calendars/' . self::$ana . '/feriados', $body));
+		$names = array_column(self::ocs(self::$ana, 'GET', '/apps/ia/api/v1/calendars')['data']['calendars'], 'name');
+		self::assertNotContains('suscripcion-feriados', $names, 'a subscription\'s key names a row of another table');
 	}
 
 	public function testACalendarIsASourceOnlyWhenTheWholeEditorGroupHasIt(): void {
@@ -101,9 +122,20 @@ final class BulletinsTest extends SeamTestCase {
 
 	public function testEachScheduleIsAcceptedAndAnythingElseIsRefused(): void {
 		self::shareWithGroup(self::$ana, '/Protocolos', self::$editors);
-		foreach ([['kind' => 'daily'], ['kind' => 'weekly', 'day' => 7], ['kind' => 'monthly', 'day' => 28], ['kind' => 'sources']] as $schedule) {
-			self::assertSame(201, self::ocs(self::$ana, 'POST', self::API, self::draft(self::$editors, self::$folder, $schedule))['status'], json_encode($schedule));
+		$timezone = self::ocs(self::admin(), 'GET', '/apps/ia/api/v1/admin/settings')['data']['timezone'];
+		$today = new \DateTimeImmutable('today', new \DateTimeZone($timezone));
+		$due = [];
+		foreach (['daily' => ['kind' => 'daily'], 'weekly' => ['kind' => 'weekly', 'day' => 7], 'monthly 28' => ['kind' => 'monthly', 'day' => 28], 'monthly 1' => ['kind' => 'monthly', 'day' => 1], 'sources' => ['kind' => 'sources']] as $label => $schedule) {
+			$created = self::ocs(self::$ana, 'POST', self::API, self::draft(self::$editors, self::$folder, $schedule));
+			self::assertSame(201, $created['status'], json_encode($schedule));
+			$due[$label] = $created['data']['bulletin']['due'];
 		}
+		self::assertSame($today->modify('+1 day')->format('Y-m-d'), $due['daily']);
+		foreach (['monthly 28' => '28', 'monthly 1' => '01'] as $label => $day) {
+			self::assertSame($day, substr($due[$label], -2));
+			self::assertGreaterThan($today->format('Y-m-d'), $due[$label], 'a monthly Edition is due after today, the next month when its day has passed');
+		}
+		self::assertNull($due['sources']);
 		foreach ([['kind' => 'hourly'], ['kind' => 'weekly', 'day' => 8], ['kind' => 'monthly', 'day' => 31], ['kind' => 'weekly']] as $schedule) {
 			self::assertSame(422, self::ocs(self::$ana, 'POST', self::API, self::draft(self::$editors, self::$folder, $schedule))['status'], json_encode($schedule));
 		}

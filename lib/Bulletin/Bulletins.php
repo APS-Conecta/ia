@@ -15,8 +15,7 @@ use OCA\Ia\Forbidden;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
 use OCA\Ia\Settings\Settings;
-use OCP\AppFramework\Utility\ITimeFactory;
-use OCP\Files\NotFoundException;
+use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IGroupManager;
 use OCP\IUser;
 
@@ -28,7 +27,8 @@ use OCP\IUser;
  *   ones they read.
  * - **Sources the whole Editor group can open**: a night run reads them as any of its members, so
  *   a Source one member can't open is refused, naming who.
- * - **Readers** are the Reader groups' members who can open every Source, checked live.
+ * - **Readers** are the Reader groups' members; the preview counts those who can open every
+ *   Source, checked live, and names the others with the Sources they can't open.
  *
  * @psalm-import-type IaBulletin from ResponseDefinitions
  * @psalm-import-type IaBulletinItem from ResponseDefinitions
@@ -45,7 +45,6 @@ class Bulletins {
 		private Access $access,
 		private IGroupManager $groups,
 		private Settings $settings,
-		private ITimeFactory $time,
 	) {
 	}
 
@@ -63,11 +62,11 @@ class Bulletins {
 
 	/**
 	 * @return IaBulletin
-	 * @throws NotFoundException
+	 * @throws DoesNotExistException
 	 * @throws Forbidden when $userId neither edits nor reads it
 	 */
 	public function one(string $userId, int $id): array {
-		$bulletin = $this->bulletins->byId($id) ?? throw new NotFoundException();
+		$bulletin = $this->bulletins->byId($id) ?? throw new DoesNotExistException('No such Bulletin');
 		$role = $this->role($userId, $bulletin) ?? throw new Forbidden(self::NOT_THEIRS);
 		return $this->view($userId, $bulletin, $role);
 	}
@@ -87,7 +86,6 @@ class Bulletins {
 		}
 		$bulletin = new Bulletin();
 		$bulletin->setEditorGroup($group);
-		$bulletin->setCreatedAt($this->time->getTime());
 		$this->fill($userId, $bulletin, $input);
 		$this->bulletins->insert($bulletin);
 		return $this->view($userId, $bulletin, 'editor');
@@ -98,7 +96,7 @@ class Bulletins {
 	 *
 	 * @param array<mixed> $input as create's, without the Editor group, which stays
 	 * @return IaBulletin
-	 * @throws NotFoundException
+	 * @throws DoesNotExistException
 	 * @throws Forbidden
 	 * @throws Refused
 	 */
@@ -110,7 +108,7 @@ class Bulletins {
 	}
 
 	/**
-	 * @throws NotFoundException
+	 * @throws DoesNotExistException
 	 * @throws Forbidden
 	 */
 	public function delete(string $userId, int $id): void {
@@ -136,21 +134,24 @@ class Bulletins {
 				$readers[$user->getUID()] = $user;
 			}
 		}
-		$leftOut = array_filter($readers, fn (IUser $user): bool => $this->cannotOpen($user, $sources) !== []);
-		return [
-			'readers' => count($readers) - count($leftOut),
-			'leftOut' => array_values(array_map(static fn (IUser $user): array => ['id' => $user->getUID(), 'name' => $user->getDisplayName()], $leftOut)),
-		];
+		$leftOut = [];
+		foreach ($readers as $user) {
+			$cannot = $this->cannotOpen($user, $sources);
+			if ($cannot !== []) {
+				$leftOut[] = ['id' => $user->getUID(), 'name' => $user->getDisplayName(), 'sources' => array_column($cannot, 'name')];
+			}
+		}
+		return ['readers' => count($readers) - count($leftOut), 'leftOut' => $leftOut];
 	}
 
 	/**
 	 * The Bulletin $id, when $userId is in its Editor group.
 	 *
-	 * @throws NotFoundException
+	 * @throws DoesNotExistException
 	 * @throws Forbidden
 	 */
 	private function edited(string $userId, int $id): Bulletin {
-		$bulletin = $this->bulletins->byId($id) ?? throw new NotFoundException();
+		$bulletin = $this->bulletins->byId($id) ?? throw new DoesNotExistException('No such Bulletin');
 		if ($this->role($userId, $bulletin) !== 'editor') {
 			throw new Forbidden(self::NOT_THEIRS);
 		}
@@ -177,9 +178,10 @@ class Bulletins {
 			throw new Refused('Escribe un nombre para el boletín, de hasta 200 caracteres.');
 		}
 		$sources = $this->sources($userId, $input['sources'] ?? null);
+		$members = $this->access->members($bulletin->getEditorGroup());
 		foreach ($sources as $source) {
 			$cannot = [];
-			foreach ($this->access->members($bulletin->getEditorGroup()) as $member) {
+			foreach ($members as $member) {
 				if ($this->cannotOpen($member, [$source]) !== []) {
 					$cannot[] = $member->getDisplayName();
 				}
@@ -223,11 +225,13 @@ class Bulletins {
 	 * @return IaSource|null
 	 */
 	private function named(string $userId, mixed $type, mixed $id): ?array {
-		if (!in_array($type, self::TYPES, true) || (!is_string($id) && !is_int($id)) || (string)$id === '') {
+		if (!in_array($type, self::TYPES, true) || (!is_string($id) && !is_int($id)) || (string)$id === ''
+			|| ($type !== 'calendar' && !ctype_digit((string)$id))) {
 			return null;
 		}
+		$calendar = $type === 'calendar' ? $this->access->calendar($userId, (string)$id) : null;
 		$name = $type === 'calendar'
-			? $this->access->calendar($userId, (string)$id)?->getDisplayName()
+			? ($calendar === null ? null : Access::calendarName($calendar))
 			: $this->access->node($userId, (int)$id, $type)?->getName();
 		return $name === null ? null : ['type' => $type, 'id' => (string)$id, 'name' => $name];
 	}
@@ -258,10 +262,10 @@ class Bulletins {
 		return array_values(array_unique($input));
 	}
 
-	/** @return IaBulletin */
+	/** @return IaBulletin A Reader's has neither Sources nor Reader groups: only an Editor sets them. */
 	private function view(string $userId, Bulletin $bulletin, string $role): array {
 		$sources = [];
-		foreach (self::decode($bulletin->getSources()) as $source) {
+		foreach ($role === 'editor' ? self::decode($bulletin->getSources()) : [] as $source) {
 			$sources[] = $this->named($userId, $source['type'], $source['id'])
 				?? ['type' => $source['type'], 'id' => (string)$source['id'], 'name' => 'Ya no puedes abrir esta fuente'];
 		}
@@ -273,7 +277,7 @@ class Bulletins {
 			'role' => $role,
 			'editorGroup' => $this->group($bulletin->getEditorGroup()),
 			'sources' => $sources,
-			'readers' => array_map($this->group(...), self::decode($bulletin->getReaders())),
+			'readers' => $role === 'editor' ? array_map($this->group(...), self::decode($bulletin->getReaders())) : [],
 			'schedule' => $schedule->view(),
 			'due' => $schedule->due($today),
 		];

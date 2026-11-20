@@ -23,8 +23,6 @@ use OCP\AppFramework\Db\Entity;
  * @method void setReaders(string $readers)
  * @method string getSchedule()
  * @method void setSchedule(string $schedule)
- * @method int getCreatedAt()
- * @method void setCreatedAt(int $createdAt)
  */
 class Bulletin extends Entity {
 	// Null until set: Entity writes only the fields a setter changed.
@@ -33,9 +31,4 @@ class Bulletin extends Entity {
 	protected ?string $sources = null;
 	protected ?string $readers = null;
 	protected ?string $schedule = null;
-	protected ?int $createdAt = null;
-
-	public function __construct() {
-		$this->addType('createdAt', 'integer');
-	}
 }

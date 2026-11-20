@@ -202,6 +202,11 @@ abstract class SeamTestCase extends TestCase {
 		return self::file($person, $name)['fileId'];
 	}
 
+	/** A WebDAV call as the person to $path under the server's root, answered with its status. */
+	protected static function dav(string $person, string $method, string $path, string $body): int {
+		return self::http($person, $method, 'http://localhost' . $path, ['Content-Type: application/xml'], $body)[0];
+	}
+
 	/** Shares the person's $path with the group $group, read-only. */
 	protected static function shareWithGroup(string $person, string $path, string $group): void {
 		$answer = self::ocs($person, 'POST', '/apps/files_sharing/api/v1/shares', ['path' => $path, 'shareType' => 1, 'shareWith' => $group, 'permissions' => 1]);

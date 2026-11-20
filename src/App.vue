@@ -46,7 +46,7 @@
 			<BulletinPage v-else-if="view.name === 'boletin'"
 				:id="view.id"
 				:key="view.id"
-				:version="saved"
+				:version="version"
 				@edit="sidebar = { id: $event }" />
 			<ReviewList v-else-if="view.name === 'revisiones'" />
 			<ReviewReport v-else :id="view.id" :key="view.id" />
@@ -56,7 +56,7 @@
 			:key="sidebar.id ?? 'new'"
 			:editor-groups="editorGroups"
 			@close="sidebar = null"
-			@saved="savedBulletin"
+			@saved="saved"
 			@deleted="deleted" />
 	</NcContent>
 </template>
@@ -107,7 +107,7 @@ export default {
 	name: 'App',
 	components: { BulletinList, BulletinPage, BulletinSidebar, NcAppContent, NcAppNavigation, NcAppNavigationCaption, NcAppNavigationItem, NcAppNavigationNew, NcContent, NcIconSvgWrapper, ParaTi, ReviewList, ReviewReport },
 	setup: () => ({ HEADINGS, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiStarOutline }),
-	data: () => ({ view: viewOf(window.location.hash), editorGroups: [], bulletins: [], sidebar: null, saved: 0 }),
+	data: () => ({ view: viewOf(window.location.hash), editorGroups: [], bulletins: [], sidebar: null, version: 0 }),
 	async mounted() {
 		window.addEventListener('hashchange', this.follow)
 		try {
@@ -131,9 +131,9 @@ export default {
 				console.error('ia: «Boletines» did not load', error)
 			}
 		},
-		async savedBulletin(id) {
+		async saved(id) {
 			this.sidebar = null
-			this.saved++
+			this.version++
 			await this.loadBulletins()
 			window.location.hash = `#boletines/${id}`
 		},

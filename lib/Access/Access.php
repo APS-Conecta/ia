@@ -8,6 +8,7 @@ namespace OCA\Ia\Access;
 
 use OCA\Ia\Settings\Settings;
 use OCP\Calendar\ICalendar;
+use OCP\Calendar\ICalendarIsPublic;
 use OCP\Calendar\IManager as ICalendarManager;
 use OCP\Files\File;
 use OCP\Files\Folder;
@@ -60,9 +61,19 @@ class Access {
 		return null;
 	}
 
-	/** @return list<ICalendar> $userId's calendars, theirs and those shared with them */
+	/**
+	 * @return list<ICalendar> $userId's calendars on this server, theirs and those shared with them.
+	 * Subscriptions and federated calendars are left out: their keys are ids from other tables, so a
+	 * key would no longer name one calendar (ADR 0001's live check).
+	 */
 	public function calendarsOf(string $userId): array {
-		return array_values($this->calendars->getCalendarsForPrincipal('principals/users/' . $userId));
+		return array_values(array_filter($this->calendars->getCalendarsForPrincipal('principals/users/' . $userId),
+			static fn (ICalendar $calendar): bool => $calendar instanceof ICalendarIsPublic));
+	}
+
+	/** How a calendar is named to a person: its display name, else its URI. */
+	public static function calendarName(ICalendar $calendar): string {
+		return $calendar->getDisplayName() ?? $calendar->getUri();
 	}
 
 	/** @return list<string> the Editor groups $userId belongs to now: none for anyone else */
