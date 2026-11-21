@@ -22,6 +22,8 @@ abstract class SeamTestCase extends TestCase {
 	private const LOGS = '/var/www/html/data/*.log';
 	/** Where a first phase leaves its state for the second, across an Ollama stop or a restart. */
 	private const HANDOVER = '/tmp/ia-seam-handover.json';
+	/** Seconds a run of the instance's TaskProcessing worker lasts (Makefile WORKER). */
+	private const WORKER_RUN = 30;
 
 	/** @var array<string, string> each account this class made, with its password */
 	private static array $people = [];
@@ -45,7 +47,12 @@ abstract class SeamTestCase extends TestCase {
 		}
 	}
 
-	/** Moves the server's timezone, which decides the date an Edition is for; the class's end puts it back. */
+	/**
+	 * Moves the server's timezone, which decides the date an Edition is for; the class's end puts it
+	 * back. It waits one run of TaskProcessing's worker, which publishes an Edition and reads the
+	 * timezone once per run (Makefile WORKER), so it is called with none of the class's tasks running:
+	 * a task already running ends in the old zone.
+	 */
 	protected static function timezone(string $zone): void {
 		if (self::$timezone === false) {
 			try {
@@ -55,6 +62,7 @@ abstract class SeamTestCase extends TestCase {
 			}
 		}
 		self::occ('config:system:set', 'default_timezone', '--value=' . $zone);
+		sleep(self::WORKER_RUN + 5);
 	}
 
 	/** A fresh account, unique to this run, and its login name. */
