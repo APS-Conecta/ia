@@ -89,6 +89,7 @@ export default [
 		languageOptions: {
 			globals: {
 				console: 'readonly',
+				document: 'readonly',
 				window: 'readonly',
 				setTimeout: 'readonly',
 				clearTimeout: 'readonly',

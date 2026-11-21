@@ -1,15 +1,6 @@
-// What a Review's state and findings read as, in the words of the mockup.
+// What a Review reads as, from asking for it to its state and findings, in the words of the mockup.
 
 import { refusal } from './api.js'
-
-/** What «IA» reads (TextReader): PDF with text, DOCX, ODT, TXT and MD. */
-export const FORMATS = [
-	'application/pdf',
-	'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-	'application/vnd.oasis.opendocument.text',
-	'text/plain',
-	'text/markdown',
-]
 
 export const STATES = { waiting: 'En espera', working: 'En curso', done: 'Lista', failed: 'Falló' }
 
@@ -28,10 +19,18 @@ export const moving = (review) => review.state === 'working' || (review.state ==
 /** When a long document is reviewed: the Off hours window, «de 22:00 a 06:00». */
 export const offHoursText = (review) => `de ${review.offHoursWindow.start} a ${review.offHoursWindow.end}`
 
-/** The confirmation of a Review asked for (POST reviews): it starts now, or in Off hours for a long document. */
-export const requestedText = ({ review, start }) => start === 'offHours'
-	? `Es un documento largo: se revisará fuera de horario, ${offHoursText(review)}. Te avisaremos cuando esté lista.`
-	: 'Revisión pedida. Te avisaremos cuando esté lista.'
+/**
+ * The confirmation of a Review asked for (POST reviews): ready already when the file hasn't changed
+ * since it was reviewed, otherwise starting now, or in Off hours for a long document.
+ */
+export function requestedText({ review, start }) {
+	if (review.state === 'done') {
+		return 'Tu revisión está lista.'
+	}
+	return start === 'offHours'
+		? `Es un documento largo: se revisará fuera de horario, ${offHoursText(review)}. Te avisaremos cuando esté lista.`
+		: 'Revisión pedida. Te avisaremos cuando esté lista.'
+}
 
 /** Why asking for a Review failed: «IA»'s own reason, or a plain one. */
 export const requestFailedText = (error) => refusal(error) ?? 'No se pudo pedir la revisión. Inténtalo de nuevo.'

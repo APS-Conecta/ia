@@ -344,11 +344,6 @@ abstract class SeamTestCase extends TestCase {
 		return self::file($person, $name)['fileId'];
 	}
 
-	/** @return array{int, string} $path under the server's root as the person's browser gets it: its status and body */
-	protected static function page(string $person, string $path): array {
-		return self::http($person, 'GET', 'http://localhost' . $path, []);
-	}
-
 	/** A WebDAV call as the person to $path under the server's root, answered with its status. */
 	protected static function dav(string $person, string $method, string $path, string $body, string $type = 'application/xml'): int {
 		return self::http($person, $method, 'http://localhost' . $path, ['Content-Type: ' . $type], $body)[0];

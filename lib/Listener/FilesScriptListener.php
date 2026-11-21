@@ -20,8 +20,9 @@ use OCP\Util;
 class FilesScriptListener implements IEventListener {
 	#[\Override]
 	public function handle(Event $event): void {
-		if ($event instanceof LoadAdditionalScriptsEvent) {
-			Util::addScript(Application::APP_ID, Application::APP_ID . '-files');
+		if (!$event instanceof LoadAdditionalScriptsEvent) {
+			return;
 		}
+		Util::addScript(Application::APP_ID, Application::APP_ID . '-files');
 	}
 }

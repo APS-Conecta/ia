@@ -111,7 +111,16 @@ import ReviewList from './ReviewList.vue'
 import ReviewReport from './ReviewReport.vue'
 import { ocsGet, ocsPost } from './api.js'
 import { mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiPulse, mdiRobotOutline, mdiStarOutline } from './icons.js'
-import { FORMATS, requestFailedText, requestedText } from './reviews.js'
+import { requestFailedText, requestedText } from './reviews.js'
+
+/** What «IA» reads (TextReader): PDF with text, DOCX, ODT, TXT and MD. */
+const FORMATS = [
+	'application/pdf',
+	'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+	'application/vnd.oasis.opendocument.text',
+	'text/plain',
+	'text/markdown',
+]
 
 /** Each place's page heading, for screen readers. */
 const HEADINGS = { 'para-ti': 'Para ti', boletines: 'Boletines', boletin: 'Boletines', revisiones: 'Revisiones', revision: 'Revisiones', acciones: 'Acciones automáticas' }
