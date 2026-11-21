@@ -16,10 +16,13 @@ use OCA\Ia\Db\EditionMapper;
 use OCA\Ia\Db\Reading;
 use OCA\Ia\Forbidden;
 use OCA\Ia\Reading\Readings;
+use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
 use OCA\Ia\Settings\Settings;
+use OCA\Ia\Withdrawn;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IUser;
+use OCP\IUserManager;
 
 /**
  * Editions as their Readers read them (gestion-aio#162, Bulletins).
@@ -52,6 +55,7 @@ class Editions {
 		private Access $access,
 		private PersonalList $personal,
 		private Settings $settings,
+		private IUserManager $users,
 	) {
 	}
 
@@ -78,20 +82,23 @@ class Editions {
 	}
 
 	/**
-	 * @return list<IaEditionItem> the Bulletin's Editions $userId can see, newest first
+	 * @return list<IaEditionItem> the Bulletin's Editions $userId can see, newest first: its Editors
+	 *                             also see those they withdrew
 	 * @throws DoesNotExistException
 	 * @throws Forbidden when $userId neither edits nor reads it
 	 */
 	public function all(string $userId, int $bulletinId): array {
 		$bulletin = $this->bulletins->byId($bulletinId) ?? throw new DoesNotExistException('No such Bulletin');
-		if ($this->setUp->role($userId, $bulletin) === null) {
+		$role = $this->setUp->role($userId, $bulletin);
+		if ($role === null) {
 			throw new Forbidden('Solo sus editores y lectores ven las ediciones de un boletín.');
 		}
+		$shown = $role === 'editor' ? [Edition::PUBLISHED, Edition::WITHDRAWN] : [Edition::PUBLISHED];
 		$opens = $this->opener($userId);
 		$items = [];
 		foreach ($this->editions->ofBulletin($bulletinId) as $edition) {
-			if ($edition->getStatus() === Edition::PUBLISHED && self::seenBy($edition, $opens)) {
-				$items[] = ['id' => $edition->getId(), 'date' => $edition->getDate(), 'late' => (bool)$edition->getLate()];
+			if (in_array($edition->getStatus(), $shown, true) && self::seenBy($edition, $opens)) {
+				$items[] = ['id' => $edition->getId(), 'date' => $edition->getDate(), 'late' => (bool)$edition->getLate(), 'withdrawn' => $edition->getStatus() === Edition::WITHDRAWN];
 			}
 		}
 		return $items;
@@ -100,13 +107,12 @@ class Editions {
 	/**
 	 * @return IaEdition
 	 * @throws DoesNotExistException when there is none $userId can see
+	 * @throws Withdrawn when its Editors withdrew it and $userId reads it
 	 */
 	public function one(string $userId, int $id): array {
-		$edition = $this->editions->byId($id);
-		$bulletin = $edition === null ? null : $this->bulletins->byId($edition->getBulletinId());
-		if ($edition?->getStatus() !== Edition::PUBLISHED || $bulletin === null || $this->setUp->role($userId, $bulletin) === null
-			|| !self::seenBy($edition, $this->opener($userId))) {
-			throw new DoesNotExistException('No such Edition');
+		[$edition, $bulletin, $role] = $this->seen($userId, $id);
+		if ($edition->getStatus() === Edition::WITHDRAWN && $role !== 'editor') {
+			throw new Withdrawn('Sus editores retiraron esta edición.');
 		}
 		$cargos = $this->settings->cargos();
 		$readerCargos = $this->personal->cargosOf($userId, $cargos);
@@ -123,13 +129,92 @@ class Editions {
 			'bulletin' => ['id' => $bulletin->getId(), 'name' => $bulletin->getName()],
 			'date' => $edition->getDate(),
 			'late' => (bool)$edition->getLate(),
+			'withdrawn' => $edition->getStatus() === Edition::WITHDRAWN,
 			'resumen' => (string)$edition->getResumen(),
+			'correctedBy' => $edition->getCorrectedBy() === null ? null : ($this->users->getDisplayName($edition->getCorrectedBy()) ?? $edition->getCorrectedBy()),
 			'changed' => array_values(array_filter($documents, static fn (array $document): bool => $document['new'])),
 			'expiring' => $expiring,
 			'undated' => array_values(array_filter($read, static fn (array $document): bool => $document['expires'] === null)),
 			'unreadable' => array_values(array_filter($documents, static fn (array $document): bool => $document['status'] !== Reading::READ)),
 			'personal' => ['meetings' => $this->meetings($userId, $edition), 'documents' => array_values($personal)],
 		];
+	}
+
+	/**
+	 * An Editor of its Bulletin corrects the Resumen: its Readers see the correction, and who made it,
+	 * next to «Escrito por IA».
+	 *
+	 * @return IaEdition
+	 * @throws DoesNotExistException|Forbidden|Refused
+	 */
+	public function correct(string $userId, int $id, string $resumen): array {
+		$resumen = trim($resumen);
+		if ($resumen === '') {
+			throw new Refused('Escribe el resumen corregido.');
+		}
+		$edition = $this->editable($userId, $id);
+		$edition->setResumen($resumen);
+		$edition->setCorrectedBy($userId);
+		$this->editions->update($edition);
+		return $this->one($userId, $id);
+	}
+
+	/**
+	 * An Editor of its Bulletin withdraws the Edition, at once from its Readers' pages, «Para ti» and
+	 * the widget; or, with $withdrawn false, undoes that.
+	 *
+	 * @return IaEdition
+	 * @throws DoesNotExistException|Forbidden
+	 */
+	public function withdraw(string $userId, int $id, bool $withdrawn): array {
+		$edition = $this->editable($userId, $id);
+		$edition->setStatus($withdrawn ? Edition::WITHDRAWN : Edition::PUBLISHED);
+		$this->editions->update($edition);
+		return $this->one($userId, $id);
+	}
+
+	/**
+	 * A published or withdrawn Edition $userId edits or reads and can see, its Bulletin and their role.
+	 *
+	 * @return array{Edition, Bulletin, string}
+	 * @throws DoesNotExistException
+	 */
+	private function seen(string $userId, int $id): array {
+		[$edition, $bulletin] = $this->out($id);
+		$role = $this->setUp->role($userId, $bulletin);
+		if ($role === null || !self::seenBy($edition, $this->opener($userId))) {
+			throw new DoesNotExistException('No such Edition');
+		}
+		return [$edition, $bulletin, $role];
+	}
+
+	/**
+	 * An Edition one of its Bulletin's Editors acts on.
+	 *
+	 * @throws DoesNotExistException
+	 * @throws Forbidden when $userId isn't one of its Bulletin's Editors
+	 */
+	private function editable(string $userId, int $id): Edition {
+		[, $bulletin] = $this->out($id);
+		if ($this->setUp->role($userId, $bulletin) !== 'editor') {
+			throw new Forbidden('Solo los editores del boletín corrigen o retiran sus ediciones.');
+		}
+		return $this->seen($userId, $id)[0];
+	}
+
+	/**
+	 * A published or withdrawn Edition, and its Bulletin.
+	 *
+	 * @return array{Edition, Bulletin}
+	 * @throws DoesNotExistException
+	 */
+	private function out(int $id): array {
+		$edition = $this->editions->byId($id);
+		$bulletin = $edition === null ? null : $this->bulletins->byId($edition->getBulletinId());
+		if ($edition === null || $bulletin === null || !in_array($edition->getStatus(), [Edition::PUBLISHED, Edition::WITHDRAWN], true)) {
+			throw new DoesNotExistException('No such Edition');
+		}
+		return [$edition, $bulletin];
 	}
 
 	/** @return list<IaMeeting> $userId's meetings in the Edition's period, from its date to its end, in the server's timezone */
