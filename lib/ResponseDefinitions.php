@@ -85,6 +85,7 @@ namespace OCA\Ia;
  *     id: int,
  *     date: string,
  *     late: bool,
+ *     withdrawn: bool,
  * }
  *
  * @psalm-type IaWriting = array{
@@ -124,6 +125,7 @@ namespace OCA\Ia;
  *
  * @psalm-type IaEdition = IaEditionSummary&array{
  *     resumen: string,
+ *     correctedBy: ?string,
  *     changed: list<IaEditionDocument>,
  *     expiring: list<IaEditionDocument>,
  *     undated: list<IaEditionDocument>,

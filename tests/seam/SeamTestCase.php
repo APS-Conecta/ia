@@ -137,6 +137,22 @@ abstract class SeamTestCase extends TestCase {
 		return new \DateTimeImmutable('now', new \DateTimeZone($settings['timezone']));
 	}
 
+	/** @return list<string> the titles the «Boletines» Dashboard widget shows $person, sorted */
+	protected static function widget(string $person): array {
+		$answer = self::ocs($person, 'GET', '/apps/dashboard/api/v2/widget-items?widgets%5B%5D=ia-boletines');
+		self::assertSame(200, $answer['status']);
+		$titles = array_column($answer['data']['ia-boletines']['items'], 'title');
+		sort($titles);
+		return $titles;
+	}
+
+	/** @return array<string, mixed> the Edition $id as $person reads it */
+	protected static function edition(string $person, int $id): array {
+		$answer = self::ocs($person, 'GET', "/apps/ia/api/v1/editions/$id");
+		self::assertSame(200, $answer['status'], json_encode($answer['data']));
+		return $answer['data']['edition'];
+	}
+
 	/** @return list<array<string, mixed>> the Editions of the Bulletin $person sees, newest first */
 	protected static function editions(string $person, int $bulletin): array {
 		$answer = self::ocs($person, 'GET', "/apps/ia/api/v1/bulletins/$bulletin/editions");

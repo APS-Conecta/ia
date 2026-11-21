@@ -19,6 +19,7 @@ use OCA\Ia\Review\Reviews;
 use OCA\Ia\Run\Estado;
 use OCA\Ia\Settings\Admin;
 use OCA\Ia\Settings\Settings;
+use OCA\Ia\Withdrawn;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\ApiRoute;
@@ -68,6 +69,7 @@ class ApiController extends OCSController {
 	private const NOT_FOUND = 'No encontramos ese documento, o ya no puedes abrirlo.';
 	private const NO_BULLETIN = 'No encontramos ese boletín.';
 	private const NO_ACTION = 'No encontramos esa acción automática.';
+	private const NO_EDITION = 'No encontramos esa edición, o ya no puedes leerla.';
 	private const NO_RUN = 'No encontramos ese trabajo.';
 
 	public function __construct(
@@ -427,10 +429,11 @@ class ApiController extends OCSController {
 	 * document with its Reading, and the caller's Personal list
 	 *
 	 * @param int $id The Edition's id
-	 * @return DataResponse<Http::STATUS_OK, array{edition: IaEdition}, array{}>|DataResponse<Http::STATUS_NOT_FOUND, array{message: string}, array{}>
+	 * @return DataResponse<Http::STATUS_OK, array{edition: IaEdition}, array{}>|DataResponse<Http::STATUS_NOT_FOUND|Http::STATUS_GONE, array{message: string}, array{}>
 	 *
-	 * 200: The Edition
+	 * 200: The Edition; for its Editors, also one they withdrew
 	 * 404: No such Edition, it isn't published yet, or the caller can't see it
+	 * 410: Its Editors withdrew it
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
@@ -439,8 +442,63 @@ class ApiController extends OCSController {
 		try {
 			return new DataResponse(['edition' => $this->editions->one($this->user(), $id)]);
 		} catch (DoesNotExistException) {
-			return new DataResponse(['message' => 'No encontramos esa edición, o ya no puedes leerla.'], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['message' => self::NO_EDITION], Http::STATUS_NOT_FOUND);
+		} catch (Withdrawn $e) {
+			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_GONE);
 		}
+	}
+
+	/**
+	 * Correct an Edition's Resumen, as an Editor of its Bulletin: its Readers see who corrected it
+	 *
+	 * @param int $id The Edition's id
+	 * @param string $resumen The corrected Resumen
+	 * @return DataResponse<Http::STATUS_OK, array{edition: IaEdition}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
+	 *
+	 * 200: Corrected
+	 * 403: The caller isn't one of its Bulletin's Editors
+	 * 404: No such Edition, it isn't published yet, or the caller can't see it
+	 * 422: The Resumen is empty
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'PUT', url: '/api/v1/editions/{id}')]
+	public function correctEdition(int $id, string $resumen): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse(['edition' => $this->editions->correct($this->user(), $id, $resumen)]), self::NO_EDITION);
+	}
+
+	/**
+	 * Withdraw an Edition, as an Editor of its Bulletin: at once from its Readers' pages, «Para ti» and the widget
+	 *
+	 * @param int $id The Edition's id
+	 * @return DataResponse<Http::STATUS_OK, array{edition: IaEdition}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND, array{message: string}, array{}>
+	 *
+	 * 200: Withdrawn
+	 * 403: The caller isn't one of its Bulletin's Editors
+	 * 404: No such Edition, it isn't published yet, or the caller can't see it
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'POST', url: '/api/v1/editions/{id}/withdrawal')]
+	public function withdrawEdition(int $id): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse(['edition' => $this->editions->withdraw($this->user(), $id)]), self::NO_EDITION);
+	}
+
+	/**
+	 * Undo an Edition's withdrawal, as an Editor of its Bulletin: its Readers see it again
+	 *
+	 * @param int $id The Edition's id
+	 * @return DataResponse<Http::STATUS_OK, array{edition: IaEdition}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND, array{message: string}, array{}>
+	 *
+	 * 200: Back for its Readers
+	 * 403: The caller isn't one of its Bulletin's Editors
+	 * 404: No such Edition, it isn't published yet, or the caller can't see it
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'DELETE', url: '/api/v1/editions/{id}/withdrawal')]
+	public function restoreEdition(int $id): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse(['edition' => $this->editions->restore($this->user(), $id)]), self::NO_EDITION);
 	}
 
 	/**

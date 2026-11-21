@@ -1,18 +1,55 @@
 <template>
 	<section class="ia-edition">
 		<NcLoadingIcon v-if="state === 'loading'" :size="44" />
+		<NcNoteCard v-else-if="state === 'withdrawn'" type="warning" heading="Edición retirada">
+			{{ withdrawnText }}
+		</NcNoteCard>
 		<NcNoteCard v-else-if="state !== 'ready'" type="warning">
 			{{ state === 'gone' ? 'Esta edición ya no está, o ya no puedes leerla: puede que ya no puedas abrir uno de sus documentos.' : 'No se pudo cargar la edición. Recarga la página.' }}
 		</NcNoteCard>
 		<template v-else>
-			<h3>Edición del {{ longDate(edition.date) }}</h3>
+			<div class="ia-chips">
+				<h3>Edición del {{ longDate(edition.date) }}</h3>
+				<NcActions v-if="editor && !edition.withdrawn && !correcting" :aria-label="`Acciones de la edición del ${longDate(edition.date)}`">
+					<NcActionButton close-after-click @click="startCorrecting">
+						<template #icon>
+							<NcIconSvgWrapper :path="mdiPencilOutline" />
+						</template>
+						Corregir el resumen
+					</NcActionButton>
+					<NcActionButton close-after-click @click="withdraw">
+						<template #icon>
+							<NcIconSvgWrapper :path="mdiEyeOffOutline" />
+						</template>
+						Retirar esta edición
+					</NcActionButton>
+				</NcActions>
+			</div>
+			<NcNoteCard v-if="edition.withdrawn" type="error" heading="Retiraste esta edición">
+				<p>Los lectores ya no la ven, ni en «Para ti» ni en el panel.</p>
+				<NcButton variant="tertiary" :disabled="saving" @click="restore">
+					Deshacer
+				</NcButton>
+			</NcNoteCard>
 			<div v-if="edition.late" class="ia-chips">
 				<NcChip text="Atrasada" variant="warning" no-close />
 				<span class="ia-hint">Se publicó después de su fecha.</span>
 			</div>
-			<template v-if="paragraphs.length > 0">
+			<template v-if="correcting">
+				<NcTextArea v-model="draft" label="Resumen" :rows="8" resize="vertical" />
+				<div class="ia-chips">
+					<NcButton variant="tertiary" :disabled="saving" @click="correcting = false">
+						Cancelar
+					</NcButton>
+					<NcButton variant="primary" :disabled="saving || draft.trim() === ''" @click="saveCorrection">
+						Guardar corrección
+					</NcButton>
+				</div>
+			</template>
+			<template v-else-if="paragraphs.length > 0">
 				<div class="ia-chips">
 					<NcChip text="Escrito por IA" variant="primary" :icon-path="mdiCreation" no-close />
+					<NcChip v-if="edition.correctedBy" :text="`Corregida por ${edition.correctedBy}`" variant="success" :icon-path="mdiCheckCircleOutline" no-close />
 				</div>
 				<p v-for="(paragraph, index) in paragraphs" :key="index">
 					{{ paragraph }}
@@ -106,29 +143,38 @@
 </template>
 
 <script>
+import { showError, showSuccess } from '@nextcloud/dialogs'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcActions from '@nextcloud/vue/components/NcActions'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import NcChip from '@nextcloud/vue/components/NcChip'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
-import { ocsGet } from './api.js'
+import NcTextArea from '@nextcloud/vue/components/NcTextArea'
+import { ocsDelete, ocsGet, ocsPost, ocsPut, refusal } from './api.js'
 import PersonalList from './PersonalList.vue'
 import ReadingDialog from './ReadingDialog.vue'
 import { longDate, UNREADABLE } from './bulletins.js'
-import { mdiCalendarOutline, mdiCreation, mdiFileDocumentOutline } from './icons.js'
+import { mdiCalendarOutline, mdiCheckCircleOutline, mdiCreation, mdiEyeOffOutline, mdiFileDocumentOutline, mdiPencilOutline } from './icons.js'
 
 /**
- * One Edition: the Resumen, marked as written by AI, and its sections; each document opens its
- * Reading, and from there the file.
+ * One Edition: the Resumen, marked as written by AI (and by whom it was corrected), and its
+ * sections; each document opens its Reading, and from there the file. Its Bulletin's Editors
+ * correct the Resumen, withdraw the Edition and undo that; a Reader of a withdrawn one is told so.
  */
 export default {
 	name: 'EditionView',
-	components: { NcChip, NcIconSvgWrapper, NcListItem, NcLoadingIcon, NcNoteCard, PersonalList, ReadingDialog },
+	components: { NcActionButton, NcActions, NcButton, NcChip, NcIconSvgWrapper, NcListItem, NcLoadingIcon, NcNoteCard, NcTextArea, PersonalList, ReadingDialog },
 	props: {
 		id: { type: Number, required: true },
+		/** Whether the caller is one of its Bulletin's Editors. */
+		editor: { type: Boolean, default: false },
 	},
-	setup: () => ({ longDate, mdiCalendarOutline, mdiCreation, mdiFileDocumentOutline, UNREADABLE }),
-	data: () => ({ state: 'loading', edition: null, reading: null }),
+	emits: ['changed'],
+	setup: () => ({ longDate, mdiCalendarOutline, mdiCheckCircleOutline, mdiCreation, mdiEyeOffOutline, mdiFileDocumentOutline, mdiPencilOutline, UNREADABLE }),
+	data: () => ({ state: 'loading', edition: null, withdrawnText: '', reading: null, correcting: false, draft: '', saving: false }),
 	computed: {
 		paragraphs() {
 			return this.edition.resumen.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean)
@@ -139,13 +185,45 @@ export default {
 			this.edition = (await ocsGet(`editions/${this.id}`)).edition
 			this.state = 'ready'
 		} catch (error) {
-			this.state = error?.response?.status === 404 ? 'gone' : 'failed'
+			const status = error?.response?.status
+			this.withdrawnText = refusal(error) ?? ''
+			this.state = { 404: 'gone', 410: 'withdrawn' }[status] ?? 'failed'
 			if (this.state === 'failed') {
 				console.error('ia: the Edition did not load', error)
 			}
 		}
 	},
 	methods: {
+		startCorrecting() {
+			this.draft = this.edition.resumen
+			this.correcting = true
+		},
+		async saveCorrection() {
+			if (await this.change(() => ocsPut(`editions/${this.id}`, { resumen: this.draft }), 'Corrección guardada. Los lectores ven el texto corregido.')) {
+				this.correcting = false
+			}
+		},
+		withdraw() {
+			return this.change(() => ocsPost(`editions/${this.id}/withdrawal`), 'Edición retirada. Los lectores ya no la ven.')
+		},
+		restore() {
+			return this.change(() => ocsDelete(`editions/${this.id}/withdrawal`), 'Los lectores ven de nuevo esta edición.')
+		},
+		/** Runs an Editor's change and shows the Edition it answers with; whether it went through. */
+		async change(request, done) {
+			this.saving = true
+			try {
+				this.edition = (await request()).edition
+				showSuccess(done)
+				this.$emit('changed')
+				return true
+			} catch (error) {
+				showError(refusal(error) ?? 'No se pudo guardar. Inténtalo de nuevo.')
+				return false
+			} finally {
+				this.saving = false
+			}
+		},
 		open(event, document) {
 			event.preventDefault()
 			this.reading = document
