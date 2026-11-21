@@ -31,11 +31,11 @@ class ReportMapper extends QBMapper {
 	}
 
 	/**
-	 * Deletes the reports asked for before $time (an automatic one: lined up, when its file last
+	 * Deletes the reports asked for before $cutoff (an automatic one: lined up, when its file last
 	 * arrived or changed). @return list<int> their ids
 	 */
-	public function forgetBefore(int $time): array {
-		return $this->forgetWhere(static fn (IQueryBuilder $query): string => $query->expr()->lt('created_at', $query->createNamedParameter($time, IQueryBuilder::PARAM_INT)));
+	public function forgetBefore(int $cutoff): array {
+		return $this->forgetWhere(static fn (IQueryBuilder $query): string => $query->expr()->lt('created_at', $query->createNamedParameter($cutoff, IQueryBuilder::PARAM_INT)));
 	}
 
 	/** The person's own manual report of the file $fileId, or null. */

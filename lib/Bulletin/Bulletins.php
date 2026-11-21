@@ -9,6 +9,7 @@ namespace OCA\Ia\Bulletin;
 use DateTimeImmutable;
 use DateTimeZone;
 use OCA\Ia\Access\Access;
+use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Db\Bulletin;
 use OCA\Ia\Db\BulletinMapper;
 use OCA\Ia\Db\Changes;
@@ -26,6 +27,7 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IUser;
+use OCP\Notification\IManager as INotificationManager;
 
 /**
  * Bulletins (CONTEXT.md): an Editor group owns each one, picks its Sources, its Reader groups and
@@ -62,7 +64,20 @@ class Bulletins {
 		private IDBConnection $db,
 		private Changes $changes,
 		private ITimeFactory $time,
+		private INotificationManager $notifications,
 	) {
+	}
+
+	/** Erases the Editions dated before $date (Y-m-d), each with its Run and its notifications. */
+	public function forgetEditionsBefore(string $date): void {
+		$ids = $this->atomic(function () use ($date): array {
+			$ids = $this->editions->forgetBefore($date);
+			$this->runs->forget(Run::EDITION, $ids);
+			return $ids;
+		}, $this->db);
+		foreach ($ids as $id) {
+			$this->notifications->markProcessed($this->notifications->createNotification()->setApp(Application::APP_ID)->setObject('edition', (string)$id));
+		}
 	}
 
 	/** @return list<IaBulletinItem> the Bulletins $userId edits or reads (only those they read, when $read), by name */
@@ -133,7 +148,7 @@ class Bulletins {
 	public function delete(string $userId, int $id): void {
 		$bulletin = $this->edited($userId, $id);
 		$this->atomic(function () use ($bulletin): void {
-			$this->runs->forget(Run::EDITION, array_map('strval', $this->editions->forget($bulletin->getId())));
+			$this->runs->forget(Run::EDITION, $this->editions->forget($bulletin->getId()));
 			$this->bulletins->delete($bulletin);
 		}, $this->db);
 	}

@@ -82,11 +82,17 @@ class ModelGateway {
 		return (int)$task->getId();
 	}
 
-	/** Deletes «IA»'s tasks that ended before $time, of any user and Run or none: left over. */
-	public function sweep(int $time): void {
-		// '' is no user filter; «IA»'s tasks have none.
-		foreach ($this->taskProcessing->getTasks('', null, Application::APP_ID, null, null, null, $time) as $task) {
-			$this->forget($task);
+	/**
+	 * Deletes «IA»'s tasks that ended before $endedBefore and nothing waits for: left over.
+	 *
+	 * @param list<int> $awaited the tasks something still waits for (Runs::awaited)
+	 */
+	public function sweep(int $endedBefore, array $awaited): void {
+		// '' is no user filter; «IA»'s own tasks have no user.
+		foreach ($this->taskProcessing->getTasks('', null, Application::APP_ID, null, null, null, $endedBefore) as $task) {
+			if (!in_array($task->getId(), $awaited, true)) {
+				$this->forget($task);
+			}
 		}
 	}
 

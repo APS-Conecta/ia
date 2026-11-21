@@ -46,12 +46,7 @@ class EditionMapper extends QBMapper {
 
 	/** Deletes the Bulletin's Editions. @return list<int> their ids */
 	public function forget(int $bulletinId): array {
-		$ids = array_map(static fn (Edition $edition): int => $edition->getId(), $this->ofBulletin($bulletinId));
-		$query = $this->db->getQueryBuilder();
-		$query->delete($this->getTableName())
-			->where($query->expr()->eq('bulletin_id', $query->createNamedParameter($bulletinId, IQueryBuilder::PARAM_INT)))
-			->executeStatement();
-		return $ids;
+		return $this->forgetWhere(static fn (IQueryBuilder $query): string => $query->expr()->eq('bulletin_id', $query->createNamedParameter($bulletinId, IQueryBuilder::PARAM_INT)));
 	}
 
 	public function exists(int $bulletinId, string $date): bool {

@@ -87,6 +87,13 @@ class Runs {
 		}
 	}
 
+	/** @return list<int> the tasks something still waits for: the working Runs', and Health's probe */
+	public function awaited(): array {
+		$tasks = array_values(array_filter(array_map(static fn (Run $run): ?int => $run->getTaskId(), $this->runs->inState(Run::WORKING))));
+		$probe = $this->health->awaited();
+		return $probe === null ? $tasks : [...$tasks, $probe];
+	}
+
 	private function resume(Run $run): void {
 		$this->kinds->of($run)->resume($run);
 	}
