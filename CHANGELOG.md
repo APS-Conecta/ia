@@ -69,3 +69,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   from the first failed check, the admins get one notification and a Nextcloud setup check warns; the time the server
   is stopped, as for the nightly backup, doesn't count. That check also reports whether a provider takes
   core:text2text. Admins and the admin page's delegated group find «Estado» at the foot of «IA»'s navigation.
+- «Revisar con IA» in Files (#5): a file's menu offers it for one file of a format «IA» reads (PDF with text, DOCX,
+  ODT, TXT, MD) that the person can open, not for folders or other types. It starts the same Review as «Revisar un
+  documento», with the same «Revisión lista» notification, and a toast says whether it runs now or in Off hours and
+  opens the Review when clicked. The script Files loads for it stays small: the toasts load only when it runs.

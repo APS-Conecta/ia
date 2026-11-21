@@ -40,7 +40,7 @@ test: build-test-image
 
 # js/ is built, not committed: the release builds it before packing. This asserts the bundle
 # and its licence file exist, the failure pack-app itself cannot see.
-BUNDLES := main.js main.js.LICENSE.txt admin.js admin.js.LICENSE.txt
+BUNDLES := main.js main.js.LICENSE.txt admin.js admin.js.LICENSE.txt files.js files.js.LICENSE.txt
 
 bundles:
 	npm run build
