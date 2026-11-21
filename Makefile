@@ -56,6 +56,8 @@ instance-up:
 	# Docker creates custom_apps/ root-owned for this repo's bind mount, and the App Store
 	# installs the connector there.
 	$(COMPOSE) exec nextcloud chown www-data:www-data /var/www/html/custom_apps
+	# libfaketime: a seam test runs a tick later than now, as a server would half an hour on.
+	$(COMPOSE) exec nextcloud sh -c 'apt-get update -qq && apt-get install -y -qq --no-install-recommends libfaketime >/dev/null'
 	$(OCC) app:enable $(CONNECTOR) 2>/dev/null || $(OCC) app:install $(CONNECTOR)
 	# Assistant, as on the suite: it loads its own smalot/pdfparser, which «IA»'s prefixed copy must not meet.
 	$(OCC) app:enable assistant 2>/dev/null || $(OCC) app:install assistant

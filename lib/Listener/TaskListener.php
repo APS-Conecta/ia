@@ -40,7 +40,8 @@ class TaskListener implements IEventListener {
 			return;
 		}
 		$task = $event->getTask();
-		if ($task->getAppId() !== Application::APP_ID) {
+		// Health takes its probe's outcome on its own tick.
+		if ($task->getAppId() !== Application::APP_ID || $task->getCustomId() === ModelGateway::PROBE) {
 			return;
 		}
 		try {

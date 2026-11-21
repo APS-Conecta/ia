@@ -1,5 +1,7 @@
 <template>
 	<div>
+		<AdminEstado />
+
 		<NcSettingsSection name="Fuera de horario"
 			description="Los boletines y las acciones automáticas corren solo en este horario, para no hacer esperar a quienes usan el Asistente de día. Si el servidor se apaga de noche, muévelo, por ejemplo a 13:00–14:00.">
 			<NcLoadingIcon v-if="!settings" :size="32" />
@@ -44,6 +46,7 @@ import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNa
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcSettingsSection from '@nextcloud/vue/components/NcSettingsSection'
+import AdminEstado from './AdminEstado.vue'
 import { ocsGet, ocsPut, refusal } from './api.js'
 
 /** The timezones of Chile, where Off hours read as «hora de Chile». */
@@ -53,10 +56,10 @@ const CHILE = ['America/Santiago', 'America/Punta_Arenas', 'Pacific/Easter']
 const asDate = (time) => (time ? new Date(`1970-01-01T${time}`) : null)
 const asTime = (date) => date?.toTimeString().slice(0, 5) ?? ''
 
-/** The «IA» admin page, for admins and the group it is delegated to: Off hours and the Editor groups. */
+/** The «IA» admin page, for admins and the group it is delegated to: «Estado», Off hours and the Editor groups. */
 export default {
 	name: 'AdminSettings',
-	components: { NcDateTimePickerNative, NcLoadingIcon, NcSelect, NcSettingsSection },
+	components: { AdminEstado, NcDateTimePickerNative, NcLoadingIcon, NcSelect, NcSettingsSection },
 	setup: () => ({ asDate, asTime }),
 	data: () => ({ settings: null, found: [], searching: false }),
 	computed: {

@@ -61,3 +61,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   folder's or document's etag or a calendar's sync token changed from what its Editions are up to. Each Edition keeps
   its period for the Personal list's meetings: to the next date due, or, «cuando cambien sus fuentes», to the next
   Edition's date and a week on while it is the latest.
+- «Estado» (#8), at the top of the «IA» admin page: whether the Model answers, the work in line by kind, the last Run
+  that ended well and the failed Runs with their last error, each with «Reintentar», which puts it back in line from
+  its last finished step (not an Edition a newer one has passed). A Run with nobody to act as shows there and tells
+  nobody. Each tick checks the Model through TaskProcessing with a one-word probe, every 30 minutes while it answers
+  and every tick while it doesn't; a probe waiting in the queue is no failed check. Once it has been down 30 minutes
+  from the first failed check, the admins get one notification and a Nextcloud setup check warns; the time the server
+  is stopped, as for the nightly backup, doesn't count. That check also reports whether a provider takes
+  core:text2text. Admins and the admin page's delegated group find «Estado» at the foot of «IA»'s navigation.

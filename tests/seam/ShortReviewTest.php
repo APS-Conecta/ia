@@ -86,7 +86,7 @@ final class ShortReviewTest extends SeamTestCase {
 	}
 
 	public function testTaskProcessingKeepsNoTaskOfTheApp(): void {
-		self::assertSame([], json_decode(self::occ('taskprocessing:task:list', '--appId=ia', '--output=json'), true));
+		self::assertSame([], self::tasks());
 	}
 
 	public function testNoLogHoldsTheDocumentOrTheModelsAnswer(): void {
@@ -122,7 +122,7 @@ final class ShortReviewTest extends SeamTestCase {
 				self::assertStringContainsString($finding['quote'], $text);
 			}
 		}
-		self::assertSame([], json_decode(self::occ('taskprocessing:task:list', '--appId=ia', '--output=json'), true));
+		self::assertSame([], self::tasks());
 	}
 
 	public function testTheReportIsGoneOnceTheRequesterCannotOpenTheDocument(): void {

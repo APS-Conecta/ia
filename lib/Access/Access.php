@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace OCA\Ia\Access;
 
+use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Settings\Settings;
 use OCP\Calendar\ICalendar;
 use OCP\Calendar\ICalendarIsPublic;
@@ -18,6 +19,7 @@ use OCP\Files\NotPermittedException;
 use OCP\IGroupManager;
 use OCP\IUser;
 use OCP\IUserManager;
+use OCP\Settings\IManager as ISettingsManager;
 
 /**
  * What a person can open and who they are, checked live, never remembered (ia ADR 0001): a file
@@ -32,7 +34,14 @@ class Access {
 		private IUserManager $users,
 		private Settings $settings,
 		private ICalendarManager $calendars,
+		private ISettingsManager $adminSettings,
 	) {
+	}
+
+	/** Whether $userId may open «Estado»: an admin, or a member of a group the «IA» admin page is delegated to. */
+	public function admin(string $userId): bool {
+		$user = $this->users->get($userId);
+		return $user !== null && $this->adminSettings->getAllowedAdminSettings(Application::APP_ID, $user) !== [];
 	}
 
 	/** @return list<IUser> the group's members who can sign in now */

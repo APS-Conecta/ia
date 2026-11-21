@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace OCA\Ia\Model;
 
 use OCA\Ia\AppInfo\Application;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\TaskProcessing\Exception\NotFoundException;
 use OCP\TaskProcessing\IManager;
 use OCP\TaskProcessing\Task;
@@ -29,10 +30,42 @@ class ModelGateway {
 	public const END = 'FIN';
 	/** How every prompt asks for the END line. */
 	public const CLOSE = 'Al terminar, escribe una última línea con la palabra ' . self::END . '.';
+	/** The custom id of Health's probe, which no Run waits for. */
+	public const PROBE = 'health';
+	/** Seconds a task may run: the connector's request timeout, as the suite sets it (gestion-aio#167), plus 5 minutes. */
+	public const STUCK = 900 + 5 * 60;
 
 	public function __construct(
 		private IManager $taskProcessing,
+		private ITimeFactory $time,
 	) {
+	}
+
+	/**
+	 * The task $taskId once it has an outcome, for whoever waits on it. Null while it is still
+	 * being asked: waiting in TaskProcessing's queue, however long, or running for less than STUCK.
+	 * The task once it succeeded. False when it failed, was cancelled, is gone, or got stuck (then
+	 * it is cancelled); such a task is deleted.
+	 */
+	public function outcome(?int $taskId): Task|false|null {
+		$task = $taskId === null ? null : $this->task($taskId);
+		switch ($task?->getStatus()) {
+			case Task::STATUS_SCHEDULED:
+				return null;
+			case Task::STATUS_SUCCESSFUL:
+				return $task;
+			case Task::STATUS_RUNNING:
+				if ($task->getStartedAt() > $this->time->getTime() - self::STUCK) {
+					return null;
+				}
+				$this->cancel($task);
+				return false;
+			case null:
+				return false;
+			default:
+				$this->forget($task);
+				return false;
+		}
 	}
 
 	/** Asks the Model $prompt for the Run $runId; answers the task's id. */
@@ -40,6 +73,18 @@ class ModelGateway {
 		$task = new Task(TextToText::ID, ['input' => $prompt], Application::APP_ID, null, (string)$runId);
 		$this->taskProcessing->scheduleTask($task);
 		return (int)$task->getId();
+	}
+
+	/** Asks the Model Health's probe, a one-word answer; answers the task's id. */
+	public function probe(): int {
+		$task = new Task(TextToText::ID, ['input' => 'Responde solo con la palabra OK.'], Application::APP_ID, null, self::PROBE);
+		$this->taskProcessing->scheduleTask($task);
+		return (int)$task->getId();
+	}
+
+	/** Whether a provider takes `core:text2text`: a connector update can drop it. */
+	public function available(): bool {
+		return array_key_exists(TextToText::ID, $this->taskProcessing->getAvailableTaskTypes());
 	}
 
 	/** Deletes a task once its result is stored, or once it no longer matters. */

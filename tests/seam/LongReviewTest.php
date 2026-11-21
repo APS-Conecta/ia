@@ -39,6 +39,6 @@ final class LongReviewTest extends SeamTestCase {
 				self::assertMatchesRegularExpression('/^Sección «.+»$/', $finding['where'], 'an MD finding names its section');
 			}
 		}
-		self::assertSame([], json_decode(self::occ('taskprocessing:task:list', '--appId=ia', '--output=json'), true));
+		self::assertSame([], self::tasks());
 	}
 }

@@ -149,6 +149,30 @@ namespace OCA\Ia;
  *     offHours: IaOffHours,
  *     timezone: string,
  * }
+ *
+ * @psalm-type IaModelHealth = array{
+ *     state: 'up'|'down'|'unknown',
+ *     since: ?int,
+ *     answered: ?int,
+ *     alerted: bool,
+ *     provider: bool,
+ * }
+ *
+ * @psalm-type IaRunItem = array{
+ *     id: int,
+ *     kind: 'manual'|'action'|'edition',
+ *     name: ?string,
+ *     date: ?string,
+ *     error: ?string,
+ *     at: int,
+ * }
+ *
+ * @psalm-type IaEstado = array{
+ *     model: IaModelHealth,
+ *     waiting: array{manual: int, action: int, edition: int},
+ *     lastDone: ?IaRunItem,
+ *     failed: list<IaRunItem>,
+ * }
  */
 class ResponseDefinitions {
 }
