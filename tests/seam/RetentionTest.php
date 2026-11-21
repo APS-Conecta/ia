@@ -60,29 +60,34 @@ final class RetentionTest extends SeamTestCase {
 		self::$bulletin = $bulletin['data']['bulletin']['id'];
 		self::$edition = self::published(self::$carla, self::$bulletin, 1, self::EDITION)[0]['id'];
 
-		// The probe Health waits for: a moved tick sends it (or first takes one already answered and
-		// sends the next half an hour on), and the worker answers it on that clock.
-		for ($minutes = 31; self::probes() === [] && $minutes <= 93; $minutes += 31) {
+		// The probe Health waits for: a moved tick sends a new one (or first takes one already answered
+		// and sends the next half an hour on), and the worker answers it on that clock.
+		$before = array_column(self::probes(), 'id');
+		for ($minutes = 31; ($new = array_diff(array_column(self::probes(), 'id'), $before)) === [] && $minutes <= 93; $minutes += 31) {
 			self::tick($minutes);
 			self::work($minutes);
 		}
-		self::$tracked = self::probes()[0]['id'];
+		self::assertCount(1, $new, 'Health sent a probe');
+		self::$tracked = (int)reset($new);
 		self::$leftover = self::seed('ia', 'health');
 		self::$other = self::seed('otra', 'x');
 		$until = time() + self::STEP;
 		while (array_intersect(array_column([...self::probes(), ...self::otherTasks()], 'status'), ['STATUS_SCHEDULED', 'STATUS_RUNNING']) !== [] && time() < $until) {
 			sleep(5);
 		}
-		$probes = array_column(self::probes(), 'id');
-		sort($probes);
-		self::assertSame([min(self::$tracked, self::$leftover), max(self::$tracked, self::$leftover)], $probes, 'both ended');
+		$ended = array_intersect_key(array_column([...self::probes(), ...self::otherTasks()], 'status', 'id'), array_flip([self::$tracked, self::$leftover, self::$other]));
+		ksort($ended);
+		$expected = [self::$tracked => 'STATUS_SUCCESSFUL', self::$leftover => 'STATUS_SUCCESSFUL', self::$other => 'STATUS_SUCCESSFUL'];
+		ksort($expected);
+		self::assertSame($expected, $ended, 'all three ended');
 	}
 
 	public function testAt89DaysOnlyTheLeftoverTaskGoes(): void {
 		self::assertCount(1, self::notified(self::$ana, 'Revisión lista'));
 		self::retention(89);
-		self::assertSame([self::$tracked], array_column(self::probes(), 'id'), 'the probe Health waits for stays');
-		self::assertSame([self::$other], array_column(self::otherTasks(), 'id'), 'and another app\'s task');
+		self::assertContains(self::$tracked, array_column(self::probes(), 'id'), 'the probe Health waits for stays');
+		self::assertNotContains(self::$leftover, array_column(self::probes(), 'id'), 'the leftover goes');
+		self::assertContains(self::$other, array_column(self::otherTasks(), 'id'), 'and another app\'s task');
 		self::assertSame(200, self::ocs(self::$ana, 'GET', self::API . '/reviews/' . self::$review)['status'], 'a report of 89 days stays');
 		self::assertSame(self::$edition, self::edition(self::$carla, self::$edition)['id'], 'and an Edition');
 	}
