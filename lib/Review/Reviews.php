@@ -321,6 +321,18 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$this->notify($report, $file);
 	}
 
+	/** Erases the reports asked for before $cutoff (an automatic one: lined up), each with its Run and «Revisión lista». */
+	public function forgetBefore(int $cutoff): void {
+		$ids = $this->atomic(function () use ($cutoff): array {
+			$ids = $this->reports->forgetBefore($cutoff);
+			$this->runs->forget(Run::REVIEW, $ids);
+			return $ids;
+		}, $this->db);
+		foreach ($ids as $id) {
+			$this->notifications->markProcessed($this->notifications->createNotification()->setApp(Application::APP_ID)->setObject('review', (string)$id));
+		}
+	}
+
 	/** One whose progress was dropped (Run::fail) has its report's version blanked, so that it starts over. */
 	public function requeue(Run $run): bool {
 		$report = $run->getResults() === null ? $this->reports->byId((int)$run->getTarget()) : null;

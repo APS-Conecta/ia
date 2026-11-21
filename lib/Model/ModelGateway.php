@@ -82,6 +82,20 @@ class ModelGateway {
 		return (int)$task->getId();
 	}
 
+	/**
+	 * Deletes «IA»'s tasks that ended before $endedBefore and nothing waits for: left over.
+	 *
+	 * @param list<int> $awaited the tasks something still waits for (Runs::awaited)
+	 */
+	public function sweep(int $endedBefore, array $awaited): void {
+		// '' is no user filter; «IA»'s own tasks have no user.
+		foreach ($this->taskProcessing->getTasks('', null, Application::APP_ID, null, null, null, $endedBefore) as $task) {
+			if (!in_array($task->getId(), $awaited, true)) {
+				$this->forget($task);
+			}
+		}
+	}
+
 	/** Whether a provider takes `core:text2text`: a connector update can drop it. */
 	public function available(): bool {
 		return array_key_exists(TextToText::ID, $this->taskProcessing->getAvailableTaskTypes());

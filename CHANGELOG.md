@@ -78,3 +78,5 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   «Corregida por» and who, next to «Escrito por IA». Withdrawing takes the Edition at once from its Readers' pages,
   «Para ti» and the «Boletines» widget; its notification's link then says its Editors withdrew it, and its Editors
   still see it, with «Deshacer», which brings it back. Anyone else is forbidden.
+- Retention (#16): a daily job deletes reports 90 days after they were asked for and Editions 12 months after their
+  date, each with its Run and notifications, and «IA»'s ended TaskProcessing tasks that nothing waits for.

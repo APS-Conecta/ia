@@ -86,6 +86,12 @@ class Health {
 		}
 	}
 
+	/** The probe it waits for, or null. */
+	public function awaited(): ?int {
+		$probe = $this->int(self::PROBE_KEY);
+		return $probe === 0 ? null : $probe;
+	}
+
 	/** @return IaModelHealth */
 	public function status(): array {
 		$down = $this->int(self::DOWN_KEY);

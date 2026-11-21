@@ -191,8 +191,18 @@ abstract class SeamTestCase extends TestCase {
 
 	/** The run engine's tick, as the scheduler would run its TimedJob; at clock($minutes) when given. */
 	protected static function tick(int $minutes = 0): void {
-		$jobs = json_decode(self::occ('background-job:list', '--class=OCA\\Ia\\BackgroundJob\\RunJob', '--output=json'), true);
-		self::assertCount(1, $jobs, 'the run engine is registered once');
+		self::job('OCA\\Ia\\BackgroundJob\\RunJob', $minutes);
+	}
+
+	/** «IA»'s daily retention job, $days after this class first moved the clock. */
+	protected static function retention(int $days): void {
+		self::job('OCA\\Ia\\BackgroundJob\\RetentionJob', $days * 24 * 60);
+	}
+
+	/** One of «IA»'s jobs, as the scheduler would run it, at clock($minutes). */
+	private static function job(string $class, int $minutes): void {
+		$jobs = json_decode(self::occ('background-job:list', '--class=' . $class, '--output=json'), true);
+		self::assertCount(1, $jobs, "$class is registered once");
 		self::occWithEnv(self::clock($minutes), 'background-job:execute', '--force-execute', (string)$jobs[0]['id']);
 	}
 
