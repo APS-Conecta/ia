@@ -92,8 +92,17 @@ class Run extends Entity {
 		$this->setState($this->getAttempts() >= self::ATTEMPTS ? self::FAILED : self::WAITING);
 	}
 
+	/** Where it comes from: a Review asked for by hand, an Automatic action's Review, or an Edition. @return 'manual'|'action'|'edition' */
+	public function origin(): string {
+		return match (true) {
+			$this->getKind() === self::EDITION => 'edition',
+			$this->getRule() !== null => 'action',
+			default => 'manual',
+		};
+	}
+
 	/** «Reintentar»: the failed Run back in line from its last finished step, its attempts afresh. */
-	public function again(): void {
+	public function requeue(): void {
 		$this->setState(self::WAITING);
 		$this->setAttempts(0);
 		$this->setLastError(null);

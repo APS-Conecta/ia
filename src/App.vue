@@ -44,8 +44,8 @@
 			</template>
 			<template #footer>
 				<!-- For admins and the group the admin page is delegated to. -->
-				<ul v-if="status">
-					<NcAppNavigationItem name="Estado" :href="statusUrl">
+				<ul v-if="admin">
+					<NcAppNavigationItem name="Estado" :href="estadoUrl">
 						<template #icon>
 							<NcIconSvgWrapper :path="mdiPulse" />
 						</template>
@@ -144,14 +144,14 @@ function viewOf(hash) {
 export default {
 	name: 'App',
 	components: { ActionList, ActionSidebar, BulletinList, BulletinPage, BulletinSidebar, NcAppContent, NcAppNavigation, NcAppNavigationCaption, NcAppNavigationItem, NcAppNavigationNew, NcContent, NcIconSvgWrapper, ParaTi, ReviewList, ReviewReport },
-	setup: () => ({ HEADINGS, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiPulse, mdiRobotOutline, mdiStarOutline, statusUrl: generateUrl('/settings/admin/ia') }),
-	data: () => ({ view: viewOf(window.location.hash), editorGroups: [], status: false, bulletins: [], sidebar: null, version: 0 }),
+	setup: () => ({ HEADINGS, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiPulse, mdiRobotOutline, mdiStarOutline, estadoUrl: generateUrl('/settings/admin/ia') }),
+	data: () => ({ view: viewOf(window.location.hash), editorGroups: [], admin: false, bulletins: [], sidebar: null, version: 0 }),
 	async mounted() {
 		window.addEventListener('hashchange', this.follow)
 		try {
 			const me = await ocsGet('me')
 			this.editorGroups = me.editorGroups
-			this.status = me.status
+			this.admin = me.admin
 		} catch (error) {
 			console.error('ia: who the caller is did not load', error)
 		}

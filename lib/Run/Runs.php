@@ -13,7 +13,6 @@ use OCA\Ia\Model\Health;
 use OCA\Ia\Model\ModelGateway;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Utility\ITimeFactory;
-use OCP\TaskProcessing\Task;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -22,9 +21,9 @@ use Throwable;
  * database, so a restarted server goes on where it stopped. Each tick starts with Health's check.
  *
  * 1. **Recover.** A working Run whose task is missing, failed or cancelled is put back in line, an
- *    attempt spent. A task running longer than the connector's request timeout plus 5 minutes is
- *    cancelled and its Run put back in line; a task still waiting in TaskProcessing's queue is
- *    never touched. An answer whose event was lost is taken.
+ *    attempt spent. A task running longer than ModelGateway::STUCK is cancelled and its Run put
+ *    back in line; a task still waiting in TaskProcessing's queue is never touched. An answer
+ *    whose event was lost is taken.
  * 2. **Schedule.** Every waiting short Run is asked at once; an Edition past its date is marked
  *    late (EditionRun::overdue). In Off hours, the Editions due open their Runs; when no Off-hours
  *    Run is working, the next waiting one is asked, Reviews asked
@@ -35,9 +34,6 @@ use Throwable;
  * file), and the tick goes on with the others.
  */
 class Runs {
-	/** Seconds a task may run: the connector's request timeout, as the suite sets it (gestion-aio#167), plus 5 minutes. */
-	public const STUCK = 900 + 5 * 60;
-
 	public function __construct(
 		private RunMapper $runs,
 		private ModelGateway $model,
@@ -81,7 +77,7 @@ class Runs {
 			return;
 		}
 		$waiting = $this->runs->inState(Run::WAITING);
-		usort($waiting, static fn (Run $a, Run $b): int => [!self::manual($a), $a->getId()] <=> [!self::manual($b), $b->getId()]);
+		usort($waiting, static fn (Run $a, Run $b): int => [$a->origin() !== 'manual', $a->getId()] <=> [$b->origin() !== 'manual', $b->getId()]);
 		foreach ($waiting as $run) {
 			// One that ended (failed, or published without the Model) leaves the turn to the next; one
 			// put back in line keeps it, so the oldest still starts first.
@@ -89,11 +85,6 @@ class Runs {
 				return;
 			}
 		}
-	}
-
-	/** Whether it is a Review someone asked for by hand: an automatic one has its rule. */
-	private static function manual(Run $run): bool {
-		return $run->getKind() === Run::REVIEW && $run->getRule() === null;
 	}
 
 	private function resume(Run $run): void {
@@ -118,23 +109,13 @@ class Runs {
 	}
 
 	private function recover(Run $run): void {
-		$task = $run->getTaskId() === null ? null : $this->model->task($run->getTaskId());
-		switch ($task?->getStatus()) {
-			case Task::STATUS_SCHEDULED:
-				return;
-			case Task::STATUS_SUCCESSFUL:
-				$this->kinds->of($run)->finish($run, $task, null);
-				return;
-			case Task::STATUS_RUNNING:
-				if ($task->getStartedAt() > $this->time->getTime() - self::STUCK) {
-					return;
-				}
-				$this->model->cancel($task);
-				break;
-			case null:
-				break;
-			default:
-				$this->model->forget($task);
+		$task = $this->model->outcome($run->getTaskId());
+		if ($task === null) {
+			return;
+		}
+		if ($task !== false) {
+			$this->kinds->of($run)->finish($run, $task, null);
+			return;
 		}
 		$run->retry('El modelo no respondió.');
 		$this->runs->save($run);

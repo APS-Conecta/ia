@@ -168,9 +168,17 @@ class EditionRun implements Kind {
 		$this->next($run, $bulletin, $edition, $state);
 	}
 
-	/** One whose survey never finished surveys again; any other goes on from its last finished step. */
+	/**
+	 * One whose survey never finished surveys again; any other goes on from its last finished step.
+	 * One a newer Edition of its Bulletin has passed stays failed: missed dates make one Edition.
+	 */
 	public function requeue(Run $run): bool {
-		$run->again();
+		$edition = $this->editionMapper->byId((int)$run->getTarget());
+		$latest = $edition === null ? null : ($this->editionMapper->ofBulletin($edition->getBulletinId())[0] ?? null);
+		if ($latest !== null && $latest->getId() !== $edition->getId()) {
+			throw new Refused('Este boletín ya tiene una edición más reciente.');
+		}
+		$run->requeue();
 		return $this->runs->save($run);
 	}
 

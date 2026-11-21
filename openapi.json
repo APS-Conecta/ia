@@ -309,6 +309,56 @@
                     }
                 ]
             },
+            "Estado": {
+                "type": "object",
+                "required": [
+                    "model",
+                    "waiting",
+                    "lastDone",
+                    "failed"
+                ],
+                "properties": {
+                    "model": {
+                        "$ref": "#/components/schemas/ModelHealth"
+                    },
+                    "waiting": {
+                        "type": "object",
+                        "required": [
+                            "manual",
+                            "action",
+                            "edition"
+                        ],
+                        "properties": {
+                            "manual": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "action": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "edition": {
+                                "type": "integer",
+                                "format": "int64"
+                            }
+                        }
+                    },
+                    "lastDone": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RunItem"
+                            }
+                        ]
+                    },
+                    "failed": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/RunItem"
+                        }
+                    }
+                }
+            },
             "Finding": {
                 "type": "object",
                 "required": [
@@ -680,7 +730,7 @@
                         "type": "string",
                         "enum": [
                             "manual",
-                            "automatic",
+                            "action",
                             "edition"
                         ]
                     },
@@ -746,56 +796,6 @@
                     },
                     "name": {
                         "type": "string"
-                    }
-                }
-            },
-            "Status": {
-                "type": "object",
-                "required": [
-                    "model",
-                    "waiting",
-                    "lastDone",
-                    "failed"
-                ],
-                "properties": {
-                    "model": {
-                        "$ref": "#/components/schemas/ModelHealth"
-                    },
-                    "waiting": {
-                        "type": "object",
-                        "required": [
-                            "manual",
-                            "automatic",
-                            "edition"
-                        ],
-                        "properties": {
-                            "manual": {
-                                "type": "integer",
-                                "format": "int64"
-                            },
-                            "automatic": {
-                                "type": "integer",
-                                "format": "int64"
-                            },
-                            "edition": {
-                                "type": "integer",
-                                "format": "int64"
-                            }
-                        }
-                    },
-                    "lastDone": {
-                        "nullable": true,
-                        "allOf": [
-                            {
-                                "$ref": "#/components/schemas/RunItem"
-                            }
-                        ]
-                    },
-                    "failed": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/RunItem"
-                        }
                     }
                 }
             },
@@ -1650,7 +1650,7 @@
                                                     "type": "object",
                                                     "required": [
                                                         "editorGroups",
-                                                        "status"
+                                                        "admin"
                                                     ],
                                                     "properties": {
                                                         "editorGroups": {
@@ -1659,7 +1659,7 @@
                                                                 "$ref": "#/components/schemas/Group"
                                                             }
                                                         },
-                                                        "status": {
+                                                        "admin": {
                                                             "type": "boolean"
                                                         }
                                                     }
@@ -2001,9 +2001,9 @@
                 }
             }
         },
-        "/ocs/v2.php/apps/ia/api/v1/admin/status": {
+        "/ocs/v2.php/apps/ia/api/v1/admin/estado": {
             "get": {
-                "operationId": "api-admin-status",
+                "operationId": "api-admin-estado",
                 "summary": "«Estado»: whether the Model answers, the work in line by kind, the last Run that ended well and the failed Runs, newest first, with their last error",
                 "description": "This endpoint requires admin access",
                 "tags": [
@@ -2051,7 +2051,7 @@
                                                     "$ref": "#/components/schemas/OCSMeta"
                                                 },
                                                 "data": {
-                                                    "$ref": "#/components/schemas/Status"
+                                                    "$ref": "#/components/schemas/Estado"
                                                 }
                                             }
                                         }
@@ -2179,7 +2179,7 @@
                                                     "$ref": "#/components/schemas/OCSMeta"
                                                 },
                                                 "data": {
-                                                    "$ref": "#/components/schemas/Status"
+                                                    "$ref": "#/components/schemas/Estado"
                                                 }
                                             }
                                         }
@@ -2227,7 +2227,7 @@
                         }
                     },
                     "422": {
-                        "description": "It hasn't failed",
+                        "description": "It hasn't failed, or a newer Edition of its Bulletin has passed it",
                         "content": {
                             "application/json": {
                                 "schema": {

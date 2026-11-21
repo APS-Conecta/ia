@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace OCA\Ia\Run;
 
 use OCA\Ia\Db\Run;
+use OCA\Ia\Refused;
 use OCP\TaskProcessing\Task;
 
 /** A kind of Run the engine moves: a Review or an Edition. */
@@ -20,6 +21,8 @@ interface Kind {
 	/**
 	 * Puts the failed Run back in line («Reintentar»): from its last finished step, or from its
 	 * first when its progress was dropped. False when another process moved it first.
+	 *
+	 * @throws Refused when it can't go back in line
 	 */
 	public function requeue(Run $run): bool;
 

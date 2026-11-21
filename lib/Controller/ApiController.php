@@ -16,7 +16,7 @@ use OCA\Ia\Forbidden;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
 use OCA\Ia\Review\Reviews;
-use OCA\Ia\Run\Status;
+use OCA\Ia\Run\Estado;
 use OCA\Ia\Settings\Admin;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -32,7 +32,6 @@ use OCP\Files\NotFoundException;
 use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
-use OCP\Settings\IManager as ISettingsManager;
 
 /**
  * «IA» over OCS, the API its own pages read (gestion-aio#162, API contract). Consumers send
@@ -53,7 +52,7 @@ use OCP\Settings\IManager as ISettingsManager;
  * @psalm-import-type IaParaTi from ResponseDefinitions
  * @psalm-import-type IaReview from ResponseDefinitions
  * @psalm-import-type IaReviewItem from ResponseDefinitions
- * @psalm-import-type IaStatus from ResponseDefinitions
+ * @psalm-import-type IaEstado from ResponseDefinitions
  */
 #[OpenAPI(scope: OpenAPI::SCOPE_DEFAULT)]
 class ApiController extends OCSController {
@@ -82,8 +81,7 @@ class ApiController extends OCSController {
 		private Editions $editions,
 		private Actions $actions,
 		private ParaTi $paraTi,
-		private Status $status,
-		private ISettingsManager $settingsManager,
+		private Estado $estado,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -193,7 +191,7 @@ class ApiController extends OCSController {
 	 * The caller as «IA» sees them: the Editor groups they belong to, none for anyone who isn't an
 	 * Editor, and whether they may open «Estado» (an admin, or a group the admin page is delegated to)
 	 *
-	 * @return DataResponse<Http::STATUS_OK, array{editorGroups: list<IaGroup>, status: bool}, array{}>
+	 * @return DataResponse<Http::STATUS_OK, array{editorGroups: list<IaGroup>, admin: bool}, array{}>
 	 *
 	 * 200: The caller's Editor groups and whether «Estado» is theirs
 	 */
@@ -201,10 +199,9 @@ class ApiController extends OCSController {
 	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
 	#[ApiRoute(verb: 'GET', url: '/api/v1/me')]
 	public function me(): DataResponse {
-		$user = $this->session->getUser();
 		return new DataResponse([
 			'editorGroups' => $this->named($this->access->editorGroups($this->user())),
-			'status' => $user !== null && $this->settingsManager->getAllowedAdminSettings(Application::APP_ID, $user) !== [],
+			'admin' => $this->access->admin($this->user()),
 		]);
 	}
 
@@ -248,32 +245,32 @@ class ApiController extends OCSController {
 	 * «Estado»: whether the Model answers, the work in line by kind, the last Run that ended well and
 	 * the failed Runs, newest first, with their last error
 	 *
-	 * @return DataResponse<Http::STATUS_OK, IaStatus, array{}>
+	 * @return DataResponse<Http::STATUS_OK, IaEstado, array{}>
 	 *
 	 * 200: «IA»'s health
 	 */
 	#[AuthorizedAdminSetting(settings: Admin::class)]
 	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
-	#[ApiRoute(verb: 'GET', url: '/api/v1/admin/status')]
-	public function adminStatus(): DataResponse {
-		return new DataResponse($this->status->view());
+	#[ApiRoute(verb: 'GET', url: '/api/v1/admin/estado')]
+	public function adminEstado(): DataResponse {
+		return new DataResponse($this->estado->view());
 	}
 
 	/**
 	 * «Reintentar»: put a failed Run back in line, from its last finished step
 	 *
 	 * @param int $id The Run's id
-	 * @return DataResponse<Http::STATUS_OK, IaStatus, array{}>|DataResponse<Http::STATUS_NOT_FOUND|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
+	 * @return DataResponse<Http::STATUS_OK, IaEstado, array{}>|DataResponse<Http::STATUS_NOT_FOUND|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
 	 *
 	 * 200: Back in line; «IA»'s health now
 	 * 404: No such Run
-	 * 422: It hasn't failed
+	 * 422: It hasn't failed, or a newer Edition of its Bulletin has passed it
 	 */
 	#[AuthorizedAdminSetting(settings: Admin::class)]
 	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
 	#[ApiRoute(verb: 'POST', url: '/api/v1/admin/runs/{id}/retry')]
 	public function retryRun(int $id): DataResponse {
-		return $this->refusable(fn (): DataResponse => new DataResponse($this->status->retry($id)), self::NO_RUN);
+		return $this->refusable(fn (): DataResponse => new DataResponse($this->estado->retry($id)), self::NO_RUN);
 	}
 
 	/**

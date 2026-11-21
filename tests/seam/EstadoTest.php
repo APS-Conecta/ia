@@ -9,13 +9,14 @@ namespace OCA\Ia\Tests\Seam;
 use PHPUnit\Framework\Attributes\Depends;
 
 /**
- * «Estado» (APS-Conecta/ia#8), with the Model up: it answers and the setup check says so; a Run
- * with nobody to act as fails into «Estado» and nobody is told; «Reintentar» puts it back in line.
- * Its Bulletin reads an empty folder, so its Edition is published without the Model.
+ * «Estado» (APS-Conecta/ia#8), with the Model up: it answers and the setup check says so, and a
+ * probe still waiting in the queue is no failed check however long it waits; a Run with nobody to
+ * act as fails into «Estado» and nobody is told; «Reintentar» puts it back in line. Its Bulletin
+ * reads an empty folder, so its Edition is published without the Model.
  */
-final class StatusTest extends SeamTestCase {
+final class EstadoTest extends SeamTestCase {
 	private const API = '/apps/ia/api/v1';
-	private const STATUS = self::API . '/admin/status';
+	private const ESTADO = self::API . '/admin/estado';
 	private const DELEGATED = 'OCA\Ia\Settings\Admin';
 	/** Seconds the Model may take for the probe on the CPU, behind other Runs. */
 	private const PROBE = 600;
@@ -70,6 +71,21 @@ final class StatusTest extends SeamTestCase {
 		self::assertSame([], self::probes(), 'a probe taken is gone from TaskProcessing');
 	}
 
+	#[Depends('testTheModelAnswersAndTheSetupCheckSaysSo')]
+	public function testAProbeStillWaitingInTheQueueIsNoFailedCheck(): void {
+		// Half an hour on, a probe goes out; on the real clock the instance's worker leaves it waiting.
+		self::tick(31);
+		self::assertSame(['STATUS_SCHEDULED'], array_column(self::probes(), 'status'));
+		self::tick(55);
+		self::assertSame('up', self::estado(self::$admin)['model']['state'], '24 minutes in the queue is no failed check');
+		self::assertSame(['STATUS_SCHEDULED'], array_column(self::probes(), 'status'), 'nor is it cancelled');
+		// Its turn comes: answered, and taken on the next tick.
+		self::work(55);
+		self::tick();
+		self::assertSame('up', self::estado(self::$admin)['model']['state']);
+		self::assertSame([], self::probes());
+	}
+
 	public function testARunWithNobodyToActAsFailsIntoEstadoAndNobodyIsTold(): int {
 		$until = time() + self::EDITION;
 		do {
@@ -106,16 +122,16 @@ final class StatusTest extends SeamTestCase {
 
 	public function testOnlyAdminsAndTheDelegatedGroupSeeEstadoAndItsMenuEntry(): void {
 		$someone = self::person();
-		self::assertSame(403, self::ocs($someone, 'GET', self::STATUS)['status']);
+		self::assertSame(403, self::ocs($someone, 'GET', self::ESTADO)['status']);
 		self::assertSame(403, self::ocs($someone, 'POST', self::API . '/admin/runs/1/retry')['status']);
-		self::assertFalse(self::ocs($someone, 'GET', self::API . '/me')['data']['status']);
-		self::assertTrue(self::ocs(self::$admin, 'GET', self::API . '/me')['data']['status']);
+		self::assertFalse(self::ocs($someone, 'GET', self::API . '/me')['data']['admin']);
+		self::assertTrue(self::ocs(self::$admin, 'GET', self::API . '/me')['data']['admin']);
 		$head = self::person();
 		$delegated = self::group($head);
 		self::occ('admin-delegation:add', self::DELEGATED, $delegated);
 		try {
-			self::assertSame(200, self::ocs($head, 'GET', self::STATUS)['status']);
-			self::assertTrue(self::ocs($head, 'GET', self::API . '/me')['data']['status']);
+			self::assertSame(200, self::ocs($head, 'GET', self::ESTADO)['status']);
+			self::assertTrue(self::ocs($head, 'GET', self::API . '/me')['data']['admin']);
 		} finally {
 			self::occ('admin-delegation:remove', self::DELEGATED, $delegated);
 		}
@@ -123,7 +139,7 @@ final class StatusTest extends SeamTestCase {
 
 	/** @return array<string, mixed> «Estado» as $person reads it */
 	private static function estado(string $person): array {
-		$answer = self::ocs($person, 'GET', self::STATUS);
+		$answer = self::ocs($person, 'GET', self::ESTADO);
 		self::assertSame(200, $answer['status'], json_encode($answer['data']));
 		return $answer['data'];
 	}

@@ -160,16 +160,16 @@ namespace OCA\Ia;
  *
  * @psalm-type IaRunItem = array{
  *     id: int,
- *     kind: 'manual'|'automatic'|'edition',
+ *     kind: 'manual'|'action'|'edition',
  *     name: ?string,
  *     date: ?string,
  *     error: ?string,
  *     at: int,
  * }
  *
- * @psalm-type IaStatus = array{
+ * @psalm-type IaEstado = array{
  *     model: IaModelHealth,
- *     waiting: array{manual: int, automatic: int, edition: int},
+ *     waiting: array{manual: int, action: int, edition: int},
  *     lastDone: ?IaRunItem,
  *     failed: list<IaRunItem>,
  * }

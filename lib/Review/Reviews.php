@@ -324,12 +324,21 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	/** One whose progress was dropped (Run::fail) has its report's version blanked, so that it starts over. */
 	public function requeue(Run $run): bool {
 		$report = $run->getResults() === null ? $this->reports->byId((int)$run->getTarget()) : null;
-		if ($report !== null) {
-			$report->setEtag('');
-			$this->reports->update($report);
+		$report?->setEtag('');
+		$run->requeue();
+		try {
+			$this->atomic(function () use ($report, $run): void {
+				if (!$this->runs->save($run)) {
+					throw new StaleRun();
+				}
+				if ($report !== null) {
+					$this->reports->update($report);
+				}
+			}, $this->db);
+		} catch (StaleRun) {
+			return false;
 		}
-		$run->again();
-		return $this->runs->save($run);
+		return true;
 	}
 
 	public function about(Run $run): array {
