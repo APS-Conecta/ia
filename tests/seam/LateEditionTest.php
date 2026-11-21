@@ -66,8 +66,8 @@ final class LateEditionTest extends SeamTestCase {
 		self::assertSame([3, false], [$writing['steps'] ?? null, $writing['late'] ?? null], 'two Readings and a Resumen');
 		self::assertContains($writing['step'], [2, 3], 'it waits between steps');
 		self::assertSame([], self::editions(self::$carla, self::$bulletin), 'nothing shows while it is written');
-		self::assertCount(1, self::told(self::$ana, 'Una fuente de Boletín de normas ya no está'), 'its Editors are told a Source is gone');
-		self::assertSame([], self::told(self::$carla, 'Una fuente'), 'its Readers are not');
+		self::assertCount(1, self::notified(self::$ana, 'Una fuente de Boletín de normas ya no está'), 'its Editors are told a Source is gone');
+		self::assertSame([], self::notified(self::$carla, 'Una fuente'), 'its Readers are not');
 		return ['date' => $writing['date'], 'step' => $writing['step']];
 	}
 
@@ -82,7 +82,7 @@ final class LateEditionTest extends SeamTestCase {
 		self::tick();
 		$writing = self::writing();
 		self::assertSame([$waiting['date'], $waiting['step'], true], [$writing['date'], $writing['step'], $writing['late']]);
-		self::assertCount(1, self::told(self::$ana, 'Edición atrasada'), 'told once, however many ticks');
+		self::assertCount(1, self::notified(self::$ana, 'Edición atrasada'), 'told once, however many ticks');
 	}
 
 	/**
@@ -102,17 +102,11 @@ final class LateEditionTest extends SeamTestCase {
 			'the late one, published; none opened for the new date, that night either');
 		self::assertNull(self::writing());
 		self::assertTrue(self::ocs(self::$carla, 'GET', self::API . '/editions/' . $editions[0]['id'])['data']['edition']['late']);
-		self::assertCount(1, self::told(self::$ana, 'Una fuente de Boletín de normas ya no está'), 'the gone Source is told once');
+		self::assertCount(1, self::notified(self::$ana, 'Una fuente de Boletín de normas ya no está'), 'the gone Source is told once');
 	}
 
 	/** @return array<string, mixed>|null the Edition being written, as the Bulletin's Editor sees it */
 	private static function writing(): ?array {
 		return self::ocs(self::$ana, 'GET', self::API . '/bulletins/' . self::$bulletin)['data']['bulletin']['writing'];
-	}
-
-	/** @return list<array<string, mixed>> $person's «IA» notifications whose subject starts with $subject */
-	private static function told(string $person, string $subject): array {
-		return array_values(array_filter(self::ocs($person, 'GET', '/apps/notifications/api/v2/notifications')['data'] ?? [],
-			static fn (array $notification): bool => $notification['app'] === 'ia' && str_starts_with($notification['subject'], $subject)));
 	}
 }

@@ -56,6 +56,17 @@ class RunMapper extends QBMapper {
 		return $this->findEntities($query);
 	}
 
+	/** The Run in $state saved last, or null when none is. */
+	public function latest(string $state): ?Run {
+		$query = $this->db->getQueryBuilder();
+		$query->select('*')->from($this->getTableName())
+			->where($query->expr()->eq('state', $query->createNamedParameter($state)))
+			->orderBy('updated_at', 'DESC')
+			->addOrderBy('id', 'DESC')
+			->setMaxResults(1);
+		return $this->findEntities($query)[0] ?? null;
+	}
+
 	public function byId(int $id): ?Run {
 		$query = $this->db->getQueryBuilder();
 		$query->select('*')->from($this->getTableName())

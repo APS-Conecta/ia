@@ -11,6 +11,7 @@ use OCA\Ia\Listener\ActionListener;
 use OCA\Ia\Listener\FileListener;
 use OCA\Ia\Listener\TaskListener;
 use OCA\Ia\Notification\Notifier;
+use OCA\Ia\SetupCheck\ModelCheck;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -39,6 +40,7 @@ class Application extends App implements IBootstrap {
 		}
 		$context->registerNotifierService(Notifier::class);
 		$context->registerDashboardWidget(BulletinsWidget::class);
+		$context->registerSetupCheck(ModelCheck::class);
 	}
 
 	public function boot(IBootContext $context): void {

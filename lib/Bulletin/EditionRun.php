@@ -168,6 +168,18 @@ class EditionRun implements Kind {
 		$this->next($run, $bulletin, $edition, $state);
 	}
 
+	/** One whose survey never finished surveys again; any other goes on from its last finished step. */
+	public function requeue(Run $run): bool {
+		$run->again();
+		return $this->runs->save($run);
+	}
+
+	public function about(Run $run): array {
+		$edition = $this->editionMapper->byId((int)$run->getTarget());
+		$bulletin = $edition === null ? null : $this->bulletins->byId($edition->getBulletinId());
+		return ['name' => $bulletin?->getName(), 'date' => $bulletin === null ? null : $edition?->getDate()];
+	}
+
 	private function open(Bulletin $bulletin, string $date, Schedule $schedule): void {
 		$edition = new Edition();
 		$edition->setBulletinId($bulletin->getId());

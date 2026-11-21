@@ -12,8 +12,8 @@ use OCP\Settings\IDelegatedSettings;
 use OCP\Util;
 
 /**
- * The «IA» admin page: the Editor groups and Off hours. An admin can delegate it to a group (for
- * example a head of unit) under Administration privileges; the routes it calls carry
+ * The «IA» admin page: «Estado», the Editor groups and Off hours. An admin can delegate it to a
+ * group (for example a head of unit) under Administration privileges; the routes it calls carry
  * #[AuthorizedAdminSetting] for this class.
  */
 class Admin implements IDelegatedSettings {
@@ -31,7 +31,7 @@ class Admin implements IDelegatedSettings {
 	}
 
 	public function getName(): ?string {
-		return 'Grupos editores y fuera de horario';
+		return 'Estado, grupos editores y fuera de horario';
 	}
 
 	public function getAuthorizedAppConfig(): array {

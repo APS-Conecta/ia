@@ -42,6 +42,16 @@
 					</NcAppNavigationItem>
 				</template>
 			</template>
+			<template #footer>
+				<!-- For admins and the group the admin page is delegated to. -->
+				<ul v-if="status">
+					<NcAppNavigationItem name="Estado" :href="statusUrl">
+						<template #icon>
+							<NcIconSvgWrapper :path="mdiPulse" />
+						</template>
+					</NcAppNavigationItem>
+				</ul>
+			</template>
 		</NcAppNavigation>
 
 		<NcAppContent :page-heading="HEADINGS[view.name]">
@@ -83,6 +93,7 @@
 <script>
 import { getFilePickerBuilder, showError, showSuccess } from '@nextcloud/dialogs'
 import '@nextcloud/dialogs/style.css'
+import { generateUrl } from '@nextcloud/router'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
 import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCaption'
@@ -99,7 +110,7 @@ import ParaTi from './ParaTi.vue'
 import ReviewList from './ReviewList.vue'
 import ReviewReport from './ReviewReport.vue'
 import { ocsGet, ocsPost, refusal } from './api.js'
-import { mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiRobotOutline, mdiStarOutline } from './icons.js'
+import { mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiPulse, mdiRobotOutline, mdiStarOutline } from './icons.js'
 import { offHoursText } from './reviews.js'
 
 /** What «IA» reads (TextReader): PDF with text, DOCX, ODT, TXT and MD. */
@@ -133,12 +144,14 @@ function viewOf(hash) {
 export default {
 	name: 'App',
 	components: { ActionList, ActionSidebar, BulletinList, BulletinPage, BulletinSidebar, NcAppContent, NcAppNavigation, NcAppNavigationCaption, NcAppNavigationItem, NcAppNavigationNew, NcContent, NcIconSvgWrapper, ParaTi, ReviewList, ReviewReport },
-	setup: () => ({ HEADINGS, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiRobotOutline, mdiStarOutline }),
-	data: () => ({ view: viewOf(window.location.hash), editorGroups: [], bulletins: [], sidebar: null, version: 0 }),
+	setup: () => ({ HEADINGS, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiPulse, mdiRobotOutline, mdiStarOutline, statusUrl: generateUrl('/settings/admin/ia') }),
+	data: () => ({ view: viewOf(window.location.hash), editorGroups: [], status: false, bulletins: [], sidebar: null, version: 0 }),
 	async mounted() {
 		window.addEventListener('hashchange', this.follow)
 		try {
-			this.editorGroups = (await ocsGet('me')).editorGroups
+			const me = await ocsGet('me')
+			this.editorGroups = me.editorGroups
+			this.status = me.status
 		} catch (error) {
 			console.error('ia: who the caller is did not load', error)
 		}

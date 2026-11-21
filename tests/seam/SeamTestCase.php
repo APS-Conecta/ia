@@ -24,6 +24,8 @@ abstract class SeamTestCase extends TestCase {
 	private const HANDOVER = '/tmp/ia-seam-handover.json';
 	/** Seconds a run of the instance's TaskProcessing worker lasts (Makefile WORKER). */
 	private const WORKER_RUN = 30;
+	/** What runs an occ command with its clock moved on (Makefile, instance-up). */
+	private const FAKETIME = '/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1';
 
 	/** @var array<string, string> each account this class made, with its password */
 	private static array $people = [];
@@ -168,16 +170,53 @@ abstract class SeamTestCase extends TestCase {
 		return self::offHours(2, 3);
 	}
 
-	/** The run engine's tick, as the scheduler would run its TimedJob. */
-	protected static function tick(): void {
+	/** The run engine's tick, as the scheduler would run its TimedJob, $minutes later than now when given. */
+	protected static function tick(int $minutes = 0): void {
 		$jobs = json_decode(self::occ('background-job:list', '--class=OCA\\Ia\\BackgroundJob\\RunJob', '--output=json'), true);
 		self::assertCount(1, $jobs, 'the run engine is registered once');
-		self::occ('background-job:execute', '--force-execute', (string)$jobs[0]['id']);
+		self::occWithEnv(self::clock($minutes), 'background-job:execute', '--force-execute', (string)$jobs[0]['id']);
 	}
 
-	/** @return list<array<string, mixed>> «IA»'s tasks in TaskProcessing now */
+	/**
+	 * TaskProcessing's worker, once, $minutes later than now: a task a later tick asks for is due
+	 * then, so the instance's own worker, on the real clock, leaves it waiting.
+	 */
+	protected static function work(int $minutes): void {
+		$jobs = json_decode(self::occ('background-job:list', '--class=OC\\TaskProcessing\\SynchronousBackgroundJob', '--output=json'), true);
+		foreach ($jobs as $job) {
+			self::occWithEnv(self::clock($minutes), 'background-job:execute', '--force-execute', (string)$job['id']);
+		}
+	}
+
+	/** @return array<string, string> the environment that runs occ $minutes later than now; none for now */
+	private static function clock(int $minutes): array {
+		return $minutes === 0 ? [] : ['LD_PRELOAD' => self::FAKETIME, 'FAKETIME' => "+{$minutes}m", 'FAKETIME_DONT_FAKE_MONOTONIC' => '1'];
+	}
+
+	/** @return list<array<string, mixed>> the tasks of «IA»'s Runs in TaskProcessing now: not the Model's health probe */
 	protected static function tasks(): array {
+		return array_values(array_filter(self::appTasks(), static fn (array $task): bool => $task['customId'] !== 'health'));
+	}
+
+	/** @return list<array<string, mixed>> the Model's health probes in TaskProcessing now */
+	protected static function probes(): array {
+		return array_values(array_filter(self::appTasks(), static fn (array $task): bool => $task['customId'] === 'health'));
+	}
+
+	/** @return list<array<string, mixed>> */
+	private static function appTasks(): array {
 		return json_decode(self::occ('taskprocessing:task:list', '--appId=ia', '--output=json'), true);
+	}
+
+	/** @return list<array<string, mixed>> the person's «IA» notifications whose subject starts with $subject */
+	protected static function notified(string $person, string $subject): array {
+		return array_values(array_filter(self::ocs($person, 'GET', '/apps/notifications/api/v2/notifications')['data'] ?? [],
+			static fn (array $notification): bool => $notification['app'] === 'ia' && str_starts_with($notification['subject'], $subject)));
+	}
+
+	/** The severity of «IA»'s setup check, as `occ setupchecks` reports it (it exits 1 when any check errors). */
+	protected static function setupCheck(): string {
+		return json_decode(self::occExit([], 'setupchecks', '--output=json')[1], true)['ai']['OCA\\Ia\\SetupCheck\\ModelCheck']['severity'];
 	}
 
 	/**
@@ -217,16 +256,24 @@ abstract class SeamTestCase extends TestCase {
 
 	/** @param array<string, string> $env extra environment for occ */
 	private static function occWithEnv(array $env, string ...$args): string {
+		[$code, $out] = self::occExit($env, ...$args);
+		if ($code !== 0) {
+			throw new RuntimeException('occ ' . implode(' ', $args) . " exited $code: $out");
+		}
+		return $out;
+	}
+
+	/**
+	 * @param array<string, string> $env extra environment for occ
+	 * @return array{int, string} occ's exit code and output
+	 */
+	private static function occExit(array $env, string ...$args): array {
 		$process = proc_open(['php', self::OCC, '--no-interaction', ...$args], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, $env + getenv());
 		if ($process === false) {
 			throw new RuntimeException('occ did not start');
 		}
 		$out = (string)stream_get_contents($pipes[1]) . (string)stream_get_contents($pipes[2]);
-		$code = proc_close($process);
-		if ($code !== 0) {
-			throw new RuntimeException('occ ' . implode(' ', $args) . " exited $code: $out");
-		}
-		return $out;
+		return [proc_close($process), $out];
 	}
 
 	/**

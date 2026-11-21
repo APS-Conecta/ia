@@ -92,6 +92,14 @@ class Run extends Entity {
 		$this->setState($this->getAttempts() >= self::ATTEMPTS ? self::FAILED : self::WAITING);
 	}
 
+	/** «Reintentar»: the failed Run back in line from its last finished step, its attempts afresh. */
+	public function again(): void {
+		$this->setState(self::WAITING);
+		$this->setAttempts(0);
+		$this->setLastError(null);
+		$this->setTaskId(null);
+	}
+
 	/** It can't go on (its file is gone or unreadable): failed now with $error, whatever the attempts. */
 	public function fail(string $error): void {
 		$this->setState(self::FAILED);

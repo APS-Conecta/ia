@@ -9,6 +9,7 @@ namespace OCA\Ia\Run;
 use OCA\Ia\Bulletin\EditionRun;
 use OCA\Ia\Db\Run;
 use OCA\Ia\Db\RunMapper;
+use OCA\Ia\Model\Health;
 use OCA\Ia\Model\ModelGateway;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -18,7 +19,7 @@ use Throwable;
 
 /**
  * The run engine (gestion-aio#162, Runs): one tick per scheduler interval, all its state in the
- * database, so a restarted server goes on where it stopped.
+ * database, so a restarted server goes on where it stopped. Each tick starts with Health's check.
  *
  * 1. **Recover.** A working Run whose task is missing, failed or cancelled is put back in line, an
  *    attempt spent. A task running longer than the connector's request timeout plus 5 minutes is
@@ -42,6 +43,7 @@ class Runs {
 		private ModelGateway $model,
 		private Kinds $kinds,
 		private EditionRun $editions,
+		private Health $health,
 		private Settings $settings,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
@@ -49,6 +51,11 @@ class Runs {
 	}
 
 	public function tick(): void {
+		try {
+			$this->health->check();
+		} catch (Throwable $e) {
+			$this->logger->error('The run engine could not check the Model: {error}', ['error' => $e::class]);
+		}
 		foreach ($this->runs->inState(Run::WORKING) as $run) {
 			$this->move($run, $this->recover(...));
 		}

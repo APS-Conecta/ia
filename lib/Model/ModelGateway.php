@@ -29,6 +29,8 @@ class ModelGateway {
 	public const END = 'FIN';
 	/** How every prompt asks for the END line. */
 	public const CLOSE = 'Al terminar, escribe una última línea con la palabra ' . self::END . '.';
+	/** The custom id of Health's probe, which no Run waits for. */
+	public const PROBE = 'health';
 
 	public function __construct(
 		private IManager $taskProcessing,
@@ -40,6 +42,18 @@ class ModelGateway {
 		$task = new Task(TextToText::ID, ['input' => $prompt], Application::APP_ID, null, (string)$runId);
 		$this->taskProcessing->scheduleTask($task);
 		return (int)$task->getId();
+	}
+
+	/** Asks the Model Health's probe, a one-word answer; answers the task's id. */
+	public function probe(): int {
+		$task = new Task(TextToText::ID, ['input' => 'Responde solo con la palabra OK.'], Application::APP_ID, null, self::PROBE);
+		$this->taskProcessing->scheduleTask($task);
+		return (int)$task->getId();
+	}
+
+	/** Whether a provider takes `core:text2text`: a connector update can drop it. */
+	public function available(): bool {
+		return array_key_exists(TextToText::ID, $this->taskProcessing->getAvailableTaskTypes());
 	}
 
 	/** Deletes a task once its result is stored, or once it no longer matters. */

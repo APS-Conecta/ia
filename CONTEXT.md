@@ -68,3 +68,7 @@ A member of a group that a Bulletin is for.
 **Off hours** (fuera de horario):
 The nightly window in which «IA» does its unattended work.
 _Avoid_: maintenance window, night batch
+
+**«Estado»**:
+The admin's view of how «IA» is doing: whether the Model answers, the work in line and the work that failed.
+_Avoid_: dashboard, monitor

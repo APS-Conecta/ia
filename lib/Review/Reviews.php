@@ -321,6 +321,21 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$this->notify($report, $file);
 	}
 
+	/** One whose progress was dropped (Run::fail) has its report's version blanked, so that it starts over. */
+	public function requeue(Run $run): bool {
+		$report = $run->getResults() === null ? $this->reports->byId((int)$run->getTarget()) : null;
+		if ($report !== null) {
+			$report->setEtag('');
+			$this->reports->update($report);
+		}
+		$run->again();
+		return $this->runs->save($run);
+	}
+
+	public function about(Run $run): array {
+		return ['name' => $run->getRule() === null ? null : $this->actions->byId($run->getRule())?->getName(), 'date' => null];
+	}
+
 	/**
 	 * The Run's report, its file as the Run's actor opens it now, and the Document read from it; a
 	 * Run whose file is gone, unreadable or no one may read for it fails, and null comes back.

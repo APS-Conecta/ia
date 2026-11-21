@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace OCA\Ia\Notification;
 
 use OCA\Ia\AppInfo\Application;
+use OCA\Ia\Model\Health;
 use OCP\IURLGenerator;
 use OCP\Notification\INotification;
 use OCP\Notification\INotifier;
@@ -33,13 +34,15 @@ class Notifier implements INotifier {
 	public function prepare(INotification $notification, string $languageCode): INotification {
 		$id = $notification->getObjectId();
 		$parameters = $notification->getSubjectParameters();
-		$bulletin = '#boletines/' . (int)($parameters['bulletin'] ?? 0);
-		[$subject, $hash] = match ($notification->getApp() === Application::APP_ID ? $notification->getSubject() : null) {
-			'review_ready' => ['Revisión lista: {name}', "#revisiones/$id"],
+		$app = $this->url->linkToRouteAbsolute('ia.page.index');
+		$bulletin = $app . '#boletines/' . (int)($parameters['bulletin'] ?? 0);
+		[$subject, $link] = match ($notification->getApp() === Application::APP_ID ? $notification->getSubject() : null) {
+			'review_ready' => ['Revisión lista: {name}', "$app#revisiones/$id"],
 			'edition_published' => ['Nueva edición: {name}', "$bulletin/$id"],
 			'edition_late' => ['Edición atrasada: {name}', $bulletin],
 			'source_unreadable' => ['No se pudo leer {source}, fuente de {name}', $bulletin],
 			'source_gone' => ['Una fuente de {name} ya no está', $bulletin],
+			'model_down' => ['El modelo de «IA» no responde desde hace ' . intdiv(Health::ALERT, 60) . ' minutos', $this->url->linkToRouteAbsolute('settings.AdminSettings.index', ['section' => Application::APP_ID])],
 			default => throw new UnknownNotificationException(),
 		};
 		$rich = [];
@@ -54,7 +57,7 @@ class Notifier implements INotifier {
 		return $notification
 			->setRichSubject($subject, $rich)
 			->setParsedSubject($parsed)
-			->setLink($this->url->linkToRouteAbsolute('ia.page.index') . $hash)
+			->setLink($link)
 			->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app-dark.svg')));
 	}
 }
