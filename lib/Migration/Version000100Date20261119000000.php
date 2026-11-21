@@ -109,6 +109,7 @@ class Version000100Date20261119000000 extends SimpleMigrationStep {
 			$editions->addColumn('late', Types::BOOLEAN, ['notnull' => false, 'default' => false]);
 			$editions->addColumn('status', Types::STRING, ['notnull' => true, 'length' => 16]);
 			$editions->addColumn('resumen', Types::TEXT, ['notnull' => false]);
+			$editions->addColumn('corrected_by', Types::STRING, ['notnull' => false, 'length' => 64]);
 			$editions->addColumn('files', Types::TEXT, ['notnull' => false]);
 			$editions->addColumn('published_at', Types::BIGINT, ['notnull' => false, 'unsigned' => true]);
 			$editions->setPrimaryKey(['id']);

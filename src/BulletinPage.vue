@@ -21,7 +21,7 @@
 					:model-value="shown"
 					input-label="Edición"
 					:options="editions"
-					:get-option-label="(option) => longDate(option.date) + (option.late ? ' (atrasada)' : '')"
+					:get-option-label="(option) => longDate(option.date) + (option.late ? ' (atrasada)' : '') + (option.withdrawn ? ' (retirada)' : '')"
 					:clearable="false"
 					@update:model-value="show" />
 			</div>
@@ -34,12 +34,16 @@
 					Sigue fuera de horario.
 				</template>
 			</NcNoteCard>
-			<NcEmptyContent v-if="editions.length === 0" name="Todavía no hay ediciones" :description="dueText(bulletin)">
+			<NcEmptyContent v-if="!shown" name="Todavía no hay ediciones" :description="dueText(bulletin)">
 				<template #icon>
 					<NcIconSvgWrapper :path="mdiNewspaperVariantOutline" />
 				</template>
 			</NcEmptyContent>
-			<EditionView v-else :id="shown.id" :key="shown.id" />
+			<EditionView v-else
+				:id="shown.id"
+				:key="shown.id"
+				:editor="bulletin.role === 'editor'"
+				@changed="load" />
 		</template>
 	</div>
 </template>
@@ -74,8 +78,12 @@ export default {
 	setup: () => ({ dueText, longDate, mdiNewspaperVariantOutline, mdiPencilOutline, scheduleText }),
 	data: () => ({ state: 'loading', bulletin: null, editions: [] }),
 	computed: {
+		/** The Edition the URL names, even one no longer listed (a link to a withdrawn one says so), or the latest. */
 		shown() {
-			return this.editions.find((edition) => edition.id === this.edition) ?? this.editions[0]
+			if (this.edition === null) {
+				return this.editions[0]
+			}
+			return this.editions.find((edition) => edition.id === this.edition) ?? { id: this.edition }
 		},
 	},
 	watch: {
