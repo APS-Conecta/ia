@@ -46,7 +46,7 @@ use OCP\IUserManager;
  */
 class Editions {
 	/** «Protocolos por vencer»: expiring within this many days of the Edition's date. */
-	private const EXPIRING_DAYS = 30;
+	public const EXPIRING_DAYS = 30;
 
 	public function __construct(
 		private BulletinMapper $bulletins,

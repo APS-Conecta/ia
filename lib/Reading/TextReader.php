@@ -64,6 +64,16 @@ class TextReader {
 		return $found;
 	}
 
+	/**
+	 * A Bulletin Source's documents: a document Source itself, whatever its format; under a folder
+	 * Source, at any depth, those of the formats «IA» reads.
+	 *
+	 * @return list<File>
+	 */
+	public static function documents(?Node $node): array {
+		return $node instanceof File ? [$node] : ($node === null ? [] : self::files($node));
+	}
+
 	/** Whether «IA» reads files of $name's format. */
 	public static function reads(string $name): bool {
 		return in_array(strtolower(pathinfo($name, PATHINFO_EXTENSION)), self::READS, true);

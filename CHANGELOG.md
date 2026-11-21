@@ -84,3 +84,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   instructions. A file event it matches puts the file's automatic Review in line for Off hours, as an Automatic
   action would, acting as whoever set the event off; with no session it fails into «Estado» and nobody is told.
   Editors see the rules, read-only, in «Acciones automáticas».
+- «Documentos» for Editors (#15), under «Para editores»: the documents their Editor group watches (its Bulletins'
+  Sources and its Automatic actions' folders) that the Editor can open now, each with its Reading's status, expiry
+  date and Cargos and its latest Review's findings. Filters: Todos, Nuevos y cambiados (in the last 7 days), Por
+  vencer (within 30 days, or read without a date), Con hallazgos and Para mi cargo. A document's sidebar shows its
+  Reading, its latest Review or «Revisar ahora», and the Bulletins it appears in.

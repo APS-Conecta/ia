@@ -32,9 +32,14 @@
 						<NcIconSvgWrapper :path="mdiFileDocumentCheckOutline" />
 					</template>
 				</NcAppNavigationItem>
-				<!-- Only Editors see this part; Documentos joins it (#15). -->
+				<!-- Only Editors see this part. -->
 				<template v-if="editorGroups.length > 0">
 					<NcAppNavigationCaption name="Para editores" />
+					<NcAppNavigationItem name="Documentos" href="#documentos" :active="view.name === 'documentos'">
+						<template #icon>
+							<NcIconSvgWrapper :path="mdiFileDocumentOutline" />
+						</template>
+					</NcAppNavigationItem>
 					<NcAppNavigationItem name="Acciones automáticas" href="#acciones" :active="view.name === 'acciones'">
 						<template #icon>
 							<NcIconSvgWrapper :path="mdiRobotOutline" />
@@ -70,6 +75,9 @@
 				:version="version"
 				@create="sidebar = { kind: 'action', id: null }"
 				@edit="sidebar = { kind: 'action', id: $event }" />
+			<DocumentList v-else-if="view.name === 'documentos'"
+				:selected="sidebar?.kind === 'document' ? sidebar.id : null"
+				@open="sidebar = { kind: 'document', id: $event }" />
 			<ReviewList v-else-if="view.name === 'revisiones'" />
 			<ReviewReport v-else :id="view.id" :key="view.id" />
 		</NcAppContent>
@@ -87,6 +95,11 @@
 			@close="sidebar = null"
 			@saved="actionsChanged"
 			@deleted="actionsChanged" />
+		<DocumentSidebar v-else-if="sidebar?.kind === 'document'"
+			:id="sidebar.id"
+			:key="'document' + sidebar.id"
+			@close="sidebar = null"
+			@review="review" />
 	</NcContent>
 </template>
 
@@ -107,21 +120,23 @@ import ActionSidebar from './ActionSidebar.vue'
 import BulletinList from './BulletinList.vue'
 import BulletinPage from './BulletinPage.vue'
 import BulletinSidebar from './BulletinSidebar.vue'
+import DocumentList from './DocumentList.vue'
+import DocumentSidebar from './DocumentSidebar.vue'
 import ParaTi from './ParaTi.vue'
 import ReviewList from './ReviewList.vue'
 import ReviewReport from './ReviewReport.vue'
 import { ocsGet, ocsPost } from './api.js'
-import { mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiPulse, mdiRobotOutline, mdiStarOutline } from './icons.js'
+import { mdiFileDocumentCheckOutline, mdiFileDocumentOutline, mdiNewspaperVariantOutline, mdiPlus, mdiPulse, mdiRobotOutline, mdiStarOutline } from './icons.js'
 import { reads, requestFailedText, requestedText } from './reviews.js'
 
 /** Each place's page heading, for screen readers. */
-const HEADINGS = { 'para-ti': 'Para ti', boletines: 'Boletines', boletin: 'Boletines', revisiones: 'Revisiones', revision: 'Revisiones', acciones: 'Acciones automáticas' }
+const HEADINGS = { 'para-ti': 'Para ti', boletines: 'Boletines', boletin: 'Boletines', revisiones: 'Revisiones', revision: 'Revisiones', documentos: 'Documentos', acciones: 'Acciones automáticas' }
 
 /** The page's place, from the URL's hash: a section, one Bulletin or one Review in it, or one of a Bulletin's Editions. */
 function viewOf(hash) {
 	const [section, id, edition] = hash.replace(/^#\/?/, '').split('/')
-	if (section === 'acciones') {
-		return { name: 'acciones' }
+	if (section === 'acciones' || section === 'documentos') {
+		return { name: section }
 	}
 	const one = { boletines: 'boletin', revisiones: 'revision' }[section]
 	if (one === undefined) {
@@ -135,8 +150,8 @@ function viewOf(hash) {
 
 export default {
 	name: 'App',
-	components: { ActionList, ActionSidebar, BulletinList, BulletinPage, BulletinSidebar, NcAppContent, NcAppNavigation, NcAppNavigationCaption, NcAppNavigationItem, NcAppNavigationNew, NcContent, NcIconSvgWrapper, ParaTi, ReviewList, ReviewReport },
-	setup: () => ({ HEADINGS, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiPulse, mdiRobotOutline, mdiStarOutline, estadoUrl: generateUrl('/settings/admin/ia') }),
+	components: { ActionList, ActionSidebar, BulletinList, BulletinPage, BulletinSidebar, DocumentList, DocumentSidebar, NcAppContent, NcAppNavigation, NcAppNavigationCaption, NcAppNavigationItem, NcAppNavigationNew, NcContent, NcIconSvgWrapper, ParaTi, ReviewList, ReviewReport },
+	setup: () => ({ HEADINGS, mdiFileDocumentCheckOutline, mdiFileDocumentOutline, mdiNewspaperVariantOutline, mdiPlus, mdiPulse, mdiRobotOutline, mdiStarOutline, estadoUrl: generateUrl('/settings/admin/ia') }),
 	data: () => ({ view: viewOf(window.location.hash), editorGroups: [], admin: false, bulletins: [], sidebar: null, version: 0 }),
 	async mounted() {
 		window.addEventListener('hashchange', this.follow)
@@ -155,6 +170,10 @@ export default {
 	methods: {
 		follow() {
 			this.view = viewOf(window.location.hash)
+			// A document's sidebar belongs to «Documentos»: its links lead elsewhere.
+			if (this.sidebar?.kind === 'document') {
+				this.sidebar = null
+			}
 		},
 		async loadBulletins() {
 			try {

@@ -81,6 +81,33 @@ namespace OCA\Ia;
  *     instructions: string,
  * }
  *
+ * @psalm-type IaDocumentItem = array{
+ *     fileId: int,
+ *     name: string,
+ *     folder: string,
+ *     status: 'read'|'scan'|'failed'|'unread',
+ *     expires: ?string,
+ *     cargos: list<string>,
+ *     review: ?array{id: int, findings: int},
+ *     modifiedAt: int,
+ * }
+ *
+ * @psalm-type IaAppearance = array{
+ *     bulletin: array{id: int, name: string},
+ *     edition: array{id: int, date: string},
+ * }
+ *
+ * @psalm-type IaDocument = IaDocumentItem&array{
+ *     summary: ?string,
+ *     readAt: ?int,
+ *     appearsIn: list<IaAppearance>,
+ * }
+ *
+ * @psalm-type IaDocuments = array{
+ *     documents: list<IaDocumentItem>,
+ *     counts: array{all: int, changed: int, expiring: int, findings: int, cargo: int},
+ * }
+ *
  * @psalm-type IaFlowRule = array{
  *     id: int,
  *     name: string,

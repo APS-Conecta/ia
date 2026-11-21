@@ -336,9 +336,12 @@ abstract class SeamTestCase extends TestCase {
 		return ['status' => $status, 'data' => is_array($json) ? ($json['ocs']['data'] ?? null) : null];
 	}
 
-	/** Puts $content in the person's Files as $name, as their client would, and answers its file id. */
-	protected static function upload(string $person, string $name, string $content): int {
-		[$status] = self::http($person, 'PUT', self::DAV . $person . '/' . self::path($name), [], $content);
+	/**
+	 * Puts $content in the person's Files as $name, as their client would, and answers its file id;
+	 * last modified at $modified (a Unix time) when given, as a client keeps a file's own time.
+	 */
+	protected static function upload(string $person, string $name, string $content, ?int $modified = null): int {
+		[$status] = self::http($person, 'PUT', self::DAV . $person . '/' . self::path($name), $modified === null ? [] : ["X-OC-Mtime: $modified"], $content);
 		self::assertContains($status, [201, 204], "PUT $name answered $status");
 		return self::file($person, $name)['fileId'];
 	}
