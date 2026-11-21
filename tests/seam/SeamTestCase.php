@@ -187,7 +187,11 @@ abstract class SeamTestCase extends TestCase {
 	protected static function work(int $minutes): void {
 		$jobs = json_decode(self::occ('background-job:list', '--class=OC\\TaskProcessing\\SynchronousBackgroundJob', '--output=json'), true);
 		foreach ($jobs as $job) {
-			self::occWithEnv(self::clock($minutes), 'background-job:execute', '--force-execute', (string)$job['id']);
+			[$code, $out] = self::occExit(self::clock($minutes), 'background-job:execute', '--force-execute', (string)$job['id']);
+			// The instance's own worker may have run it, and removed it, since it was listed.
+			if ($code !== 0 && !str_contains($out, 'could not be found')) {
+				throw new RuntimeException("occ background-job:execute exited $code: $out");
+			}
 		}
 	}
 
