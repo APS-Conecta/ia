@@ -38,13 +38,13 @@ class Access {
 	) {
 	}
 
-	/** @return list<IUser> the group's members who can sign in now */
 	/** Whether $userId may open «Estado»: an admin, or a member of a group the «IA» admin page is delegated to. */
 	public function admin(string $userId): bool {
 		$user = $this->users->get($userId);
 		return $user !== null && $this->adminSettings->getAllowedAdminSettings(Application::APP_ID, $user) !== [];
 	}
 
+	/** @return list<IUser> the group's members who can sign in now */
 	public function members(string $groupId): array {
 		return array_values(array_filter($this->groups->get($groupId)?->getUsers() ?? [], static fn (IUser $user): bool => $user->isEnabled()));
 	}
