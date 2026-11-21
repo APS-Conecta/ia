@@ -65,6 +65,8 @@ final class ModelDownAlertTest extends SeamTestCase {
 
 	/** @return array<string, mixed> the Model's part of «Estado» */
 	private static function model(): array {
+		// The web server keeps app config, where Health's state is, in APCu for 3 s (AppConfig::LOCAL_CACHE_TTL).
+		sleep(4);
 		$answer = self::ocs(self::$admin, 'GET', self::ESTADO);
 		self::assertSame(200, $answer['status']);
 		return $answer['data']['model'];
