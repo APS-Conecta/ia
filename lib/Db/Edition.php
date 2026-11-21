@@ -35,6 +35,8 @@ use OCP\AppFramework\Db\Entity;
 class Edition extends Entity {
 	public const WRITING = 'writing';
 	public const PUBLISHED = 'published';
+	/** Its Editors took it back: Readers no longer see it, and its Editors can undo that. */
+	public const WITHDRAWN = 'withdrawn';
 
 	// Null until set: Entity writes only the fields a setter changed.
 	protected ?int $bulletinId = null;
@@ -48,6 +50,8 @@ class Edition extends Entity {
 	protected ?bool $late = null;
 	protected ?string $status = null;
 	protected ?string $resumen = null;
+	/** The Editor who last corrected the Resumen; null while it is the Model's. */
+	protected ?string $correctedBy = null;
 	protected ?string $files = null;
 	protected ?int $publishedAt = null;
 

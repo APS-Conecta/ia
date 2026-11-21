@@ -73,3 +73,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   that the person can open, not for folders, other types or the trash. It starts the same Review as «Revisar un
   documento», with the same «Revisión lista» notification, and a toast says whether it runs now or in Off hours, or
   is ready already, and links to it with «Ver en «IA»».
+- Correct or withdraw an Edition (#14): any Editor of the Bulletin's group corrects its Resumen, and its Readers see
+  «Corregida por» and who, next to «Escrito por IA». Withdrawing takes the Edition at once from its Readers' pages,
+  «Para ti» and the «Boletines» widget; its notification's link then says its Editors withdrew it, and its Editors
+  still see it, with «Deshacer», which brings it back. Anyone else is forbidden.
