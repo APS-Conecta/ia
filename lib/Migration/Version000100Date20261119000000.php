@@ -36,6 +36,7 @@ class Version000100Date20261119000000 extends SimpleMigrationStep {
 			$runs->addColumn('last_error', Types::TEXT, ['notnull' => false]);
 			$runs->addColumn('actor', Types::STRING, ['notnull' => false, 'length' => 64]);
 			$runs->addColumn('rule', Types::BIGINT, ['notnull' => false, 'unsigned' => true]);
+			$runs->addColumn('origin', Types::STRING, ['notnull' => false, 'length' => 16]);
 			$runs->addColumn('results', Types::TEXT, ['notnull' => false]);
 			$runs->addColumn('updated_at', Types::BIGINT, ['notnull' => true, 'unsigned' => true]);
 			$runs->addColumn('version', Types::INTEGER, ['notnull' => true, 'default' => 0]);

@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace OCA\Ia\Listener;
 
 use OCA\Ia\Action\Actions;
+use OCA\Ia\Db\Report;
 use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Review\Reviews;
 use OCP\EventDispatcher\Event;
@@ -52,7 +53,7 @@ class ActionListener implements IEventListener {
 			foreach ($node === null ? [] : self::files($node) as $file) {
 				$action = $this->actions->of($file->getId());
 				if ($action !== null && $action->getId() !== $before?->getId()) {
-					$this->reviews->automatic($file, $action, $this->session->getUser()?->getUID());
+					$this->reviews->automatic($file, Report::ACTION, $action->getId(), $action->getInstructions(), $this->session->getUser()?->getUID());
 				}
 			}
 		} catch (Throwable $e) {

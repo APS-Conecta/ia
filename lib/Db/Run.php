@@ -38,6 +38,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setResults(?string $results)
  * @method int|null getRule()
  * @method void setRule(?int $rule)
+ * @method string|null getOrigin()
+ * @method void setOrigin(string $origin)
  * @method int getUpdatedAt()
  * @method void setUpdatedAt(int $updatedAt)
  * @method int|null getVersion()
@@ -66,8 +68,10 @@ class Run extends Entity {
 	protected ?int $attempts = null;
 	protected ?string $lastError = null;
 	protected ?string $actor = null;
-	/** The Automatic action an automatic Review is for; null for any other Run. */
+	/** The Automatic action or Flow rule an automatic Review is for; null for any other Run. */
 	protected ?int $rule = null;
+	/** A Review's origin, as its report's: manual, action or flow; null for an Edition. */
+	protected ?string $origin = null;
 	protected ?string $results = null;
 	protected ?int $updatedAt = null;
 	/** Bumped by every save: a save from a Run read before another one's is refused (RunMapper::save). */
@@ -92,13 +96,16 @@ class Run extends Entity {
 		$this->setState($this->getAttempts() >= self::ATTEMPTS ? self::FAILED : self::WAITING);
 	}
 
-	/** Where it comes from: a Review asked for by hand, an Automatic action's Review, or an Edition. @return 'manual'|'action'|'edition' */
+	/**
+	 * Where it comes from: a Review asked for by hand, an Automatic action's or a Flow rule's Review,
+	 * or an Edition.
+	 *
+	 * @return 'manual'|'action'|'flow'|'edition'
+	 */
 	public function origin(): string {
-		return match (true) {
-			$this->getKind() === self::EDITION => 'edition',
-			$this->getRule() !== null => 'action',
-			default => 'manual',
-		};
+		/** @var 'manual'|'action'|'flow' */
+		$origin = $this->getOrigin() ?? 'manual';
+		return $this->getKind() === self::EDITION ? 'edition' : $origin;
 	}
 
 	/** «Reintentar»: the failed Run back in line from its last finished step, its attempts afresh. */

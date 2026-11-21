@@ -24,6 +24,8 @@
 				<dd>{{ estado.waiting.manual }}</dd>
 				<dt>Revisiones automáticas</dt>
 				<dd>{{ estado.waiting.action }}</dd>
+				<dt>Revisiones de reglas de Flujo</dt>
+				<dd>{{ estado.waiting.flow }}</dd>
 				<dt>Ediciones de boletines</dt>
 				<dd>{{ estado.waiting.edition }}</dd>
 				<dt>Último trabajo terminado</dt>
@@ -75,6 +77,9 @@ const MODEL = { up: 'Responde', down: 'No responde', unknown: 'Sin comprobar tod
 function runName({ kind, name, date }) {
 	if (kind === 'edition') {
 		return name === null ? 'Edición de un boletín eliminado' : `${name} · edición del ${longDate(date)}`
+	}
+	if (kind === 'flow') {
+		return name === null ? 'Revisión de una regla de Flujo eliminada' : `Regla de Flujo · ${name}`
 	}
 	if (kind === 'action') {
 		return name === null ? 'Revisión automática de una acción eliminada' : `Revisión automática · ${name}`

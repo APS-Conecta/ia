@@ -15,6 +15,7 @@ use OCA\Ia\Db\ReportMapper;
 use OCA\Ia\Db\Run;
 use OCA\Ia\Db\RunMapper;
 use OCA\Ia\Db\StaleRun;
+use OCA\Ia\Flow\FlowRules;
 use OCA\Ia\Model\ModelGateway;
 use OCA\Ia\Reading\Document;
 use OCA\Ia\Reading\TextReader;
@@ -94,6 +95,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		private Settings $settings,
 		private Steps $steps,
 		private Actions $actions,
+		private FlowRules $flowRules,
 	) {
 	}
 
@@ -125,6 +127,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$report->setCreatedAt($this->time->getTime());
 		$run = new Run();
 		$run->setActor($userId);
+		$run->setOrigin(Report::MANUAL);
 		$chunks = $this->line($run, $report, $document);
 		if (!$this->insert($report, $run)) {
 			return $this->create($userId, $fileId);
@@ -136,35 +139,40 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	}
 
 	/**
-	 * Puts the automatic Review of $file in line for Off hours: it was added to, changed in, moved
-	 * or copied into the folder of $action, by $changer when known. Only a Review done on this
-	 * same version, for this same action, stays as it is; any other is reviewed from its first
-	 * step, on the version current when it starts, with the action's instructions.
+	 * Puts the automatic Review of $file in line for Off hours, for an Automatic action ($origin
+	 * action: it was added to, changed in, moved or copied into its folder) or a Flow rule ($origin
+	 * flow: a file event matched it), by $changer when known. Only a Review done on this same
+	 * version, for this same rule, stays as it is; any other is reviewed from its first step, on the
+	 * version current when it starts, with the rule's instructions.
+	 *
+	 * @param 'action'|'flow' $origin
 	 */
-	public function automatic(File $file, Action $action, ?string $changer): void {
+	public function automatic(File $file, string $origin, int $rule, string $instructions, ?string $changer): void {
 		$report = $this->reports->automaticOf($file->getId()) ?? new Report();
 		$run = $report->getId() === null ? new Run() : $this->runs->of(Run::REVIEW, (string)$report->getId());
-		if ($run === null || ($run->getState() === Run::DONE && $report->getEtag() === $file->getEtag() && $report->getRule() === $action->getId())) {
+		if ($run === null || ($run->getState() === Run::DONE && $report->getEtag() === $file->getEtag()
+			&& $report->getOrigin() === $origin && $report->getRule() === $rule)) {
 			return;
 		}
 		$report->setFileId($file->getId());
 		$report->setAutomaticFile($file->getId());
-		$report->setOrigin(Report::ACTION);
+		$report->setOrigin($origin);
 		// No version reviewed: whatever step it was at, the Run starts over (resume, finish).
 		$report->setEtag('');
 		$report->setRequester($changer);
-		$report->setRule($action->getId());
-		$report->setInstructions($action->getInstructions());
+		$report->setRule($rule);
+		$report->setInstructions($instructions);
 		$report->setCreatedAt($this->time->getTime());
 		if ($report->getId() === null) {
-			$run->setRule($action->getId());
+			$run->setRule($rule);
+			$run->setOrigin($origin);
 			$run->setState(Run::WAITING);
 			$run->setOffHours(true);
 			$run->setStep(0);
 			$run->setSteps(0);
 			$run->setAttempts(0);
 			if (!$this->insert($report, $run)) {
-				$this->automatic($file, $action, $changer);
+				$this->automatic($file, $origin, $rule, $instructions, $changer);
 			}
 			return;
 		}
@@ -173,13 +181,14 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		if (self::underWay($run)) {
 			return;
 		}
-		$run->setRule($action->getId());
+		$run->setRule($rule);
+		$run->setOrigin($origin);
 		$run->setState(Run::WAITING);
 		$run->setOffHours(true);
 		$run->setTaskId(null);
 		if (!$this->runs->save($run)) {
 			// Another process moved the Run since it was read: line it up again from what it saved.
-			$this->automatic($file, $action, $changer);
+			$this->automatic($file, $origin, $rule, $instructions, $changer);
 		}
 	}
 
@@ -354,7 +363,12 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	}
 
 	public function about(Run $run): array {
-		return ['name' => $run->getRule() === null ? null : $this->actions->byId($run->getRule())?->getName(), 'date' => null];
+		$name = match ($run->origin()) {
+			'action' => $this->actions->byId((int)$run->getRule())?->getName(),
+			'flow' => $this->flowRules->name((int)$run->getRule()),
+			default => null,
+		};
+		return ['name' => $name, 'date' => null];
 	}
 
 	/**
@@ -365,9 +379,9 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	 */
 	private function source(Run $run): ?array {
 		$report = $this->reports->byId((int)$run->getTarget());
-		$action = $report?->isAutomatic() ? $this->actions->byId((int)$report->getRule()) : null;
+		$action = $report?->getOrigin() === Report::ACTION ? $this->actions->byId((int)$report->getRule()) : null;
 		if ($report?->isAutomatic()) {
-			$run->setActor($action === null ? null : $this->actor($report, $action));
+			$run->setActor($report->getOrigin() === Report::FLOW ? $report->getRequester() : ($action === null ? null : $this->actor($report, $action)));
 		}
 		$file = $report === null || $run->getActor() === null ? null : $this->access->file($run->getActor(), $report->getFileId());
 		try {
@@ -376,6 +390,8 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			}
 			$run->fail(match (true) {
 				!$report?->isAutomatic() => 'El archivo ya no está disponible.',
+				$report->getOrigin() === Report::FLOW && $report->getRequester() === null => 'La regla de Flujo se activó sin una sesión: no hay a nombre de quién leer el archivo.',
+				$report->getOrigin() === Report::FLOW => 'Quien activó la regla de Flujo ya no puede abrir el archivo.',
 				$action === null => 'Se eliminó la acción automática.',
 				default => 'Ni quien agregó o cambió el archivo ni su grupo editor pueden abrirlo.',
 			});

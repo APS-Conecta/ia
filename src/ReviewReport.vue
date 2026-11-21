@@ -14,7 +14,7 @@
 				{{ review.origin === 'manual' ? 'Revisión pedida por ti' : 'Revisión automática' }} · {{ when(review.requestedAt) }}
 			</p>
 			<p v-if="review.instructions" class="ia-hint">
-				El grupo editor pidió revisar además: «{{ review.instructions }}»
+				{{ review.origin === 'flow' ? 'La regla de Flujo' : 'El grupo editor' }} pidió revisar además: «{{ review.instructions }}»
 			</p>
 			<div class="ia-chips">
 				<NcButton :href="fileLink" variant="secondary">

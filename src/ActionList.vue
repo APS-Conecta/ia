@@ -38,6 +38,25 @@
 				</template>
 			</NcListItem>
 		</ul>
+		<template v-if="state === 'ready' && flowRules.length > 0">
+			<h3>Reglas de Flujo</h3>
+			<p class="ia-hint">
+				Las crea un administrador en Flujo, con condiciones propias, y revisan igual, fuera de horario. Aquí solo se ven.
+			</p>
+			<ul>
+				<NcListItem v-for="rule in flowRules"
+					:key="rule.id"
+					:name="rule.name || 'Regla sin nombre'"
+					:active="false">
+					<template #icon>
+						<NcIconSvgWrapper :path="mdiLightningBoltOutline" />
+					</template>
+					<template #subname>
+						{{ rule.instructions || 'Sin instrucciones adicionales' }}
+					</template>
+				</NcListItem>
+			</ul>
+		</template>
 	</div>
 </template>
 
@@ -49,9 +68,12 @@ import NcListItem from '@nextcloud/vue/components/NcListItem'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { ocsGet } from './api.js'
-import { mdiFolderOutline, mdiPlus, mdiRobotOutline } from './icons.js'
+import { mdiFolderOutline, mdiLightningBoltOutline, mdiPlus, mdiRobotOutline } from './icons.js'
 
-/** «Acciones automáticas»: the Automatic actions of the Editor's groups; each opens in the sidebar. */
+/**
+ * «Acciones automáticas»: the Automatic actions of the Editor's groups, each opening in the sidebar;
+ * and the admin's Flow rules «Revisar con IA», read-only.
+ */
 export default {
 	name: 'ActionList',
 	components: { NcButton, NcEmptyContent, NcIconSvgWrapper, NcListItem, NcLoadingIcon, NcNoteCard },
@@ -60,8 +82,8 @@ export default {
 		version: { type: Number, default: 0 },
 	},
 	emits: ['create', 'edit'],
-	setup: () => ({ mdiFolderOutline, mdiPlus, mdiRobotOutline }),
-	data: () => ({ state: 'loading', actions: [] }),
+	setup: () => ({ mdiFolderOutline, mdiLightningBoltOutline, mdiPlus, mdiRobotOutline }),
+	data: () => ({ state: 'loading', actions: [], flowRules: [] }),
 	watch: {
 		version() {
 			this.load()
@@ -78,7 +100,9 @@ export default {
 		},
 		async load() {
 			try {
-				this.actions = (await ocsGet('actions')).actions
+				const listed = await ocsGet('actions')
+				this.actions = listed.actions
+				this.flowRules = listed.flowRules
 				this.state = 'ready'
 			} catch (error) {
 				console.error('ia: «Acciones automáticas» did not load', error)

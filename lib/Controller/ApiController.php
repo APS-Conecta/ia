@@ -12,6 +12,7 @@ use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Bulletin\Bulletins;
 use OCA\Ia\Bulletin\Editions;
 use OCA\Ia\Bulletin\ParaTi;
+use OCA\Ia\Flow\FlowRules;
 use OCA\Ia\Forbidden;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
@@ -42,6 +43,7 @@ use OCP\IUserSession;
  * is delegated to (MetadataTest holds all of it).
  *
  * @psalm-import-type IaAction from ResponseDefinitions
+ * @psalm-import-type IaFlowRule from ResponseDefinitions
  * @psalm-import-type IaAdminSettings from ResponseDefinitions
  * @psalm-import-type IaBulletin from ResponseDefinitions
  * @psalm-import-type IaBulletinItem from ResponseDefinitions
@@ -84,6 +86,7 @@ class ApiController extends OCSController {
 		private Actions $actions,
 		private ParaTi $paraTi,
 		private Estado $estado,
+		private FlowRules $flowRules,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -502,18 +505,19 @@ class ApiController extends OCSController {
 	}
 
 	/**
-	 * «Acciones automáticas»: the Automatic actions of the caller's Editor groups
+	 * «Acciones automáticas»: the Automatic actions of the caller's Editor groups, and the admin's
+	 * Flow rules «Revisar con IA», read-only
 	 *
-	 * @return DataResponse<Http::STATUS_OK, array{actions: list<IaAction>}, array{}>|DataResponse<Http::STATUS_FORBIDDEN, array{message: string}, array{}>
+	 * @return DataResponse<Http::STATUS_OK, array{actions: list<IaAction>, flowRules: list<IaFlowRule>}, array{}>|DataResponse<Http::STATUS_FORBIDDEN, array{message: string}, array{}>
 	 *
-	 * 200: The actions, by name
+	 * 200: The actions and the Flow rules, by name
 	 * 403: The caller is no Editor
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
 	#[ApiRoute(verb: 'GET', url: '/api/v1/actions')]
 	public function actions(): DataResponse {
-		return $this->refusable(fn (): DataResponse => new DataResponse(['actions' => $this->actions->all($this->user())]));
+		return $this->refusable(fn (): DataResponse => new DataResponse(['actions' => $this->actions->all($this->user()), 'flowRules' => $this->flowRules->all()]));
 	}
 
 	/**
