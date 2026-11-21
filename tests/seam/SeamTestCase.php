@@ -31,6 +31,8 @@ abstract class SeamTestCase extends TestCase {
 	private static array $people = [];
 	/** @var list<string> each group this class made */
 	private static array $groups = [];
+	/** @var int|null when this class first moved the clock (tick, work): the moved clock counts from it */
+	private static ?int $clockStart = null;
 	/** @var string|false|null the server's timezone before this class moved it: false while unmoved, null when it had none */
 	private static string|false|null $timezone = false;
 
@@ -43,6 +45,7 @@ abstract class SeamTestCase extends TestCase {
 		}
 		self::$people = [];
 		self::$groups = [];
+		self::$clockStart = null;
 		if (self::$timezone !== false) {
 			self::occ(...(self::$timezone === null ? ['config:system:delete', 'default_timezone'] : ['config:system:set', 'default_timezone', '--value=' . self::$timezone]));
 			self::$timezone = false;
@@ -170,7 +173,7 @@ abstract class SeamTestCase extends TestCase {
 		return self::offHours(2, 3);
 	}
 
-	/** The run engine's tick, as the scheduler would run its TimedJob, $minutes later than now when given. */
+	/** The run engine's tick, as the scheduler would run its TimedJob; at clock($minutes) when given. */
 	protected static function tick(int $minutes = 0): void {
 		$jobs = json_decode(self::occ('background-job:list', '--class=OCA\\Ia\\BackgroundJob\\RunJob', '--output=json'), true);
 		self::assertCount(1, $jobs, 'the run engine is registered once');
@@ -178,8 +181,8 @@ abstract class SeamTestCase extends TestCase {
 	}
 
 	/**
-	 * TaskProcessing's worker, once, $minutes later than now: a task a later tick asks for is due
-	 * then, so the instance's own worker, on the real clock, leaves it waiting.
+	 * TaskProcessing's worker, once, at clock($minutes): a task a moved tick asks for is due then,
+	 * so the instance's own worker, on the real clock, leaves it waiting.
 	 */
 	protected static function work(int $minutes): void {
 		$jobs = json_decode(self::occ('background-job:list', '--class=OC\\TaskProcessing\\SynchronousBackgroundJob', '--output=json'), true);
@@ -188,9 +191,19 @@ abstract class SeamTestCase extends TestCase {
 		}
 	}
 
-	/** @return array<string, string> the environment that runs occ $minutes later than now; none for now */
+	/**
+	 * The environment that runs occ $minutes after this class first moved the clock, none for 0: a
+	 * fixed point, so that two moved ticks are as far apart as their minutes say, however long the
+	 * real ones took.
+	 *
+	 * @return array<string, string>
+	 */
 	private static function clock(int $minutes): array {
-		return $minutes === 0 ? [] : ['LD_PRELOAD' => self::FAKETIME, 'FAKETIME' => "+{$minutes}m", 'FAKETIME_DONT_FAKE_MONOTONIC' => '1'];
+		if ($minutes === 0) {
+			return [];
+		}
+		self::$clockStart ??= time();
+		return ['LD_PRELOAD' => self::FAKETIME, 'FAKETIME' => '@' . gmdate('Y-m-d H:i:s', self::$clockStart + $minutes * 60), 'FAKETIME_DONT_FAKE_MONOTONIC' => '1', 'TZ' => 'UTC'];
 	}
 
 	/** @return list<array<string, mixed>> the tasks of «IA»'s Runs in TaskProcessing now: not the Model's health probe */

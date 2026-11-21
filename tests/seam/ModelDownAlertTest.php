@@ -11,7 +11,7 @@ use PHPUnit\Framework\Attributes\Group;
 
 /**
  * The model-down alert (APS-Conecta/ia#8), with Ollama stopped (`make test-seam`'s model-down
- * group). Each tick, and TaskProcessing's worker after it, runs minutes later than now
+ * group). Each tick, and TaskProcessing's worker after it, runs at a minute of a clock moved on
  * (libfaketime), as on the server's own clock: the Model is down from the first failed check, and
  * once it has been down half an hour the admins are told once and the setup check warns. The time
  * a server is stopped, as the nightly backup stops it, doesn't count.
@@ -46,9 +46,7 @@ final class ModelDownAlertTest extends SeamTestCase {
 		self::later(85);
 		$model = self::model();
 		self::assertSame('down', $model['state']);
-		// Moved on by the 40 minutes, and the seconds the last tick and worker took.
-		self::assertGreaterThanOrEqual($since + 40 * 60, $model['since'], 'the time it went down moved on by the stop');
-		self::assertLessThan($since + 45 * 60, $model['since']);
+		self::assertEqualsWithDelta($since + 40 * 60, $model['since'], 30, 'the time it went down moved on by the stop');
 		self::assertFalse($model['alerted'], '50 minutes since the first failed check, 10 of them with the server running');
 		self::assertSame([], self::notified(self::$admin, self::ALERT));
 	}
@@ -72,7 +70,7 @@ final class ModelDownAlertTest extends SeamTestCase {
 		return $answer['data']['model'];
 	}
 
-	/** A tick $minutes later than now, then TaskProcessing's worker: the probe it sends fails. */
+	/** A tick at minute $minutes of the moved clock, then TaskProcessing's worker: the probe it sends fails. */
 	private static function later(int $minutes): void {
 		self::tick($minutes);
 		self::work($minutes);
