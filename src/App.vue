@@ -109,9 +109,9 @@ import BulletinSidebar from './BulletinSidebar.vue'
 import ParaTi from './ParaTi.vue'
 import ReviewList from './ReviewList.vue'
 import ReviewReport from './ReviewReport.vue'
-import { ocsGet, ocsPost, refusal } from './api.js'
+import { ocsGet, ocsPost } from './api.js'
 import { mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiPulse, mdiRobotOutline, mdiStarOutline } from './icons.js'
-import { offHoursText } from './reviews.js'
+import { requestFailedText, requestedText } from './reviews.js'
 
 /** What «IA» reads (TextReader): PDF with text, DOCX, ODT, TXT and MD. */
 const FORMATS = [
@@ -200,13 +200,11 @@ export default {
 		},
 		async review(fileId) {
 			try {
-				const { review, start } = await ocsPost('reviews', { fileId })
-				window.location.hash = `#revisiones/${review.id}`
-				showSuccess(start === 'offHours'
-					? `Es un documento largo: se revisará fuera de horario, ${offHoursText(review)}. Te avisaremos cuando esté lista.`
-					: 'Revisión pedida. Te avisaremos cuando esté lista.')
+				const requested = await ocsPost('reviews', { fileId })
+				window.location.hash = `#revisiones/${requested.review.id}`
+				showSuccess(requestedText(requested))
 			} catch (error) {
-				showError(refusal(error) ?? 'No se pudo pedir la revisión. Inténtalo de nuevo.')
+				showError(requestFailedText(error))
 			}
 		},
 	},

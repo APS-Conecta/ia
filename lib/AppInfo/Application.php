@@ -6,9 +6,11 @@ declare(strict_types=1);
 
 namespace OCA\Ia\AppInfo;
 
+use OCA\Files\Event\LoadAdditionalScriptsEvent;
 use OCA\Ia\Dashboard\BulletinsWidget;
 use OCA\Ia\Listener\ActionListener;
 use OCA\Ia\Listener\FileListener;
+use OCA\Ia\Listener\FilesScriptListener;
 use OCA\Ia\Listener\TaskListener;
 use OCA\Ia\Notification\Notifier;
 use OCA\Ia\SetupCheck\ModelCheck;
@@ -35,6 +37,7 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(TaskSuccessfulEvent::class, TaskListener::class);
 		$context->registerEventListener(TaskFailedEvent::class, TaskListener::class);
 		$context->registerEventListener(BeforeNodeDeletedEvent::class, FileListener::class);
+		$context->registerEventListener(LoadAdditionalScriptsEvent::class, FilesScriptListener::class);
 		foreach ([NodeCreatedEvent::class, NodeWrittenEvent::class, NodeRenamedEvent::class, NodeCopiedEvent::class] as $event) {
 			$context->registerEventListener($event, ActionListener::class);
 		}
