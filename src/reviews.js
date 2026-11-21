@@ -2,6 +2,12 @@
 
 import { refusal } from './api.js'
 
+/** The extensions «IA» reads, as TextReader::READS has them: a file's type alone isn't enough (.conf is text/plain). */
+const READS = ['pdf', 'docx', 'odt', 'txt', 'md']
+
+/** Whether «IA» reads a file (a @nextcloud/files node), by its extension, in any letter case. */
+export const reads = (node) => READS.includes(node.extension?.slice(1).toLowerCase())
+
 export const STATES = { waiting: 'En espera', working: 'En curso', done: 'Lista', failed: 'Falló' }
 
 export const KINDS = {

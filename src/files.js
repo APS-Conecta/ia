@@ -2,15 +2,12 @@ import { FileType, Permission, registerFileAction } from '@nextcloud/files'
 import { generateFilePath, generateUrl } from '@nextcloud/router'
 import { ocsPost } from './api.js'
 import { mdiCreation } from './icons.js'
-import { requestFailedText, requestedText } from './reviews.js'
+import { reads, requestFailedText, requestedText } from './reviews.js'
 
 // «Revisar con IA» in a file's menu in Files (APS-Conecta/ia#5): the same Review as «Revisar un
 // documento», for one file «IA» reads that the person can open. Files loads this on every page, so
 // the toasts load only when the action runs; chunks load as main.js says.
 __webpack_public_path__ = generateFilePath('ia', '', 'js/')
-
-/** The extensions «IA» reads, as TextReader::READS has them: its type alone isn't enough (.conf is text/plain). */
-const READS = ['pdf', 'docx', 'odt', 'txt', 'md']
 
 registerFileAction({
 	id: 'ia-review',
@@ -20,7 +17,7 @@ registerFileAction({
 		&& view.id !== 'trashbin'
 		&& node?.type === FileType.File
 		&& (node.permissions & Permission.READ) !== 0
-		&& READS.includes(node.extension?.slice(1).toLowerCase()),
+		&& reads(node),
 	async exec({ nodes: [node] }) {
 		const [{ showError, showMessage, ToastType }] = await Promise.all([import('@nextcloud/dialogs'), import('@nextcloud/dialogs/style.css')])
 		try {
