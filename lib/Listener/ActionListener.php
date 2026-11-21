@@ -51,7 +51,7 @@ class ActionListener implements IEventListener {
 			foreach ($node === null ? [] : TextReader::files($node) as $file) {
 				$action = $this->actions->of($file->getId());
 				if ($action !== null && $action->getId() !== $before?->getId()) {
-					$this->reviews->automatic($file, Report::ACTION, $action->getId(), $action->getInstructions(), $this->session->getUser()?->getUID());
+					$this->reviews->automatic($file, Report::ACTION, $action->getId(), (string)$action->getInstructions(), $this->session->getUser()?->getUID());
 				}
 			}
 		} catch (Throwable $e) {

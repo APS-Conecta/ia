@@ -120,7 +120,7 @@ final class FlowRuleTest extends SeamTestCase {
 			sleep(5);
 		} while (time() < $until);
 		self::assertSame('La regla de Flujo se activó sin una sesión: no hay a nombre de quién leer el archivo.', $failed[0]['error'] ?? null);
-		self::assertCount(1, self::notified(self::$carla, 'Revisión lista'), 'nobody else is told: only the first');
+		self::assertSame([], self::notified(self::$carla, 'Revisión lista: flujo-sin-sesion.txt'), 'nobody is told');
 		self::assertSame([], self::notified(self::$admin, ''));
 	}
 

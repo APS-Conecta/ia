@@ -161,7 +161,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$report->setEtag('');
 		$report->setRequester($changer);
 		$report->setRule($rule);
-		$report->setInstructions($instructions);
+		$report->setInstructions($instructions === '' ? null : $instructions);
 		$report->setCreatedAt($this->time->getTime());
 		if ($report->getId() === null) {
 			$run->setRule($rule);
