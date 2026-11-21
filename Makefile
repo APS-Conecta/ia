@@ -21,8 +21,10 @@ CONNECTOR := integration_openai
 SETTINGS := {"apps": {"$(CONNECTOR)": {"url": "http://ollama:11434/v1", "default_completion_model_id": "$(MODEL)", \
 	"chat_endpoint_enabled": "1", "request_timeout": "900", "max_tokens": "1000", \
 	"llm_extra_params": "{\"reasoning_effort\": \"none\"}"}}}
-# AIO's TaskProcessing worker: one process, restarted when its 300 s lifetime ends.
-WORKER := while :; do php occ background-job:worker -t 300 'OC\TaskProcessing\SynchronousBackgroundJob'; done
+# AIO's TaskProcessing worker: one process, restarted when its lifetime ends. AIO's lasts 300 s;
+# this one 30 s, as it reads config.php once per run and a seam test moves the server's timezone
+# (SeamTestCase::timezone).
+WORKER := while :; do php occ background-job:worker -t 30 'OC\TaskProcessing\SynchronousBackgroundJob'; done
 
 .PHONY: test bundles build-test-image deps instance-up instance-occ instance-down instance-clean model-check test-seam openapi model-digest clean
 

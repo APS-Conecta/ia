@@ -49,9 +49,11 @@ final class LateEditionTest extends SeamTestCase {
 		self::remove(self::$ana, 'retirada.txt');
 	}
 
-	public function testAnEditionItsOffHoursCannotFinishWaitsAndShowsItsStep(): string {
+	/** @return array{date: string, step: int} the Edition's date, and the step it waits at */
+	public function testAnEditionItsOffHoursCannotFinishWaitsAndShowsItsStep(): array {
 		self::tick();
-		// Off hours end while its first step is asked: it stops after that step.
+		// Off hours end while its first step is asked: it stops after that step, or after the next
+		// one when the Model answered the first before the move reached the worker.
 		self::offHoursLater();
 		$until = time() + self::STEP;
 		do {
@@ -61,27 +63,34 @@ final class LateEditionTest extends SeamTestCase {
 			}
 			sleep(5);
 		} while (time() < $until);
-		self::assertSame(2, $writing['step'] ?? null, 'its first step done');
-		self::assertSame([3, false], [$writing['steps'], $writing['late']], 'two Readings and a Resumen');
+		self::assertSame([3, false], [$writing['steps'] ?? null, $writing['late'] ?? null], 'two Readings and a Resumen');
+		self::assertContains($writing['step'], [2, 3], 'it waits between steps');
 		self::assertSame([], self::editions(self::$carla, self::$bulletin), 'nothing shows while it is written');
 		self::assertCount(1, self::told(self::$ana, 'Una fuente de Boletín de normas ya no está'), 'its Editors are told a Source is gone');
 		self::assertSame([], self::told(self::$carla, 'Una fuente'), 'its Readers are not');
-		return $writing['date'];
+		return ['date' => $writing['date'], 'step' => $writing['step']];
 	}
 
-	/** @depends testAnEditionItsOffHoursCannotFinishWaitsAndShowsItsStep */
-	public function testOnceItsDateIsPastItIsLateAndItsEditorsAreToldOnce(string $date): void {
+	/**
+	 * @depends testAnEditionItsOffHoursCannotFinishWaitsAndShowsItsStep
+	 * @param array{date: string, step: int} $waiting
+	 */
+	public function testOnceItsDateIsPastItIsLateAndItsEditorsAreToldOnce(array $waiting): void {
 		self::timezone('Pacific/Kiritimati');
 		self::offHoursLater();
 		self::tick();
 		self::tick();
 		$writing = self::writing();
-		self::assertSame([$date, 2, true], [$writing['date'], $writing['step'], $writing['late']]);
+		self::assertSame([$waiting['date'], $waiting['step'], true], [$writing['date'], $writing['step'], $writing['late']]);
 		self::assertCount(1, self::told(self::$ana, 'Edición atrasada'), 'told once, however many ticks');
 	}
 
-	/** @depends testAnEditionItsOffHoursCannotFinishWaitsAndShowsItsStep */
-	public function testTheNextOffHoursFinishItAsTheOneEdition(string $date): void {
+	/**
+	 * @depends testAnEditionItsOffHoursCannotFinishWaitsAndShowsItsStep
+	 * @param array{date: string, step: int} $waiting
+	 */
+	public function testTheNextOffHoursFinishItAsTheOneEdition(array $waiting): void {
+		$date = $waiting['date'];
 		self::offHoursNow();
 		$editions = self::published(self::$carla, self::$bulletin, 1, 3 * self::STEP);
 		foreach (range(1, 3) as $tick) {
