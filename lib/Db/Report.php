@@ -34,6 +34,7 @@ use OCP\AppFramework\Db\Entity;
 class Report extends Entity {
 	public const MANUAL = 'manual';
 	public const ACTION = 'action';
+	public const FLOW = 'flow';
 
 	// Null until set: Entity writes only the fields a setter changed.
 	protected ?int $fileId = null;

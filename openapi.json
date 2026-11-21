@@ -335,6 +335,7 @@
                         "required": [
                             "manual",
                             "action",
+                            "flow",
                             "edition"
                         ],
                         "properties": {
@@ -343,6 +344,10 @@
                                 "format": "int64"
                             },
                             "action": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "flow": {
                                 "type": "integer",
                                 "format": "int64"
                             },
@@ -397,6 +402,26 @@
                         "type": "string"
                     },
                     "fix": {
+                        "type": "string"
+                    }
+                }
+            },
+            "FlowRule": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "instructions"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "instructions": {
                         "type": "string"
                     }
                 }
@@ -711,7 +736,8 @@
                         "type": "string",
                         "enum": [
                             "manual",
-                            "action"
+                            "action",
+                            "flow"
                         ]
                     },
                     "instructions": {
@@ -740,6 +766,7 @@
                         "enum": [
                             "manual",
                             "action",
+                            "flow",
                             "edition"
                         ]
                     },
@@ -4632,7 +4659,7 @@
         "/ocs/v2.php/apps/ia/api/v1/actions": {
             "get": {
                 "operationId": "api-actions",
-                "summary": "«Acciones automáticas»: the Automatic actions of the caller's Editor groups",
+                "summary": "«Acciones automáticas»: the Automatic actions of the caller's Editor groups, and the admin's Flow rules «Revisar con IA», read-only",
                 "tags": [
                     "api"
                 ],
@@ -4658,7 +4685,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "The actions, by name",
+                        "description": "The actions and the Flow rules, by name",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4680,13 +4707,20 @@
                                                 "data": {
                                                     "type": "object",
                                                     "required": [
-                                                        "actions"
+                                                        "actions",
+                                                        "flowRules"
                                                     ],
                                                     "properties": {
                                                         "actions": {
                                                             "type": "array",
                                                             "items": {
                                                                 "$ref": "#/components/schemas/Action"
+                                                            }
+                                                        },
+                                                        "flowRules": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "$ref": "#/components/schemas/FlowRule"
                                                             }
                                                         }
                                                     }

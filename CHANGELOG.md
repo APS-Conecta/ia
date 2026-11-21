@@ -80,3 +80,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   still see it, with «Deshacer», which brings it back. Anyone else is forbidden.
 - Retention (#16): a daily job deletes reports 90 days after they were asked for and Editions 12 months after their
   date, each with its Run and notifications, and «IA»'s ended TaskProcessing tasks that nothing waits for.
+- The Flow rule «Revisar con IA» (#11): an admin who wants Flow's richer conditions adds it in Flujo with their own
+  instructions. A file event it matches puts the file's automatic Review in line for Off hours, as an Automatic
+  action would, acting as whoever set the event off; with no session it fails into «Estado» and nobody is told.
+  Editors see the rules, read-only, in «Acciones automáticas».

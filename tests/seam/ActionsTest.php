@@ -74,7 +74,7 @@ final class ActionsTest extends SeamTestCase {
 		self::assertSame(404, self::ocs(self::person(), 'GET', self::API . "/reviews/{$review['id']}")['status'], 'only who can open the file reads it');
 
 		self::offHoursNow();
-		$done = self::reviewed($review['id']);
+		$done = self::reviewed(self::$carla, $review['id'], self::REVIEW);
 		self::assertSame($latest, $done['etag'], 'reviewed once, on the latest version');
 		self::assertIsArray($done['findings']);
 		self::assertCount(1, self::told(self::$dario, $review['id']), 'whoever added or changed it is told');
@@ -88,7 +88,7 @@ final class ActionsTest extends SeamTestCase {
 		self::assertSame(200, self::ocs(self::$ana, 'DELETE', '/apps/files_sharing/api/v1/shares/' . self::$dariosShare)['status']);
 		self::offHoursNow();
 		$review = self::automatic(self::$carla, 'cambio.txt');
-		self::reviewed($review['id']);
+		self::reviewed(self::$carla, $review['id'], self::REVIEW);
 		self::assertSame([], self::told(self::$dario, $review['id']));
 	}
 
@@ -117,24 +117,6 @@ final class ActionsTest extends SeamTestCase {
 		self::assertSame(['failed', 'Se eliminó la acción automática.'], [$moved['state'], $moved['error']], 'nor does one it had lined up');
 		self::assertSame([], self::told(self::$ana, $moved['id']));
 		self::assertSame([], self::tasks());
-	}
-
-	/**
-	 * Ticks as the scheduler would until Carla sees the Review $id done, or fails after REVIEW seconds.
-	 *
-	 * @return array<string, mixed> the Review
-	 */
-	private static function reviewed(int $id): array {
-		$until = time() + self::REVIEW;
-		do {
-			self::tick();
-			$review = self::ocs(self::$carla, 'GET', self::API . "/reviews/$id")['data']['review'];
-			if ($review['state'] === 'done') {
-				return $review;
-			}
-			sleep(5);
-		} while (time() < $until);
-		self::fail("Review $id was not done after " . self::REVIEW . ' s: ' . json_encode(array_diff_key($review, ['findings' => 0])));
 	}
 
 	/** @return array<string, mixed> the automatic Review of $name that $person sees */

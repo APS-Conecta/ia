@@ -34,7 +34,7 @@ namespace OCA\Ia;
  *     offHoursWindow: IaOffHours,
  *     error: ?string,
  *     requestedAt: int,
- *     origin: 'manual'|'action',
+ *     origin: 'manual'|'action'|'flow',
  *     instructions: ?string,
  * }
  *
@@ -78,6 +78,12 @@ namespace OCA\Ia;
  *     name: string,
  *     editorGroup: IaGroup,
  *     folder: array{id: string, name: string},
+ *     instructions: string,
+ * }
+ *
+ * @psalm-type IaFlowRule = array{
+ *     id: int,
+ *     name: string,
  *     instructions: string,
  * }
  *
@@ -162,7 +168,7 @@ namespace OCA\Ia;
  *
  * @psalm-type IaRunItem = array{
  *     id: int,
- *     kind: 'manual'|'action'|'edition',
+ *     kind: 'manual'|'action'|'flow'|'edition',
  *     name: ?string,
  *     date: ?string,
  *     error: ?string,
@@ -171,7 +177,7 @@ namespace OCA\Ia;
  *
  * @psalm-type IaEstado = array{
  *     model: IaModelHealth,
- *     waiting: array{manual: int, action: int, edition: int},
+ *     waiting: array{manual: int, action: int, flow: int, edition: int},
  *     lastDone: ?IaRunItem,
  *     failed: list<IaRunItem>,
  * }

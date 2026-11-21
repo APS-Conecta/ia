@@ -11,6 +11,7 @@ use OCA\Ia\Dashboard\BulletinsWidget;
 use OCA\Ia\Listener\ActionListener;
 use OCA\Ia\Listener\FileListener;
 use OCA\Ia\Listener\FilesScriptListener;
+use OCA\Ia\Listener\FlowListener;
 use OCA\Ia\Listener\TaskListener;
 use OCA\Ia\Notification\Notifier;
 use OCA\Ia\SetupCheck\ModelCheck;
@@ -25,6 +26,8 @@ use OCP\Files\Events\Node\NodeRenamedEvent;
 use OCP\Files\Events\Node\NodeWrittenEvent;
 use OCP\TaskProcessing\Events\TaskFailedEvent;
 use OCP\TaskProcessing\Events\TaskSuccessfulEvent;
+use OCP\WorkflowEngine\Events\LoadSettingsScriptsEvent;
+use OCP\WorkflowEngine\Events\RegisterOperationsEvent;
 
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'ia';
@@ -38,6 +41,8 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(TaskFailedEvent::class, TaskListener::class);
 		$context->registerEventListener(BeforeNodeDeletedEvent::class, FileListener::class);
 		$context->registerEventListener(LoadAdditionalScriptsEvent::class, FilesScriptListener::class);
+		$context->registerEventListener(RegisterOperationsEvent::class, FlowListener::class);
+		$context->registerEventListener(LoadSettingsScriptsEvent::class, FlowListener::class);
 		foreach ([NodeCreatedEvent::class, NodeWrittenEvent::class, NodeRenamedEvent::class, NodeCopiedEvent::class] as $event) {
 			$context->registerEventListener($event, ActionListener::class);
 		}

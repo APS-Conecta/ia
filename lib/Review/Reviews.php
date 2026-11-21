@@ -15,6 +15,7 @@ use OCA\Ia\Db\ReportMapper;
 use OCA\Ia\Db\Run;
 use OCA\Ia\Db\RunMapper;
 use OCA\Ia\Db\StaleRun;
+use OCA\Ia\Flow\FlowRules;
 use OCA\Ia\Model\ModelGateway;
 use OCA\Ia\Reading\Document;
 use OCA\Ia\Reading\TextReader;
@@ -41,11 +42,12 @@ use OCP\TaskProcessing\Task;
  *   summaries for Falta. Each step is asked when the one before it succeeds.
  * - **As the requester.** A manual report is theirs alone, and only while they can open the
  *   file; every step reads the file as them.
- * - **Automatic** (an Automatic action's): a file keeps one automatic report, reviewed in Off hours
- *   on its latest version however often it changes, with the action's instructions. It reads the
- *   file as whoever added or changed it last; failing that, as an active member of the action's
- *   Editor group who can open it; otherwise the Run fails and nobody is told. Anyone who can open
- *   the file reads it, and whoever added or changed it is told.
+ * - **Automatic** (an Automatic action's or a Flow rule's): a file keeps one automatic report,
+ *   reviewed in Off hours on its latest version however often it changes, with its rule's
+ *   instructions. An Automatic action's reads the file as whoever added or changed it last;
+ *   failing that, as an active member of the action's Editor group who can open it. A Flow rule's
+ *   reads it as whoever set the event off. Otherwise the Run fails and nobody is told. Anyone who
+ *   can open the file reads it, and whoever added or changed it is told.
  * - **Short now, longer in Off hours.** A document of about 10 pages or less is asked at once; a
  *   longer one waits for Off hours, where the run engine (Runs) asks it, and an Off-hours Run
  *   stops between steps when Off hours end, to resume from its last finished step the next time.
@@ -94,6 +96,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		private Settings $settings,
 		private Steps $steps,
 		private Actions $actions,
+		private FlowRules $flowRules,
 	) {
 	}
 
@@ -125,6 +128,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		$report->setCreatedAt($this->time->getTime());
 		$run = new Run();
 		$run->setActor($userId);
+		$run->setOrigin(Report::MANUAL);
 		$chunks = $this->line($run, $report, $document);
 		if (!$this->insert($report, $run)) {
 			return $this->create($userId, $fileId);
@@ -136,35 +140,40 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	}
 
 	/**
-	 * Puts the automatic Review of $file in line for Off hours: it was added to, changed in, moved
-	 * or copied into the folder of $action, by $changer when known. Only a Review done on this
-	 * same version, for this same action, stays as it is; any other is reviewed from its first
-	 * step, on the version current when it starts, with the action's instructions.
+	 * Puts the automatic Review of $file in line for Off hours, for an Automatic action ($origin
+	 * action: it was added to, changed in, moved or copied into its folder) or a Flow rule ($origin
+	 * flow: a file event matched it), by $changer when known. Only a Review done on this same
+	 * version, for this same rule, stays as it is; any other is reviewed from its first step, on the
+	 * version current when it starts, with the rule's instructions.
+	 *
+	 * @param 'action'|'flow' $origin
 	 */
-	public function automatic(File $file, Action $action, ?string $changer): void {
+	public function automatic(File $file, string $origin, int $rule, string $instructions, ?string $changer): void {
 		$report = $this->reports->automaticOf($file->getId()) ?? new Report();
 		$run = $report->getId() === null ? new Run() : $this->runs->of(Run::REVIEW, (string)$report->getId());
-		if ($run === null || ($run->getState() === Run::DONE && $report->getEtag() === $file->getEtag() && $report->getRule() === $action->getId())) {
+		if ($run === null || ($run->getState() === Run::DONE && $report->getEtag() === $file->getEtag()
+			&& $report->getOrigin() === $origin && $report->getRule() === $rule)) {
 			return;
 		}
 		$report->setFileId($file->getId());
 		$report->setAutomaticFile($file->getId());
-		$report->setOrigin(Report::ACTION);
+		$report->setOrigin($origin);
 		// No version reviewed: whatever step it was at, the Run starts over (resume, finish).
 		$report->setEtag('');
 		$report->setRequester($changer);
-		$report->setRule($action->getId());
-		$report->setInstructions($action->getInstructions());
+		$report->setRule($rule);
+		$report->setInstructions($instructions === '' ? null : $instructions);
 		$report->setCreatedAt($this->time->getTime());
 		if ($report->getId() === null) {
-			$run->setRule($action->getId());
+			$run->setRule($rule);
+			$run->setOrigin($origin);
 			$run->setState(Run::WAITING);
 			$run->setOffHours(true);
 			$run->setStep(0);
 			$run->setSteps(0);
 			$run->setAttempts(0);
 			if (!$this->insert($report, $run)) {
-				$this->automatic($file, $action, $changer);
+				$this->automatic($file, $origin, $rule, $instructions, $changer);
 			}
 			return;
 		}
@@ -173,13 +182,14 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		if (self::underWay($run)) {
 			return;
 		}
-		$run->setRule($action->getId());
+		$run->setRule($rule);
+		$run->setOrigin($origin);
 		$run->setState(Run::WAITING);
 		$run->setOffHours(true);
 		$run->setTaskId(null);
 		if (!$this->runs->save($run)) {
 			// Another process moved the Run since it was read: line it up again from what it saved.
-			$this->automatic($file, $action, $changer);
+			$this->automatic($file, $origin, $rule, $instructions, $changer);
 		}
 	}
 
@@ -354,20 +364,35 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	}
 
 	public function about(Run $run): array {
-		return ['name' => $run->getRule() === null ? null : $this->actions->byId($run->getRule())?->getName(), 'date' => null];
+		$name = match ($run->origin()) {
+			Report::ACTION => $this->actions->byId((int)$run->getRule())?->getName(),
+			Report::FLOW => $this->flowRules->one((int)$run->getRule())['name'] ?? null,
+			default => null,
+		};
+		return ['name' => $name, 'date' => null];
 	}
 
 	/**
 	 * The Run's report, its file as the Run's actor opens it now, and the Document read from it; a
-	 * Run whose file is gone, unreadable or no one may read for it fails, and null comes back.
+	 * Run whose file is gone, unreadable or no one may read for it fails, and null comes back. An
+	 * Automatic action's Review reads as whoever added or changed the file, or else its Editor group;
+	 * a Flow rule's, as whoever set the event off, and never as anyone else.
 	 *
 	 * @return array{0: Report, 1: File, 2: Document}|null
 	 */
 	private function source(Run $run): ?array {
 		$report = $this->reports->byId((int)$run->getTarget());
-		$action = $report?->isAutomatic() ? $this->actions->byId((int)$report->getRule()) : null;
+		$action = $report?->getOrigin() === Report::ACTION ? $this->actions->byId((int)$report->getRule()) : null;
+		$flow = $report?->getOrigin() === Report::FLOW ? $this->flowRules->one((int)$report->getRule()) : null;
 		if ($report?->isAutomatic()) {
-			$run->setActor($action === null ? null : $this->actor($report, $action));
+			// The Run follows its report: an Automatic action takes over a file a Flow rule lined up.
+			$run->setOrigin((string)$report->getOrigin());
+			$run->setRule($report->getRule());
+			$run->setActor(match (true) {
+				$flow !== null => $report->getRequester(),
+				$action !== null => $this->actor($report, $action),
+				default => null,
+			});
 		}
 		$file = $report === null || $run->getActor() === null ? null : $this->access->file($run->getActor(), $report->getFileId());
 		try {
@@ -376,6 +401,9 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			}
 			$run->fail(match (true) {
 				!$report?->isAutomatic() => 'El archivo ya no está disponible.',
+				$report->getOrigin() === Report::FLOW && $flow === null => 'Se eliminó la regla de Flujo.',
+				$flow !== null && $report->getRequester() === null => 'La regla de Flujo se activó sin una sesión: no hay a nombre de quién leer el archivo.',
+				$flow !== null => 'Quien activó la regla de Flujo ya no puede abrir el archivo.',
 				$action === null => 'Se eliminó la acción automática.',
 				default => 'Ni quien agregó o cambió el archivo ni su grupo editor pueden abrirlo.',
 			});
@@ -461,10 +489,10 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		return $instruction . self::told($report) . "\n\n<<<\n" . $body . "\n>>>";
 	}
 
-	/** The Editors' instructions for the Review, as the prompt adds them; '' when none. */
+	/** The instructions of the Review's Automatic action or Flow rule, as the prompt adds them; '' when none. */
 	private static function told(Report $report): string {
 		$instructions = (string)$report->getInstructions();
-		return $instructions === '' ? '' : "\nAdemás, el grupo editor pide: «" . $instructions . '»';
+		return $instructions === '' ? '' : "\nAdemás, se pide: «" . $instructions . '»';
 	}
 
 	/** @param list<array<string, string>> $lines a chunk step's lines, whose RESUMEN sums it up */

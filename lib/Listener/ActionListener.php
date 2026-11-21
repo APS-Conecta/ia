@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace OCA\Ia\Listener;
 
 use OCA\Ia\Action\Actions;
+use OCA\Ia\Db\Report;
 use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Review\Reviews;
 use OCP\EventDispatcher\Event;
@@ -15,8 +16,6 @@ use OCP\Files\Events\Node\NodeCopiedEvent;
 use OCP\Files\Events\Node\NodeCreatedEvent;
 use OCP\Files\Events\Node\NodeRenamedEvent;
 use OCP\Files\Events\Node\NodeWrittenEvent;
-use OCP\Files\File;
-use OCP\Files\Folder;
 use OCP\Files\Node;
 use OCP\Files\NotFoundException;
 use OCP\IUserSession;
@@ -49,10 +48,10 @@ class ActionListener implements IEventListener {
 		try {
 			// A rename within one action's folder (the folder's own, too) brings nothing new to it.
 			$before = $event instanceof NodeRenamedEvent ? $this->actions->of(self::parentId($event->getSource())) : null;
-			foreach ($node === null ? [] : self::files($node) as $file) {
+			foreach ($node === null ? [] : TextReader::files($node) as $file) {
 				$action = $this->actions->of($file->getId());
 				if ($action !== null && $action->getId() !== $before?->getId()) {
-					$this->reviews->automatic($file, $action, $this->session->getUser()?->getUID());
+					$this->reviews->automatic($file, Report::ACTION, $action->getId(), (string)$action->getInstructions(), $this->session->getUser()?->getUID());
 				}
 			}
 		} catch (Throwable $e) {
@@ -68,17 +67,5 @@ class ActionListener implements IEventListener {
 		} catch (NotFoundException) {
 			return 0;
 		}
-	}
-
-	/** @return list<File> the files «IA» reads at $node: itself, or those under it at any depth */
-	private static function files(Node $node): array {
-		if ($node instanceof File) {
-			return TextReader::reads($node->getName()) ? [$node] : [];
-		}
-		$found = [];
-		foreach ($node instanceof Folder ? $node->getDirectoryListing() : [] as $child) {
-			array_push($found, ...self::files($child));
-		}
-		return $found;
 	}
 }
