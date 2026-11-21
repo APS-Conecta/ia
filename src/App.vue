@@ -92,6 +92,7 @@
 
 <script>
 import { getFilePickerBuilder, showError, showSuccess } from '@nextcloud/dialogs'
+import { FileType } from '@nextcloud/files'
 import '@nextcloud/dialogs/style.css'
 import { generateUrl } from '@nextcloud/router'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
@@ -111,16 +112,7 @@ import ReviewList from './ReviewList.vue'
 import ReviewReport from './ReviewReport.vue'
 import { ocsGet, ocsPost } from './api.js'
 import { mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiPlus, mdiPulse, mdiRobotOutline, mdiStarOutline } from './icons.js'
-import { requestFailedText, requestedText } from './reviews.js'
-
-/** What «IA» reads (TextReader): PDF with text, DOCX, ODT, TXT and MD. */
-const FORMATS = [
-	'application/pdf',
-	'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-	'application/vnd.oasis.opendocument.text',
-	'text/plain',
-	'text/markdown',
-]
+import { reads, requestFailedText, requestedText } from './reviews.js'
 
 /** Each place's page heading, for screen readers. */
 const HEADINGS = { 'para-ti': 'Para ti', boletines: 'Boletines', boletin: 'Boletines', revisiones: 'Revisiones', revision: 'Revisiones', acciones: 'Acciones automáticas' }
@@ -189,7 +181,8 @@ export default {
 		async pick() {
 			const picker = getFilePickerBuilder('Revisar un documento')
 				.setMultiSelect(false)
-				.setMimeTypeFilter(FORMATS)
+				// Folders to find a file in, and the files «IA» reads.
+				.setFilter((node) => node.type === FileType.Folder || reads(node))
 				.addButton({ label: 'Revisar', variant: 'primary', callback: ([node]) => this.review(node.fileid) })
 				.build()
 			try {

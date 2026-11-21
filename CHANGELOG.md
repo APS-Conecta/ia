@@ -25,7 +25,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 - PDF, DOCX and ODT (#4): a PDF with text is read through smalot/pdfparser 2.13.1, vendored under a prefix so it never
   meets Assistant's copy; DOCX and ODT through PHP's zip and XML readers. Each finding names its page (PDF) or section
   (DOCX, ODT, MD), and a file's own page count decides whether it waits for Off hours. A scan, a password-protected or
-  a damaged file is turned down plainly, and the Model is asked nothing.
+  a damaged file is turned down plainly, and the Model is asked nothing. «Revisar un documento» offers only PDF, DOCX,
+  ODT, TXT and MD files, by their extension (#36).
 - Bulletin set-up (#7): an Editor group's members create, change and delete its Bulletins in a sidebar (tabs Fuentes,
   Horario, Lectores): Sources are folders, documents and calendars the whole Editor group can open (one it can't is
   refused, naming who), Readers are Nextcloud groups, and the schedule is daily, weekly or monthly on a day, or «cuando
