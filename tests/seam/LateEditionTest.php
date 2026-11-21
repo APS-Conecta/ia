@@ -51,20 +51,18 @@ final class LateEditionTest extends SeamTestCase {
 
 	/** @return array{date: string, step: int} the Edition's date, and the step it waits at */
 	public function testAnEditionItsOffHoursCannotFinishWaitsAndShowsItsStep(): array {
-		self::tick();
-		// Off hours end while its first step is asked: it stops after that step, or after the next
-		// one when the Model answered the first before the move reached the worker.
-		self::offHoursLater();
+		// Off hours from half an hour on: a tick in them asks its first step, and TaskProcessing's
+		// worker, on the real clock before they start, takes the answer and asks nothing more.
+		$now = self::now();
+		self::offHoursWindow($now->modify('+30 minutes')->format('H:i'), $now->modify('+3 hours')->format('H:i'));
+		self::tick(31);
 		$until = time() + self::STEP;
 		do {
-			$writing = self::writing();
-			if ($writing !== null && $writing['step'] >= 2 && self::tasks() === []) {
-				break;
-			}
-			sleep(5);
-		} while (time() < $until);
-		self::assertSame([3, false], [$writing['steps'] ?? null, $writing['late'] ?? null], 'two Readings and a Resumen');
-		self::assertContains($writing['step'], [2, 3], 'it waits between steps');
+			self::work(0);
+		} while (self::tasks() !== [] && time() < $until);
+		$writing = self::writing();
+		self::assertSame([2, 3, false], [$writing['step'] ?? null, $writing['steps'] ?? null, $writing['late'] ?? null], 'its first step done, of two Readings and a Resumen');
+		self::assertSame([], self::tasks());
 		self::assertSame([], self::editions(self::$carla, self::$bulletin), 'nothing shows while it is written');
 		self::assertCount(1, self::notified(self::$ana, 'Una fuente de Boletín de normas ya no está'), 'its Editors are told a Source is gone');
 		self::assertSame([], self::notified(self::$carla, 'Una fuente'), 'its Readers are not');

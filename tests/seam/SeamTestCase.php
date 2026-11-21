@@ -181,8 +181,8 @@ abstract class SeamTestCase extends TestCase {
 	}
 
 	/**
-	 * TaskProcessing's worker, once, at clock($minutes): a task a moved tick asks for is due then,
-	 * so the instance's own worker, on the real clock, leaves it waiting.
+	 * TaskProcessing's worker, once (one task), at clock($minutes): a task a moved tick asks for is
+	 * due then, so the instance's own worker, on the real clock, leaves it waiting.
 	 */
 	protected static function work(int $minutes): void {
 		$jobs = json_decode(self::occ('background-job:list', '--class=OC\\TaskProcessing\\SynchronousBackgroundJob', '--output=json'), true);
