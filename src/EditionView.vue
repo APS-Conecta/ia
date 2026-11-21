@@ -17,7 +17,7 @@
 						</template>
 						Corregir el resumen
 					</NcActionButton>
-					<NcActionButton close-after-click @click="withdraw(true)">
+					<NcActionButton close-after-click @click="withdraw">
 						<template #icon>
 							<NcIconSvgWrapper :path="mdiEyeOffOutline" />
 						</template>
@@ -27,7 +27,7 @@
 			</div>
 			<NcNoteCard v-if="edition.withdrawn" type="error" heading="Retiraste esta edición">
 				<p>Los lectores ya no la ven, ni en «Para ti» ni en el panel.</p>
-				<NcButton variant="tertiary" :disabled="saving" @click="withdraw(false)">
+				<NcButton variant="tertiary" :disabled="saving" @click="restore">
 					Deshacer
 				</NcButton>
 			</NcNoteCard>
@@ -199,23 +199,27 @@ export default {
 			this.correcting = true
 		},
 		async saveCorrection() {
-			await this.change(() => ocsPut(`editions/${this.id}`, { resumen: this.draft }), 'Corrección guardada. Los lectores ven el texto corregido.')
-			this.correcting = false
+			if (await this.change(() => ocsPut(`editions/${this.id}`, { resumen: this.draft }), 'Corrección guardada. Los lectores ven el texto corregido.')) {
+				this.correcting = false
+			}
 		},
-		withdraw(withdrawn) {
-			return withdrawn
-				? this.change(() => ocsPost(`editions/${this.id}/withdrawal`), 'Edición retirada. Los lectores ya no la ven.')
-				: this.change(() => ocsDelete(`editions/${this.id}/withdrawal`), 'Los lectores ven de nuevo esta edición.')
+		withdraw() {
+			return this.change(() => ocsPost(`editions/${this.id}/withdrawal`), 'Edición retirada. Los lectores ya no la ven.')
 		},
-		/** Runs an Editor's change and shows the Edition it answers with. */
+		restore() {
+			return this.change(() => ocsDelete(`editions/${this.id}/withdrawal`), 'Los lectores ven de nuevo esta edición.')
+		},
+		/** Runs an Editor's change and shows the Edition it answers with; whether it went through. */
 		async change(request, done) {
 			this.saving = true
 			try {
 				this.edition = (await request()).edition
 				showSuccess(done)
 				this.$emit('changed')
+				return true
 			} catch (error) {
 				showError(refusal(error) ?? 'No se pudo guardar. Inténtalo de nuevo.')
+				return false
 			} finally {
 				this.saving = false
 			}

@@ -18,7 +18,7 @@
 					Editar
 				</NcButton>
 				<NcSelect v-if="editions.length > 1"
-					:model-value="shown"
+					:model-value="editions.find((option) => option.id === shown.id) ?? null"
 					input-label="Edición"
 					:options="editions"
 					:get-option-label="(option) => longDate(option.date) + (option.late ? ' (atrasada)' : '') + (option.withdrawn ? ' (retirada)' : '')"

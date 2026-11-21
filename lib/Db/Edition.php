@@ -55,6 +55,15 @@ class Edition extends Entity {
 	protected ?string $files = null;
 	protected ?int $publishedAt = null;
 
+	/** Whether it was published: published, or withdrawn since. */
+	public function wasPublished(): bool {
+		return in_array($this->getStatus(), [self::PUBLISHED, self::WITHDRAWN], true);
+	}
+
+	public function isWithdrawn(): bool {
+		return $this->getStatus() === self::WITHDRAWN;
+	}
+
 	public function __construct() {
 		$this->addType('bulletinId', 'integer');
 		$this->addType('late', 'boolean');

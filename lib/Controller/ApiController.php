@@ -481,7 +481,7 @@ class ApiController extends OCSController {
 	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
 	#[ApiRoute(verb: 'POST', url: '/api/v1/editions/{id}/withdrawal')]
 	public function withdrawEdition(int $id): DataResponse {
-		return $this->refusable(fn (): DataResponse => new DataResponse(['edition' => $this->editions->withdraw($this->user(), $id, true)]), self::NO_EDITION);
+		return $this->refusable(fn (): DataResponse => new DataResponse(['edition' => $this->editions->withdraw($this->user(), $id)]), self::NO_EDITION);
 	}
 
 	/**
@@ -498,7 +498,7 @@ class ApiController extends OCSController {
 	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
 	#[ApiRoute(verb: 'DELETE', url: '/api/v1/editions/{id}/withdrawal')]
 	public function restoreEdition(int $id): DataResponse {
-		return $this->refusable(fn (): DataResponse => new DataResponse(['edition' => $this->editions->withdraw($this->user(), $id, false)]), self::NO_EDITION);
+		return $this->refusable(fn (): DataResponse => new DataResponse(['edition' => $this->editions->restore($this->user(), $id)]), self::NO_EDITION);
 	}
 
 	/**

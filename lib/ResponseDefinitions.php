@@ -124,7 +124,6 @@ namespace OCA\Ia;
  * }
  *
  * @psalm-type IaEdition = IaEditionSummary&array{
- *     withdrawn: bool,
  *     resumen: string,
  *     correctedBy: ?string,
  *     changed: list<IaEditionDocument>,

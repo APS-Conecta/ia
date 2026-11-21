@@ -164,7 +164,6 @@
                     {
                         "type": "object",
                         "required": [
-                            "withdrawn",
                             "resumen",
                             "correctedBy",
                             "changed",
@@ -174,9 +173,6 @@
                             "personal"
                         ],
                         "properties": {
-                            "withdrawn": {
-                                "type": "boolean"
-                            },
                             "resumen": {
                                 "type": "string"
                             },

@@ -27,7 +27,8 @@ use OCP\IUserManager;
 /**
  * Editions as their Readers read them (gestion-aio#162, Bulletins).
  *
- * - **Published only**: nothing shows while an Edition is written.
+ * - **Published only**: nothing shows while an Edition is written; its Editors also see those they
+ *   withdrew.
  * - **Seen only by who can open what it read**: an Editor or Reader of its Bulletin who can open
  *   every file it read that is still in someone's Files; to anyone else it doesn't exist.
  * - **Its sections come from data**: «Documentos nuevos y cambiados» (the difference from the
@@ -72,7 +73,7 @@ class Editions {
 			}
 			foreach ($this->editions->ofBulletin($bulletin->getId()) as $edition) {
 				if ($edition->getStatus() === Edition::PUBLISHED && self::seenBy($edition, $opens)) {
-					$latest[] = ['id' => $edition->getId(), 'date' => $edition->getDate(), 'late' => (bool)$edition->getLate(), 'bulletin' => ['id' => $bulletin->getId(), 'name' => $bulletin->getName()]];
+					$latest[] = self::item($edition) + ['bulletin' => ['id' => $bulletin->getId(), 'name' => $bulletin->getName()]];
 					break;
 				}
 			}
@@ -93,12 +94,12 @@ class Editions {
 		if ($role === null) {
 			throw new Forbidden('Solo sus editores y lectores ven las ediciones de un boletín.');
 		}
-		$shown = $role === 'editor' ? [Edition::PUBLISHED, Edition::WITHDRAWN] : [Edition::PUBLISHED];
 		$opens = $this->opener($userId);
 		$items = [];
 		foreach ($this->editions->ofBulletin($bulletinId) as $edition) {
-			if (in_array($edition->getStatus(), $shown, true) && self::seenBy($edition, $opens)) {
-				$items[] = ['id' => $edition->getId(), 'date' => $edition->getDate(), 'late' => (bool)$edition->getLate(), 'withdrawn' => $edition->getStatus() === Edition::WITHDRAWN];
+			$shown = $role === 'editor' ? $edition->wasPublished() : $edition->getStatus() === Edition::PUBLISHED;
+			if ($shown && self::seenBy($edition, $opens)) {
+				$items[] = self::item($edition);
 			}
 		}
 		return $items;
@@ -111,7 +112,7 @@ class Editions {
 	 */
 	public function one(string $userId, int $id): array {
 		[$edition, $bulletin, $role] = $this->seen($userId, $id);
-		if ($edition->getStatus() === Edition::WITHDRAWN && $role !== 'editor') {
+		if ($edition->isWithdrawn() && $role !== 'editor') {
 			throw new Withdrawn('Sus editores retiraron esta edición.');
 		}
 		$cargos = $this->settings->cargos();
@@ -124,12 +125,8 @@ class Editions {
 		$read = array_filter($documents, static fn (array $document): bool => $document['status'] === Reading::READ);
 		$expiring = array_filter($read, static fn (array $document): bool => $document['expires'] !== null && $document['expires'] <= $limit);
 		usort($expiring, static fn (array $a, array $b): int => $a['expires'] <=> $b['expires']);
-		return [
-			'id' => $edition->getId(),
+		return self::item($edition) + [
 			'bulletin' => ['id' => $bulletin->getId(), 'name' => $bulletin->getName()],
-			'date' => $edition->getDate(),
-			'late' => (bool)$edition->getLate(),
-			'withdrawn' => $edition->getStatus() === Edition::WITHDRAWN,
 			'resumen' => (string)$edition->getResumen(),
 			'correctedBy' => $edition->getCorrectedBy() === null ? null : ($this->users->getDisplayName($edition->getCorrectedBy()) ?? $edition->getCorrectedBy()),
 			'changed' => array_values(array_filter($documents, static fn (array $document): bool => $document['new'])),
@@ -161,14 +158,32 @@ class Editions {
 
 	/**
 	 * An Editor of its Bulletin withdraws the Edition, at once from its Readers' pages, «Para ti» and
-	 * the widget; or, with $withdrawn false, undoes that.
+	 * the widget.
 	 *
 	 * @return IaEdition
 	 * @throws DoesNotExistException|Forbidden
 	 */
-	public function withdraw(string $userId, int $id, bool $withdrawn): array {
+	public function withdraw(string $userId, int $id): array {
+		return $this->mark($userId, $id, Edition::WITHDRAWN);
+	}
+
+	/**
+	 * An Editor of its Bulletin undoes its withdrawal: its Readers see it again.
+	 *
+	 * @return IaEdition
+	 * @throws DoesNotExistException|Forbidden
+	 */
+	public function restore(string $userId, int $id): array {
+		return $this->mark($userId, $id, Edition::PUBLISHED);
+	}
+
+	/**
+	 * @return IaEdition
+	 * @throws DoesNotExistException|Forbidden
+	 */
+	private function mark(string $userId, int $id, string $status): array {
 		$edition = $this->editable($userId, $id);
-		$edition->setStatus($withdrawn ? Edition::WITHDRAWN : Edition::PUBLISHED);
+		$edition->setStatus($status);
 		$this->editions->update($edition);
 		return $this->one($userId, $id);
 	}
@@ -180,7 +195,7 @@ class Editions {
 	 * @throws DoesNotExistException
 	 */
 	private function seen(string $userId, int $id): array {
-		[$edition, $bulletin] = $this->out($id);
+		[$edition, $bulletin] = $this->find($id);
 		$role = $this->setUp->role($userId, $bulletin);
 		if ($role === null || !self::seenBy($edition, $this->opener($userId))) {
 			throw new DoesNotExistException('No such Edition');
@@ -195,11 +210,14 @@ class Editions {
 	 * @throws Forbidden when $userId isn't one of its Bulletin's Editors
 	 */
 	private function editable(string $userId, int $id): Edition {
-		[, $bulletin] = $this->out($id);
+		[$edition, $bulletin] = $this->find($id);
 		if ($this->setUp->role($userId, $bulletin) !== 'editor') {
 			throw new Forbidden('Solo los editores del boletín corrigen o retiran sus ediciones.');
 		}
-		return $this->seen($userId, $id)[0];
+		if (!self::seenBy($edition, $this->opener($userId))) {
+			throw new DoesNotExistException('No such Edition');
+		}
+		return $edition;
 	}
 
 	/**
@@ -208,10 +226,10 @@ class Editions {
 	 * @return array{Edition, Bulletin}
 	 * @throws DoesNotExistException
 	 */
-	private function out(int $id): array {
+	private function find(int $id): array {
 		$edition = $this->editions->byId($id);
 		$bulletin = $edition === null ? null : $this->bulletins->byId($edition->getBulletinId());
-		if ($edition === null || $bulletin === null || !in_array($edition->getStatus(), [Edition::PUBLISHED, Edition::WITHDRAWN], true)) {
+		if ($edition === null || $bulletin === null || !$edition->wasPublished()) {
 			throw new DoesNotExistException('No such Edition');
 		}
 		return [$edition, $bulletin];
@@ -229,10 +247,13 @@ class Editions {
 		return $earlier === null ? [] : array_column(self::files($earlier), 'etag', 'fileId');
 	}
 
-	/** The Bulletin's last Edition published before $edition, or null. */
+	/**
+	 * The Bulletin's last Edition published before $edition, or null; one withdrawn since counts, as
+	 * its withdrawal can be undone.
+	 */
 	public function before(Edition $edition): ?Edition {
 		foreach ($this->editions->ofBulletin($edition->getBulletinId()) as $earlier) {
-			if ($earlier->getStatus() === Edition::PUBLISHED && $earlier->getDate() < $edition->getDate()) {
+			if ($earlier->wasPublished() && $earlier->getDate() < $edition->getDate()) {
 				return $earlier;
 			}
 		}
@@ -287,6 +308,11 @@ class Editions {
 			'expires' => $document['expires'],
 			'cargos' => array_values(array_intersect_key($cargos, array_flip($document['cargos']))),
 		];
+	}
+
+	/** @return IaEditionItem */
+	private static function item(Edition $edition): array {
+		return ['id' => $edition->getId(), 'date' => $edition->getDate(), 'late' => (bool)$edition->getLate(), 'withdrawn' => $edition->isWithdrawn()];
 	}
 
 	/** @return list<array<string, mixed>> the documents the Edition read, as stored */

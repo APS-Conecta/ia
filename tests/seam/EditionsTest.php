@@ -250,13 +250,6 @@ final class EditionsTest extends SeamTestCase {
 		self::assertSame(201, self::dav(self::$carla, 'PUT', '/remote.php/dav/calendars/' . self::$carla . "/reuniones/$uid.ics", $ics, 'text/calendar'));
 	}
 
-	/** @return array<string, mixed> */
-	private static function edition(string $person, int $id): array {
-		$answer = self::ocs($person, 'GET', self::API . "/editions/$id");
-		self::assertSame(200, $answer['status'], json_encode($answer['data']));
-		return $answer['data']['edition'];
-	}
-
 	/**
 	 * @param list<array{name: string}> $documents
 	 * @return list<string> sorted

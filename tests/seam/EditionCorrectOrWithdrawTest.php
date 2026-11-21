@@ -15,7 +15,7 @@ use PHPUnit\Framework\Attributes\Depends;
  * Anyone else is forbidden. Its Bulletin reads an empty folder, so its Edition is published without
  * the Model.
  */
-final class EditionCorrectionTest extends SeamTestCase {
+final class EditionCorrectOrWithdrawTest extends SeamTestCase {
 	private const API = '/apps/ia/api/v1';
 	/** Seconds for an Edition without the Model, behind the other Runs in line. */
 	private const EDITION = 900;
@@ -57,7 +57,7 @@ final class EditionCorrectionTest extends SeamTestCase {
 	public function testAnyEditorCorrectsTheResumenAndReadersSeeWhoDid(): void {
 		$answer = self::ocs(self::$beto, 'PUT', self::API . '/editions/' . self::$edition, ['resumen' => "  Resumen corregido por el equipo.\n\nSegundo párrafo.  "]);
 		self::assertSame(200, $answer['status'], json_encode($answer['data']));
-		$read = self::edition(self::$carla);
+		$read = self::edition(self::$carla, self::$edition);
 		self::assertSame("Resumen corregido por el equipo.\n\nSegundo párrafo.", $read['resumen']);
 		self::assertSame(self::$beto, $read['correctedBy'], 'who corrected it, by name (an account named as its id)');
 		self::assertSame(422, self::ocs(self::$ana, 'PUT', self::API . '/editions/' . self::$edition, ['resumen' => ' '])['status'], 'an empty Resumen');
@@ -91,7 +91,7 @@ final class EditionCorrectionTest extends SeamTestCase {
 
 		$listed = self::editions(self::$beto, self::$bulletin);
 		self::assertSame([[self::$edition, true]], array_map(static fn (array $edition): array => [$edition['id'], $edition['withdrawn']], $listed), 'its Editors still see it, withdrawn');
-		self::assertTrue(self::edition(self::$beto)['withdrawn']);
+		self::assertTrue(self::edition(self::$beto, self::$edition)['withdrawn']);
 	}
 
 	#[Depends('testAWithdrawnEditionLeavesTheReadersAtOnceAndItsLinkSaysSo')]
@@ -100,17 +100,10 @@ final class EditionCorrectionTest extends SeamTestCase {
 		self::assertSame(200, $answer['status'], json_encode($answer['data']));
 		self::assertFalse($answer['data']['edition']['withdrawn']);
 		self::assertSame([self::$edition], array_column(self::editions(self::$carla, self::$bulletin), 'id'));
-		self::assertFalse(self::edition(self::$carla)['withdrawn']);
-		self::assertSame("Resumen corregido por el equipo.\n\nSegundo párrafo.", self::edition(self::$carla)['resumen'], 'with its correction');
+		self::assertFalse(self::edition(self::$carla, self::$edition)['withdrawn']);
+		self::assertSame("Resumen corregido por el equipo.\n\nSegundo párrafo.", self::edition(self::$carla, self::$edition)['resumen'], 'with its correction');
 		self::assertContains(self::$edition, array_column(self::paraTi(self::$carla), 'id'));
 		self::assertContains(self::$name, self::widget(self::$carla));
-	}
-
-	/** @return array<string, mixed> the Edition as $person reads it */
-	private static function edition(string $person): array {
-		$answer = self::ocs($person, 'GET', self::API . '/editions/' . self::$edition);
-		self::assertSame(200, $answer['status'], json_encode($answer['data']));
-		return $answer['data']['edition'];
 	}
 
 	/** @return list<array<string, mixed>> the Editions «Para ti» shows $person */
