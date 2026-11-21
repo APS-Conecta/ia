@@ -418,7 +418,7 @@ function iaNavigation() {
         ${navEntry('view:docs', 'Documentos', 'mdiFileDocumentMultipleOutline', v.s === 'docs', `<span class="counter">${Object.keys(DOCS).filter(docOk).length}</span>`)}
         ${navEntry('view:actions', 'Acciones automáticas', 'mdiLightningBoltOutline', v.s === 'actions', `<span class="counter">${myActions().length}</span>`)}` : ''}
     </div>
-    <div class="nav-footer">${isAdmin() ? navEntry('goto:settings:ia', 'Estado y ajustes (administración)', 'mdiPulse', false) : ''}${navEntry('toast:Ajustes personales de «IA»: qué avisos recibes por boletines y revisiones.', 'Ajustes de «IA»', 'mdiCogOutline', false)}</div>
+    <div class="nav-footer">${isAdmin() ? navEntry('goto:settings:ia', 'Estado y ajustes (administración)', 'mdiPulse', false) : ''}</div>
   </nav>`;
 }
 
