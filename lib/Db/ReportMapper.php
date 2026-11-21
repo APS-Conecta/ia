@@ -13,6 +13,8 @@ use OCP\IDBConnection;
 
 /** @template-extends QBMapper<Report> */
 class ReportMapper extends QBMapper {
+	use ForgetsRows;
+
 	public function __construct(IDBConnection $db) {
 		parent::__construct($db, 'ia_reports', Report::class);
 	}
@@ -26,6 +28,14 @@ class ReportMapper extends QBMapper {
 		} catch (DoesNotExistException) {
 			return null;
 		}
+	}
+
+	/**
+	 * Deletes the reports asked for before $time (an automatic one: lined up, when its file last
+	 * arrived or changed). @return list<int> their ids
+	 */
+	public function forgetBefore(int $time): array {
+		return $this->forgetWhere(static fn (IQueryBuilder $query): string => $query->expr()->lt('created_at', $query->createNamedParameter($time, IQueryBuilder::PARAM_INT)));
 	}
 
 	/** The person's own manual report of the file $fileId, or null. */

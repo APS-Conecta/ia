@@ -13,6 +13,8 @@ use OCP\IDBConnection;
 
 /** @template-extends QBMapper<Edition> */
 class EditionMapper extends QBMapper {
+	use ForgetsRows;
+
 	public function __construct(IDBConnection $db) {
 		parent::__construct($db, 'ia_editions', Edition::class);
 	}
@@ -35,6 +37,11 @@ class EditionMapper extends QBMapper {
 			->where($query->expr()->eq('bulletin_id', $query->createNamedParameter($bulletinId, IQueryBuilder::PARAM_INT)))
 			->orderBy('date', 'DESC');
 		return $this->findEntities($query);
+	}
+
+	/** Deletes the Editions dated before $date (Y-m-d). @return list<int> their ids */
+	public function forgetBefore(string $date): array {
+		return $this->forgetWhere(static fn (IQueryBuilder $query): string => $query->expr()->lt('date', $query->createNamedParameter($date)));
 	}
 
 	/** Deletes the Bulletin's Editions. @return list<int> their ids */

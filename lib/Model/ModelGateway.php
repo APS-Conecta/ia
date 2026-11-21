@@ -82,6 +82,14 @@ class ModelGateway {
 		return (int)$task->getId();
 	}
 
+	/** Deletes «IA»'s tasks that ended before $time, of any user and Run or none: left over. */
+	public function sweep(int $time): void {
+		// '' is no user filter; «IA»'s tasks have none.
+		foreach ($this->taskProcessing->getTasks('', null, Application::APP_ID, null, null, null, $time) as $task) {
+			$this->forget($task);
+		}
+	}
+
 	/** Whether a provider takes `core:text2text`: a connector update can drop it. */
 	public function available(): bool {
 		return array_key_exists(TextToText::ID, $this->taskProcessing->getAvailableTaskTypes());
