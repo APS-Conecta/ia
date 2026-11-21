@@ -42,11 +42,12 @@ use OCP\TaskProcessing\Task;
  *   summaries for Falta. Each step is asked when the one before it succeeds.
  * - **As the requester.** A manual report is theirs alone, and only while they can open the
  *   file; every step reads the file as them.
- * - **Automatic** (an Automatic action's): a file keeps one automatic report, reviewed in Off hours
- *   on its latest version however often it changes, with the action's instructions. It reads the
- *   file as whoever added or changed it last; failing that, as an active member of the action's
- *   Editor group who can open it; otherwise the Run fails and nobody is told. Anyone who can open
- *   the file reads it, and whoever added or changed it is told.
+ * - **Automatic** (an Automatic action's or a Flow rule's): a file keeps one automatic report,
+ *   reviewed in Off hours on its latest version however often it changes, with its rule's
+ *   instructions. An Automatic action's reads the file as whoever added or changed it last;
+ *   failing that, as an active member of the action's Editor group who can open it. A Flow rule's
+ *   reads it as whoever set the event off. Otherwise the Run fails and nobody is told. Anyone who
+ *   can open the file reads it, and whoever added or changed it is told.
  * - **Short now, longer in Off hours.** A document of about 10 pages or less is asked at once; a
  *   longer one waits for Off hours, where the run engine (Runs) asks it, and an Off-hours Run
  *   stops between steps when Off hours end, to resume from its last finished step the next time.
@@ -488,7 +489,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 		return $instruction . self::told($report) . "\n\n<<<\n" . $body . "\n>>>";
 	}
 
-	/** The Editors' instructions for the Review, as the prompt adds them; '' when none. */
+	/** The instructions of the Review's Automatic action or Flow rule, as the prompt adds them; '' when none. */
 	private static function told(Report $report): string {
 		$instructions = (string)$report->getInstructions();
 		return $instructions === '' ? '' : "\nAdemás, se pide: «" . $instructions . '»';

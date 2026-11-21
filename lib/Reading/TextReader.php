@@ -52,7 +52,6 @@ class TextReader {
 	) {
 	}
 
-	/** Whether «IA» reads files of $name's format. */
 	/** @return list<File> the files it reads at $node: the file itself, or those under a folder at any depth */
 	public static function files(Node $node): array {
 		if ($node instanceof File) {
@@ -65,6 +64,7 @@ class TextReader {
 		return $found;
 	}
 
+	/** Whether «IA» reads files of $name's format. */
 	public static function reads(string $name): bool {
 		return in_array(strtolower(pathinfo($name, PATHINFO_EXTENSION)), self::READS, true);
 	}
