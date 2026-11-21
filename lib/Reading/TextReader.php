@@ -10,6 +10,8 @@ use OCA\Ia\Refused;
 use OCA\Ia\Vendor\Smalot\PdfParser\Config;
 use OCA\Ia\Vendor\Smalot\PdfParser\Parser;
 use OCP\Files\File;
+use OCP\Files\Folder;
+use OCP\Files\Node;
 use OCP\ITempManager;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -51,6 +53,18 @@ class TextReader {
 	}
 
 	/** Whether «IA» reads files of $name's format. */
+	/** @return list<File> the files it reads at $node: the file itself, or those under a folder at any depth */
+	public static function files(Node $node): array {
+		if ($node instanceof File) {
+			return self::reads($node->getName()) ? [$node] : [];
+		}
+		$found = [];
+		foreach ($node instanceof Folder ? $node->getDirectoryListing() : [] as $child) {
+			array_push($found, ...self::files($child));
+		}
+		return $found;
+	}
+
 	public static function reads(string $name): bool {
 		return in_array(strtolower(pathinfo($name, PATHINFO_EXTENSION)), self::READS, true);
 	}

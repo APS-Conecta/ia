@@ -18,6 +18,10 @@ _Avoid_: using it for «IA»
 The Model's check of one document and the report it gives: errors, gaps and unclear parts, each with a suggested fix.
 _Avoid_: proofreading, corrección, norm check
 
+**Flow rule** (regla de Flujo):
+An admin's Nextcloud Flow rule «Revisar con IA»: «IA» reviews the files its conditions match, like an Automatic action.
+_Avoid_: acción automática, workflow
+
 **Automatic action** (acción automática):
 A rule on a folder that has «IA» review the files that arrive or change there.
 _Avoid_: workflow, flujo, automation

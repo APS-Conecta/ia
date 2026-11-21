@@ -22,7 +22,7 @@
 			<dl v-if="estado" class="work">
 				<dt>Revisiones pedidas a mano</dt>
 				<dd>{{ estado.waiting.manual }}</dd>
-				<dt>Revisiones automáticas</dt>
+				<dt>Revisiones de acciones automáticas</dt>
 				<dd>{{ estado.waiting.action }}</dd>
 				<dt>Revisiones de reglas de Flujo</dt>
 				<dd>{{ estado.waiting.flow }}</dd>

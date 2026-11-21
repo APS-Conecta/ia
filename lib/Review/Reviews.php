@@ -364,8 +364,8 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 
 	public function about(Run $run): array {
 		$name = match ($run->origin()) {
-			'action' => $this->actions->byId((int)$run->getRule())?->getName(),
-			'flow' => $this->flowRules->name((int)$run->getRule()),
+			Report::ACTION => $this->actions->byId((int)$run->getRule())?->getName(),
+			Report::FLOW => $this->flowRules->one((int)$run->getRule())['name'] ?? null,
 			default => null,
 		};
 		return ['name' => $name, 'date' => null];
@@ -373,15 +373,25 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 
 	/**
 	 * The Run's report, its file as the Run's actor opens it now, and the Document read from it; a
-	 * Run whose file is gone, unreadable or no one may read for it fails, and null comes back.
+	 * Run whose file is gone, unreadable or no one may read for it fails, and null comes back. An
+	 * Automatic action's Review reads as whoever added or changed the file, or else its Editor group;
+	 * a Flow rule's, as whoever set the event off, and never as anyone else.
 	 *
 	 * @return array{0: Report, 1: File, 2: Document}|null
 	 */
 	private function source(Run $run): ?array {
 		$report = $this->reports->byId((int)$run->getTarget());
 		$action = $report?->getOrigin() === Report::ACTION ? $this->actions->byId((int)$report->getRule()) : null;
+		$flow = $report?->getOrigin() === Report::FLOW ? $this->flowRules->one((int)$report->getRule()) : null;
 		if ($report?->isAutomatic()) {
-			$run->setActor($report->getOrigin() === Report::FLOW ? $report->getRequester() : ($action === null ? null : $this->actor($report, $action)));
+			// The Run follows its report: an Automatic action takes over a file a Flow rule lined up.
+			$run->setOrigin((string)$report->getOrigin());
+			$run->setRule($report->getRule());
+			$run->setActor(match (true) {
+				$flow !== null => $report->getRequester(),
+				$action !== null => $this->actor($report, $action),
+				default => null,
+			});
 		}
 		$file = $report === null || $run->getActor() === null ? null : $this->access->file($run->getActor(), $report->getFileId());
 		try {
@@ -390,8 +400,9 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 			}
 			$run->fail(match (true) {
 				!$report?->isAutomatic() => 'El archivo ya no está disponible.',
-				$report->getOrigin() === Report::FLOW && $report->getRequester() === null => 'La regla de Flujo se activó sin una sesión: no hay a nombre de quién leer el archivo.',
-				$report->getOrigin() === Report::FLOW => 'Quien activó la regla de Flujo ya no puede abrir el archivo.',
+				$report->getOrigin() === Report::FLOW && $flow === null => 'Se eliminó la regla de Flujo.',
+				$flow !== null && $report->getRequester() === null => 'La regla de Flujo se activó sin una sesión: no hay a nombre de quién leer el archivo.',
+				$flow !== null => 'Quien activó la regla de Flujo ya no puede abrir el archivo.',
 				$action === null => 'Se eliminó la acción automática.',
 				default => 'Ni quien agregó o cambió el archivo ni su grupo editor pueden abrirlo.',
 			});
@@ -480,7 +491,7 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	/** The Editors' instructions for the Review, as the prompt adds them; '' when none. */
 	private static function told(Report $report): string {
 		$instructions = (string)$report->getInstructions();
-		return $instructions === '' ? '' : "\nAdemás, el grupo editor pide: «" . $instructions . '»';
+		return $instructions === '' ? '' : "\nAdemás, se pide: «" . $instructions . '»';
 	}
 
 	/** @param list<array<string, string>> $lines a chunk step's lines, whose RESUMEN sums it up */

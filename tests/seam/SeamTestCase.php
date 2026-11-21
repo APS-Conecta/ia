@@ -402,6 +402,24 @@ abstract class SeamTestCase extends TestCase {
 	}
 
 	/**
+	 * Ticks as the scheduler would until $person sees the Review $id done, or fails after $seconds.
+	 *
+	 * @return array<string, mixed> the Review
+	 */
+	protected static function reviewed(string $person, int $id, int $seconds): array {
+		$until = time() + $seconds;
+		do {
+			self::tick();
+			$review = self::ocs($person, 'GET', "/apps/ia/api/v1/reviews/$id")['data']['review'];
+			if ($review['state'] === 'done') {
+				return $review;
+			}
+			sleep(5);
+		} while (time() < $until);
+		self::fail("Review $id was not done after $seconds s: " . $review['state']);
+	}
+
+	/**
 	 * Asks for the Review until its state is one of $states, or fails after $seconds.
 	 *
 	 * @param list<string> $states

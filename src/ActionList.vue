@@ -46,7 +46,7 @@
 			<ul>
 				<NcListItem v-for="rule in flowRules"
 					:key="rule.id"
-					:name="rule.name || 'Regla sin nombre'"
+					:name="rule.name"
 					:active="false">
 					<template #icon>
 						<NcIconSvgWrapper :path="mdiLightningBoltOutline" />

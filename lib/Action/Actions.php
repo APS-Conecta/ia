@@ -156,10 +156,7 @@ class Actions {
 	 * @throws Refused
 	 */
 	private function fill(string $userId, Action $action, array $input): void {
-		$name = trim((string)($input['name'] ?? ''));
-		if ($name === '' || mb_strlen($name) > 200) {
-			throw new Refused('Escribe un nombre para la acción automática, de hasta 200 caracteres.');
-		}
+		$name = self::name($input['name'] ?? '', 'la acción automática');
 		$id = $input['folder'] ?? null;
 		$folder = (is_string($id) || is_int($id)) && ctype_digit((string)$id) ? $this->access->node($userId, (int)$id, 'folder') : null;
 		if ($folder === null) {
@@ -174,13 +171,36 @@ class Actions {
 		if ($cannot !== []) {
 			throw new Refused('Todo el grupo editor debe poder abrir la carpeta, y «' . $folder->getName() . '» no la puede abrir: ' . implode(', ', $cannot) . '.');
 		}
-		$instructions = trim((string)($input['instructions'] ?? ''));
-		if (mb_strlen($instructions) > self::MAX_INSTRUCTIONS) {
-			throw new Refused('Las instrucciones pueden tener hasta ' . self::MAX_INSTRUCTIONS . ' caracteres.');
-		}
+		$instructions = self::instructions($input['instructions'] ?? '');
 		$action->setName($name);
 		$action->setFolder((int)$id);
 		$action->setInstructions($instructions === '' ? null : $instructions);
+	}
+
+	/**
+	 * The name of an Automatic action or a Flow rule ($of names which), trimmed.
+	 *
+	 * @throws Refused when it is empty or too long
+	 */
+	public static function name(mixed $name, string $of): string {
+		$name = trim(is_string($name) ? $name : '');
+		if ($name === '' || mb_strlen($name) > 200) {
+			throw new Refused("Escribe un nombre para $of, de hasta 200 caracteres.");
+		}
+		return $name;
+	}
+
+	/**
+	 * The instructions of an Automatic action or a Flow rule, trimmed: what else its Reviews check.
+	 *
+	 * @throws Refused when they are too long
+	 */
+	public static function instructions(mixed $instructions): string {
+		$instructions = trim(is_string($instructions) ? $instructions : '');
+		if (mb_strlen($instructions) > self::MAX_INSTRUCTIONS) {
+			throw new Refused('Las instrucciones pueden tener hasta ' . self::MAX_INSTRUCTIONS . ' caracteres.');
+		}
+		return $instructions;
 	}
 
 	/** @return IaAction */
