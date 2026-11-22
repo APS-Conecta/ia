@@ -45,7 +45,8 @@ A folder, document or calendar that a Bulletin draws on.
 
 **Reading** (lectura):
 What the Model takes, once, from one version of a document: a short summary, its expiry date and the Cargos it
-concerns. An Edition takes its Sources'; the night's sweep, those of the documents in Automatic actions' folders.
+concerns. An Edition takes its Sources'; those of the documents in Automatic actions' folders are taken each night,
+from the start of Off hours.
 _Avoid_: ficha, profile, metadata
 
 **Cargo group** (grupo de cargo):

@@ -99,9 +99,8 @@ class Actions {
 	}
 
 	/**
-	 * Who acts on the file (or folder) $nodeId for the action: an automatic Review when whoever
-	 * changed the file can't open it, a Reading's Run, the night's sweep of its folder. The first
-	 * active member, by id, of the action's Editor group who can open it; null when none can.
+	 * Who acts on the file (or folder) $nodeId for the action: the first active member, by id, of
+	 * the action's Editor group who can open it; null when none can.
 	 *
 	 * @param 'file'|'folder' $type
 	 */

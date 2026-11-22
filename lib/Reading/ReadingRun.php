@@ -23,6 +23,8 @@ use OCP\DB\Exception;
 use OCP\Files\File;
 use OCP\IAppConfig;
 use OCP\TaskProcessing\Task;
+use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * A Reading's Run (APS-Conecta/ia#42): the Reading of a document that only an Automatic action
@@ -30,10 +32,13 @@ use OCP\TaskProcessing\Task;
  *
  * - **When.** Once a night, at the start of Off hours (ReadingSweepJob), every Automatic action's
  *   folder is swept: each document there without a Reading of its current version gets a Run, one
- *   per file, in line with the other Off-hours Runs. A failed one waits for «Reintentar».
+ *   per file, in line after the other Off-hours Runs (Runs). One that failed on that version waits
+ *   for «Reintentar»; a new version, or another action's sweep after the first's was deleted, puts
+ *   it back in line. An action whose folder no member of its Editor group can open gets none.
  * - **As whom.** An active member of the action's Editor group who can open the file
  *   (Actions::actor): a Reading is the same for everyone. When none can, or the action is gone,
- *   the Run fails into «Estado» and nobody is told.
+ *   the Run fails into «Estado» and nobody is told; a file deleted meanwhile just ends it, as an
+ *   Edition drops it.
  * - **Steps.** Those of any Reading (Readings::ask): each part of a long document, then their
  *   merge. A scan or a file «IA» can't read gets its Reading at once, without the Model. A version
  *   read meanwhile, by an Edition, ends the Run; one that changed since the ask starts over.
@@ -56,6 +61,7 @@ class ReadingRun implements Kind {
 		private Settings $settings,
 		private IAppConfig $appConfig,
 		private ITimeFactory $time,
+		private LoggerInterface $logger,
 	) {
 	}
 
@@ -66,12 +72,17 @@ class ReadingRun implements Kind {
 			return;
 		}
 		foreach ($this->actionMapper->all() as $action) {
-			$actor = $this->actions->actor($action, $action->getFolder(), 'folder');
-			$folder = $actor === null ? null : $this->access->node($actor, $action->getFolder(), 'folder');
-			foreach (TextReader::documents($folder) as $file) {
-				if ($this->readings->of($file->getId(), $file->getEtag()) === null) {
-					$this->open($file, $action);
+			try {
+				$actor = $this->actions->actor($action, $action->getFolder(), 'folder');
+				$folder = $actor === null ? null : $this->access->node($actor, $action->getFolder(), 'folder');
+				foreach (TextReader::documents($folder) as $file) {
+					if ($this->readings->of($file->getId(), $file->getEtag()) === null) {
+						$this->open($file, $action);
+					}
 				}
+			} catch (Throwable $e) {
+				// By its id and the error's class only: a message may name a file. The others go on.
+				$this->logger->error('«IA» could not sweep the folder of the Automatic action {action}: {error}', ['action' => $action->getId(), 'error' => $e::class]);
 			}
 		}
 		$this->appConfig->setValueString(Application::APP_ID, self::SWEPT, $night);
@@ -117,13 +128,6 @@ class ReadingRun implements Kind {
 			$this->done($run);
 			return;
 		}
-		if (!$this->settings->isOffHours($this->time->getDateTime())) {
-			$run->setResults(json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
-			$run->setTaskId(null);
-			$run->setState(Run::WAITING);
-			$this->runs->save($run);
-			return;
-		}
 		$this->next($run, $file, $state);
 	}
 
@@ -137,10 +141,14 @@ class ReadingRun implements Kind {
 		return ['name' => $this->actionMapper->byId((int)$run->getRule())?->getName(), 'date' => null];
 	}
 
-	/** A Run for the file's Reading, unless one is in line, under way or failed. */
+	/** A Run for the file's Reading, unless one is in line, under way, or failed on this version. */
 	private function open(File $file, Action $action): void {
 		$run = $this->runs->of(Run::READING, (string)$file->getId());
-		if ($run !== null && $run->getState() !== Run::DONE) {
+		if ($run !== null && match ($run->getState()) {
+			Run::DONE => false,
+			Run::FAILED => (self::state($run)['etag'] ?? null) === $file->getEtag(),
+			default => true,
+		}) {
 			return;
 		}
 		$run ??= new Run();
@@ -150,6 +158,7 @@ class ReadingRun implements Kind {
 		$run->setStep(0);
 		$run->setSteps(0);
 		$run->setAttempts(0);
+		$run->setLastError(null);
 		$run->setTaskId(null);
 		$run->setResults(null);
 		if ($run->getId() !== null) {
@@ -189,21 +198,26 @@ class ReadingRun implements Kind {
 		}
 		$run->setSteps($this->readings->asks($document));
 		$run->setResults(json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+		if (!$this->settings->isOffHours($this->time->getDateTime())) {
+			// No new Off-hours step once Off hours are over: it waits for the next ones.
+			$run->setTaskId(null);
+			$run->setState(Run::WAITING);
+			$this->runs->save($run);
+			return;
+		}
 		$this->steps->ask($run, $this->readings->ask($document, $state['progress']));
 	}
 
-	/** The file, as an active member of the action's Editor group opens it; null when the Run can't go on, and has failed. */
+	/** The file, as an active member of the action's Editor group opens it; null when the Run can't go on: ended when the file is gone, else failed. */
 	private function source(Run $run): ?File {
 		$fileId = (int)$run->getTarget();
 		$action = $this->actionMapper->byId((int)$run->getRule());
 		$actor = $action === null ? null : $this->actions->actor($action, $fileId);
 		$file = $actor === null ? null : $this->access->file($actor, $fileId);
-		if ($file === null) {
-			$run->fail(match (true) {
-				$action === null => 'Se eliminó la acción automática.',
-				!$this->access->exists($fileId) => 'El archivo ya no está disponible.',
-				default => 'Nadie del grupo editor de la acción puede abrir el archivo.',
-			});
+		if ($file === null && !$this->access->exists($fileId)) {
+			$this->done($run);
+		} elseif ($file === null) {
+			$run->fail($action === null ? 'Se eliminó la acción automática.' : 'Nadie del grupo editor de la acción puede abrir el archivo.');
 			$this->runs->save($run);
 		}
 		return $file;

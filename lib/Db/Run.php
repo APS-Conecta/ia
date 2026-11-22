@@ -72,7 +72,7 @@ class Run extends Entity {
 	protected ?string $actor = null;
 	/** The Automatic action or Flow rule an automatic Review or a Reading is for; null for any other Run. */
 	protected ?int $rule = null;
-	/** A Review's origin, as its report's: manual, action or flow; null for an Edition. */
+	/** A Review's origin, as its report's: manual, action or flow; null for an Edition or a Reading. */
 	protected ?string $origin = null;
 	protected ?string $results = null;
 	protected ?int $updatedAt = null;

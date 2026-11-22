@@ -28,7 +28,9 @@ final class ReadingRunTest extends SeamTestCase {
 		self::$ana = self::person();
 		$editors = self::group(self::$ana, self::person());
 		self::$admin = self::admin();
+		// Ana is a nurse; the Cargo list is the Cargo groups' ids.
 		$cargos = array_map(static fn (string $name): string => self::namedGroup($name), self::CARGOS);
+		self::occ('group:adduser', $cargos[0], self::$ana);
 		self::occ('config:app:set', 'ia', 'cargos', '--type=array', '--value=' . json_encode($cargos));
 		self::editorGroups($editors);
 
@@ -62,6 +64,8 @@ final class ReadingRunTest extends SeamTestCase {
 		$row = self::readUntil('higiene.txt', self::READING);
 		self::assertSame([self::$expires, 'scan'], [$row['expires'], self::statuses()['escaneado.pdf']], 'a scan without the Model');
 		self::assertSame([], array_diff($row['cargos'], self::CARGOS), 'it names only Cargos of the list');
+		self::assertContains('higiene.txt', self::names('expiring'), 'it expires within 30 days');
+		self::assertSame(in_array('Enfermera', $row['cargos'], true) ? ['higiene.txt'] : [], self::names('cargo'), "for Ana's Cargo when it names Enfermera");
 		$document = self::ocs(self::$ana, 'GET', self::API . '/documents/' . $row['fileId'])['data']['document'];
 		self::assertNotSame('', trim((string)$document['summary']));
 
@@ -85,6 +89,11 @@ final class ReadingRunTest extends SeamTestCase {
 		self::assertSame(1, self::estado()['waiting']['reading'], 'only the new version');
 		$row = self::readUntil('higiene.txt', self::READING);
 		self::assertNull($row['expires'], 'the new version says no date');
+	}
+
+	/** @return list<string> the documents Ana's «Documentos» keeps under $filter */
+	private static function names(string $filter): array {
+		return array_column(self::ocs(self::$ana, 'GET', self::API . "/documents?filter=$filter")['data']['documents'], 'name');
 	}
 
 	/** @return array<string, string> each document's Reading status in Ana's «Documentos», by name */
