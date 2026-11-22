@@ -218,6 +218,18 @@ abstract class SeamTestCase extends TestCase {
 		self::job('OCA\\Ia\\BackgroundJob\\RunJob', $minutes);
 	}
 
+	/**
+	 * The night's sweep of the Automatic action folders, as the scheduler runs it: by default as a
+	 * new night's, which tonight's earlier sweeps (another class's, an earlier run's) never stop;
+	 * $newNight false runs it again the same night.
+	 */
+	protected static function sweep(bool $newNight = true): void {
+		if ($newNight) {
+			self::occ('config:app:delete', 'ia', 'readings_swept');
+		}
+		self::job('OCA\\Ia\\BackgroundJob\\ReadingSweepJob', 0);
+	}
+
 	/** «IA»'s daily retention job, $days after this class first moved the clock. */
 	protected static function retention(int $days): void {
 		self::job('OCA\\Ia\\BackgroundJob\\RetentionJob', $days * 24 * 60);

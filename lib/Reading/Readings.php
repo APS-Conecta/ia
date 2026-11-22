@@ -9,8 +9,11 @@ namespace OCA\Ia\Reading;
 use OCA\Ia\Db\Reading;
 use OCA\Ia\Db\ReadingMapper;
 use OCA\Ia\Model\ModelGateway;
+use OCA\Ia\Refused;
+use OCA\Ia\Run\Steps;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\Files\File;
 
 /**
  * Readings (CONTEXT.md; gestion-aio#162, Readings): what the Model takes, once per version, from a
@@ -20,7 +23,10 @@ use OCP\AppFramework\Utility\ITimeFactory;
  *   the ways Chilean documents write dates; a Cargo only if it is on the establishment's list,
  *   kept as its group's id.
  * - **A long document** is read part by part; the parts' summaries are merged in one more ask,
- *   and their dates and Cargos pooled.
+ *   and their dates and Cargos pooled. A Run keeps how far it got as its progress: the part it is
+ *   at and the parts taken (text(), ask(), take()).
+ *
+ * @psalm-type IaReadingProgress = array{part: int, parts: list<array{summary: string, expires: ?string, cargos: list<string>}>}
  */
 class Readings {
 	private const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -31,6 +37,7 @@ class Readings {
 
 	public function __construct(
 		private ReadingMapper $readings,
+		private TextReader $reader,
 		private Settings $settings,
 		private ITimeFactory $time,
 	) {
@@ -42,13 +49,77 @@ class Readings {
 		return $reading?->getEtag() === $etag ? $reading : null;
 	}
 
+	/**
+	 * The file's text, to read; a scan, or a file «IA» can't read, gets its Reading at once, as its
+	 * current version, and null comes back.
+	 */
+	public function text(File $file): ?Document {
+		try {
+			return $this->reader->read($file);
+		} catch (Scanned) {
+			$this->store($file->getId(), $file->getEtag(), Reading::SCAN);
+		} catch (Refused) {
+			$this->store($file->getId(), $file->getEtag(), Reading::FAILED);
+		}
+		return null;
+	}
+
+	/** The asks a Reading of the document takes: one per part, and the parts' merge when several. */
+	public function asks(Document $document): int {
+		return Steps::asks(count($this->parts($document)));
+	}
+
+	/**
+	 * The next ask of the document's Reading, from $progress: its next part, or the parts' merge.
+	 *
+	 * @param IaReadingProgress $progress
+	 */
+	public function ask(Document $document, array $progress): string {
+		$chunks = $this->parts($document);
+		$part = $progress['part'];
+		return $part < count($chunks)
+			? $this->prompt($part + 1, count($chunks), $chunks[$part])
+			: $this->mergePrompt(array_column($progress['parts'], 'summary'));
+	}
+
+	/**
+	 * Takes the answer to ask() into $progress. Once the document is read whole, its Reading is
+	 * stored as version $etag of the file $fileId.
+	 *
+	 * @param IaReadingProgress $progress
+	 */
+	public function take(string $answer, Document $document, int $fileId, string $etag, array &$progress): Taken {
+		$parts = count($this->parts($document));
+		if ($progress['part'] < $parts) {
+			$part = $this->part($answer, $document);
+			if ($part['summary'] === '') {
+				return Taken::Empty;
+			}
+			$progress['parts'][] = $part;
+			$progress['part']++;
+			if ($parts > 1) {
+				return Taken::Part;
+			}
+			$summary = $part['summary'];
+		} else {
+			$summary = $this->merged($answer);
+			if ($summary === '') {
+				return Taken::Empty;
+			}
+		}
+		$found = array_values(array_filter(array_column($progress['parts'], 'expires')));
+		$this->store($fileId, $etag, Reading::READ, $summary, $found[0] ?? null,
+			array_values(array_unique(array_merge(...array_column($progress['parts'], 'cargos')))));
+		return Taken::Read;
+	}
+
 	/** @return list<string> the document in parts that each fit a Reading's ask */
-	public function parts(Document $document): array {
+	private function parts(Document $document): array {
 		return ModelGateway::chunks($document->text, $this->prompt(1, 2, ''));
 	}
 
 	/** The prompt for part $part of $parts of a document, whose text is $chunk. */
-	public function prompt(int $part, int $parts, string $chunk): string {
+	private function prompt(int $part, int $parts, string $chunk): string {
 		$what = $parts === 1 ? 'el documento de un centro de salud' : "la parte $part de $parts de un documento de un centro de salud";
 		$cargos = $this->settings->cargos();
 		return "Lee $what que está entre las marcas <<< y >>>. " . self::FORMAT . ($cargos === [] ? '' : sprintf(self::CARGOS, implode('; ', $cargos)))
@@ -56,7 +127,7 @@ class Readings {
 	}
 
 	/** @param list<string> $summaries the parts' summaries, in order */
-	public function mergePrompt(array $summaries): string {
+	private function mergePrompt(array $summaries): string {
 		return "Estos son los resúmenes de las partes de un documento de un centro de salud, entre las marcas <<< y >>>. Escribe una línea, así:\n"
 			. "RESUMEN: qué establece el documento entero, en dos o tres oraciones\n" . ModelGateway::CLOSE
 			. "\n\n<<<\n" . implode("\n", $summaries) . "\n>>>";
@@ -67,7 +138,7 @@ class Readings {
 	 *
 	 * @return array{summary: string, expires: ?string, cargos: list<string>}
 	 */
-	public function part(string $answer, Document $document): array {
+	private function part(string $answer, Document $document): array {
 		$fields = self::fields($answer);
 		$expires = self::iso(trim($fields['VENCE'] ?? ''));
 		return [
@@ -78,7 +149,7 @@ class Readings {
 	}
 
 	/** The merged summary of a document read part by part, from the answer to mergePrompt. */
-	public function merged(string $answer): string {
+	private function merged(string $answer): string {
 		return trim(self::fields($answer)['RESUMEN'] ?? '');
 	}
 

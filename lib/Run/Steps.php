@@ -25,6 +25,11 @@ class Steps {
 	) {
 	}
 
+	/** The asks $pieces take: one for a single piece; one each, and one more to merge them, for several. */
+	public static function asks(int $pieces): int {
+		return $pieces <= 1 ? $pieces : $pieces + 1;
+	}
+
 	/**
 	 * Asks the Model the Run's current step. The task and the Run that names it are saved in one
 	 * transaction, so the worker never finishes a task before its Run expects it, and a Run another

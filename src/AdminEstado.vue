@@ -28,6 +28,8 @@
 				<dd>{{ estado.waiting.flow }}</dd>
 				<dt>Ediciones de boletines</dt>
 				<dd>{{ estado.waiting.edition }}</dd>
+				<dt>Lecturas de documentos de acciones automáticas</dt>
+				<dd>{{ estado.waiting.reading }}</dd>
 				<dt>Último trabajo terminado</dt>
 				<dd>{{ estado.lastDone ? `${runName(estado.lastDone)} · ${when(estado.lastDone.at)}` : 'Ninguno todavía' }}</dd>
 			</dl>
@@ -83,6 +85,9 @@ function runName({ kind, name, date }) {
 	}
 	if (kind === 'action') {
 		return name === null ? 'Revisión automática de una acción eliminada' : `Revisión automática · ${name}`
+	}
+	if (kind === 'reading') {
+		return name === null ? 'Lectura de un documento de una acción eliminada' : `Lectura de un documento · ${name}`
 	}
 	return 'Revisión pedida a mano'
 }

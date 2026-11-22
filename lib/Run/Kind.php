@@ -10,7 +10,7 @@ use OCA\Ia\Db\Run;
 use OCA\Ia\Refused;
 use OCP\TaskProcessing\Task;
 
-/** A kind of Run the engine moves: a Review or an Edition. */
+/** A kind of Run the engine moves: a Review, an Edition or a Reading. */
 interface Kind {
 	/** Asks the waiting Run's current step, from its last finished one. */
 	public function resume(Run $run): void;
@@ -27,8 +27,8 @@ interface Kind {
 	public function requeue(Run $run): bool;
 
 	/**
-	 * What «Estado» names the Run by: its Bulletin and Edition date, or its Automatic action; no name
-	 * for a manual Review (it is its requester's), or once what it was for is gone.
+	 * What «Estado» names the Run by: its Bulletin and Edition date, or its Automatic action or Flow
+	 * rule; no name for a manual Review (it is its requester's), or once what it was for is gone.
 	 *
 	 * @return array{name: ?string, date: ?string}
 	 */

@@ -196,7 +196,7 @@ namespace OCA\Ia;
  *
  * @psalm-type IaRunItem = array{
  *     id: int,
- *     kind: 'manual'|'action'|'flow'|'edition',
+ *     kind: 'manual'|'action'|'flow'|'edition'|'reading',
  *     name: ?string,
  *     date: ?string,
  *     error: ?string,
@@ -205,7 +205,7 @@ namespace OCA\Ia;
  *
  * @psalm-type IaEstado = array{
  *     model: IaModelHealth,
- *     waiting: array{manual: int, action: int, flow: int, edition: int},
+ *     waiting: array{manual: int, action: int, flow: int, edition: int, reading: int},
  *     lastDone: ?IaRunItem,
  *     failed: list<IaRunItem>,
  * }

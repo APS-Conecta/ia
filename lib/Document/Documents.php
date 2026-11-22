@@ -33,8 +33,8 @@ use OCP\Files\IRootFolder;
  * only documents they can open now.
  *
  * A document Source is listed whatever its format, and under a folder the formats «IA» reads, as
- * an Edition lists them. A version no Edition has read yet is «unread»: Readings come only from
- * Editions, so a document only an Automatic action watches stays unread.
+ * an Edition lists them. A version not read yet is «unread»: an Edition reads its Sources, and the
+ * night's sweep the Automatic actions' folders (ReadingRun).
  *
  * Filters: «Nuevos y cambiados» (changed in the last week), «Por vencer» (a Reading that expires
  * within 30 days, or found no date), «Con hallazgos» (the latest Review found something) and

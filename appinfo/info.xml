@@ -18,6 +18,7 @@ El modelo funciona en el servidor del establecimiento, y «IA» lee solo lo que 
     <background-jobs>
         <job>OCA\Ia\BackgroundJob\RunJob</job>
         <job>OCA\Ia\BackgroundJob\RetentionJob</job>
+        <job>OCA\Ia\BackgroundJob\ReadingSweepJob</job>
     </background-jobs>
     <settings>
         <admin>OCA\Ia\Settings\Admin</admin>

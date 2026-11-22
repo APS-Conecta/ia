@@ -531,7 +531,8 @@
                             "manual",
                             "action",
                             "flow",
-                            "edition"
+                            "edition",
+                            "reading"
                         ],
                         "properties": {
                             "manual": {
@@ -547,6 +548,10 @@
                                 "format": "int64"
                             },
                             "edition": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "reading": {
                                 "type": "integer",
                                 "format": "int64"
                             }
@@ -962,7 +967,8 @@
                             "manual",
                             "action",
                             "flow",
-                            "edition"
+                            "edition",
+                            "reading"
                         ]
                     },
                     "name": {
