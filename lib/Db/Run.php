@@ -48,6 +48,8 @@ use OCP\AppFramework\Db\Entity;
 class Run extends Entity {
 	public const REVIEW = 'review';
 	public const EDITION = 'edition';
+	/** A Reading of a document only an Automatic action watches (ReadingRun). */
+	public const READING = 'reading';
 
 	public const WAITING = 'waiting';
 	public const WORKING = 'working';
@@ -68,9 +70,9 @@ class Run extends Entity {
 	protected ?int $attempts = null;
 	protected ?string $lastError = null;
 	protected ?string $actor = null;
-	/** The Automatic action or Flow rule an automatic Review is for; null for any other Run. */
+	/** The Automatic action or Flow rule an automatic Review or a Reading is for; null for any other Run. */
 	protected ?int $rule = null;
-	/** A Review's origin, as its report's: manual, action or flow; null for an Edition. */
+	/** A Review's origin, as its report's: manual, action or flow; null for an Edition or a Reading. */
 	protected ?string $origin = null;
 	protected ?string $results = null;
 	protected ?int $updatedAt = null;
@@ -98,14 +100,18 @@ class Run extends Entity {
 
 	/**
 	 * Where it comes from: a Review asked for by hand, an Automatic action's or a Flow rule's Review,
-	 * or an Edition.
+	 * an Edition, or a Reading.
 	 *
-	 * @return 'manual'|'action'|'flow'|'edition'
+	 * @return 'manual'|'action'|'flow'|'edition'|'reading'
 	 */
 	public function origin(): string {
 		/** @var 'manual'|'action'|'flow' */
 		$origin = $this->getOrigin() ?? 'manual';
-		return $this->getKind() === self::EDITION ? 'edition' : $origin;
+		return match ($this->getKind()) {
+			self::EDITION => 'edition',
+			self::READING => 'reading',
+			default => $origin,
+		};
 	}
 
 	/** «Reintentar»: the failed Run back in line from its last finished step, its attempts afresh. */

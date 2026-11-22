@@ -25,7 +25,7 @@ import { mdiCreation } from './icons.js'
 import { when } from './reviews.js'
 
 /** Why a document shows no summary, by its Reading's status; «unread» only in «Documentos». */
-const NO_SUMMARY = { ...UNREADABLE, unread: 'Esta versión no tiene lectura todavía: «IA» lee los documentos de las fuentes de un boletín cuando escribe su próxima edición.' }
+const NO_SUMMARY = { ...UNREADABLE, unread: 'Esta versión no tiene lectura todavía. «IA» la lee fuera de horario: con la próxima edición de un boletín que la tenga entre sus fuentes, o la noche siguiente si está en la carpeta de una acción automática.' }
 
 /** A document's Reading, marked as written by AI: in an Edition's dialog and in «Documentos». */
 export default {

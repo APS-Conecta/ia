@@ -8,6 +8,7 @@ namespace OCA\Ia\Run;
 
 use OCA\Ia\Bulletin\EditionRun;
 use OCA\Ia\Db\Run;
+use OCA\Ia\Reading\ReadingRun;
 use OCA\Ia\Review\Reviews;
 
 /** Which Kind moves a Run, by its kind. */
@@ -15,10 +16,15 @@ class Kinds {
 	public function __construct(
 		private Reviews $reviews,
 		private EditionRun $editions,
+		private ReadingRun $readings,
 	) {
 	}
 
 	public function of(Run $run): Kind {
-		return $run->getKind() === Run::EDITION ? $this->editions : $this->reviews;
+		return match ($run->getKind()) {
+			Run::EDITION => $this->editions,
+			Run::READING => $this->readings,
+			default => $this->reviews,
+		};
 	}
 }

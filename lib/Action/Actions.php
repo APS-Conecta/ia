@@ -99,14 +99,16 @@ class Actions {
 	}
 
 	/**
-	 * Who an automatic Review of the file $fileId acts as when whoever changed it can't open it: the
-	 * first active member, by id, of the action's Editor group who can; null when none can.
+	 * Who acts on the file (or folder) $nodeId for the action: the first active member, by id, of
+	 * the action's Editor group who can open it; null when none can.
+	 *
+	 * @param 'file'|'folder' $type
 	 */
-	public function actor(Action $action, int $fileId): ?string {
+	public function actor(Action $action, int $nodeId, string $type = 'file'): ?string {
 		$members = $this->access->members($action->getEditorGroup());
 		usort($members, static fn (IUser $a, IUser $b): int => strcmp($a->getUID(), $b->getUID()));
 		foreach ($members as $member) {
-			if ($this->access->file($member->getUID(), $fileId) !== null) {
+			if ($this->access->node($member->getUID(), $nodeId, $type) !== null) {
 				return $member->getUID();
 			}
 		}

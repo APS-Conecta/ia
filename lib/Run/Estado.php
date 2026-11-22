@@ -31,7 +31,7 @@ class Estado {
 
 	/** @return IaEstado */
 	public function view(): array {
-		$waiting = ['manual' => 0, 'action' => 0, 'flow' => 0, 'edition' => 0];
+		$waiting = ['manual' => 0, 'action' => 0, 'flow' => 0, 'edition' => 0, 'reading' => 0];
 		foreach ($this->runs->inState(Run::WAITING, Run::WORKING) as $run) {
 			$waiting[$run->origin()]++;
 		}

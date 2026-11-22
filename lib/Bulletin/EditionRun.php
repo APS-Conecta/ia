@@ -22,7 +22,7 @@ use OCA\Ia\Db\StaleRun;
 use OCA\Ia\Model\ModelGateway;
 use OCA\Ia\Reading\Document;
 use OCA\Ia\Reading\Readings;
-use OCA\Ia\Reading\Scanned;
+use OCA\Ia\Reading\Taken;
 use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
 use OCA\Ia\Run\Kind;
@@ -31,7 +31,6 @@ use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\DB\Exception;
-use OCP\Files\File;
 use OCP\Files\Node;
 use OCP\IDBConnection;
 use OCP\IUser;
@@ -77,7 +76,6 @@ class EditionRun implements Kind {
 		private Bulletins $setUp,
 		private Editions $editions,
 		private Readings $readings,
-		private TextReader $reader,
 		private ModelGateway $model,
 		private Steps $steps,
 		private Access $access,
@@ -276,10 +274,10 @@ class EditionRun implements Kind {
 		foreach ($files as $id => $entry) {
 			$reading = $this->readings->of($id, $entry['etag']);
 			if ($reading === null) {
-				$document = $this->readable($found[$id], $entry['etag']);
+				$document = $this->readings->text($found[$id]);
 				if ($document !== null) {
 					$queue[] = $id;
-					$asks += self::asks(count($this->readings->parts($document)));
+					$asks += $this->readings->asks($document);
 					continue;
 				}
 			}
@@ -350,11 +348,7 @@ class EditionRun implements Kind {
 		while ($state['queue'] !== []) {
 			$document = $this->queued($run, $state);
 			if ($document !== null) {
-				$chunks = $this->readings->parts($document);
-				$part = $state['part'];
-				return $part < count($chunks)
-					? $this->readings->prompt($part + 1, count($chunks), $chunks[$part])
-					: $this->readings->mergePrompt(array_column($state['parts'], 'summary'));
+				return $this->readings->ask($document, ['part' => $state['part'], 'parts' => $state['parts']]);
 			}
 		}
 		$resumen = sprintf(self::RESUMEN, $bulletin->getName());
@@ -405,28 +399,16 @@ class EditionRun implements Kind {
 			// Gone, unreadable now, or changed since the ask: the answer is of no version to keep.
 			return true;
 		}
-		$parts = count($this->readings->parts($document));
-		if ($state['part'] < $parts) {
-			$part = $this->readings->part($answer, $document);
-			if ($part['summary'] === '') {
-				return false;
-			}
-			$state['parts'][] = $part;
-			$state['part']++;
-			if ($parts > 1) {
-				return true;
-			}
-			$summary = $part['summary'];
-		} else {
-			$summary = $this->readings->merged($answer);
-			if ($summary === '') {
-				return false;
-			}
+		$progress = ['part' => $state['part'], 'parts' => $state['parts']];
+		$taken = $this->readings->take($answer, $document, $id, $asked, $progress);
+		if ($taken === Taken::Empty) {
+			return false;
 		}
-		$found = array_values(array_filter(array_column($state['parts'], 'expires')));
-		$this->readings->store($id, self::entry($state, $id)['etag'], Reading::READ, $summary, $found[0] ?? null,
-			array_values(array_unique(array_merge(...array_column($state['parts'], 'cargos')))));
-		self::dequeue($state);
+		if ($taken === Taken::Read) {
+			self::dequeue($state);
+		} else {
+			['part' => $state['part'], 'parts' => $state['parts']] = $progress;
+		}
 		return true;
 	}
 
@@ -447,7 +429,7 @@ class EditionRun implements Kind {
 			$state['part'] = 0;
 			$state['parts'] = [];
 		}
-		$document = $file === null ? null : $this->readable($file, $file->getEtag());
+		$document = $file === null ? null : $this->readings->text($file);
 		if ($document === null) {
 			self::dequeue($state);
 			if ($file === null) {
@@ -455,18 +437,6 @@ class EditionRun implements Kind {
 			}
 		}
 		return $document;
-	}
-
-	/** The file's text; a scan or a file «IA» can't read gets its Reading at once, as version $etag, and null comes back. */
-	private function readable(File $file, string $etag): ?Document {
-		try {
-			return $this->reader->read($file);
-		} catch (Scanned) {
-			$this->readings->store($file->getId(), $etag, Reading::SCAN);
-		} catch (Refused) {
-			$this->readings->store($file->getId(), $etag, Reading::FAILED);
-		}
-		return null;
 	}
 
 	/**
@@ -545,12 +515,7 @@ class EditionRun implements Kind {
 	 * @param list<string> $batches
 	 */
 	private static function plan(Run $run, array $batches): void {
-		$run->setSteps($run->getStep() - 1 + self::asks(count($batches)));
-	}
-
-	/** The asks $pieces take: one for a single piece; one each, and one more to merge them, for several. */
-	private static function asks(int $pieces): int {
-		return $pieces <= 1 ? $pieces : $pieces + 1;
+		$run->setSteps($run->getStep() - 1 + Steps::asks(count($batches)));
 	}
 
 	/** @return array<string, mixed>|null the Run's progress, null before its survey */

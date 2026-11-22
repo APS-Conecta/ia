@@ -89,3 +89,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   date and Cargos and its latest Review's findings. Filters: Todos, Nuevos y cambiados (in the last 7 days), Por
   vencer (within 30 days, or read without a date), Con hallazgos and Para mi cargo. A document's sidebar shows its
   Reading, its latest Review or «Revisar ahora», and the Bulletins it appears in.
+- Readings of the documents only an Automatic action watches (#42): once a night, at the start of Off hours, «IA»
+  sweeps every action's folder and reads, in Off hours, each document with no Reading of its current version, as
+  an active member of the action's Editor group who can open it; a scan or a file it can't read is marked without
+  the Model. «Documentos» shows their Reading, and «Estado» counts the Readings in line and names a failed one by
+  its action.

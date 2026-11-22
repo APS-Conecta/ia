@@ -26,8 +26,9 @@ use Throwable;
  *    whose event was lost is taken.
  * 2. **Schedule.** Every waiting short Run is asked at once; an Edition past its date is marked
  *    late (EditionRun::overdue). In Off hours, the Editions due open their Runs; when no Off-hours
- *    Run is working, the next waiting one is asked, Reviews asked
- *    for by hand before Editions, oldest first: at most one Off-hours task in flight.
+ *    Run is working, the next waiting one is asked: Reviews asked for by hand first, the Readings
+ *    of the action folders (ReadingRun) last, the others oldest first; at most one Off-hours task
+ *    in flight.
  * 3. **Fail.** The third failed attempt in a row fails a Run with its last error (Run::retry).
  *
  * A Run that can't be moved is logged by its id and the error's class only (a message may name a
@@ -77,7 +78,7 @@ class Runs {
 			return;
 		}
 		$waiting = $this->runs->inState(Run::WAITING);
-		usort($waiting, static fn (Run $a, Run $b): int => [$a->origin() !== 'manual', $a->getId()] <=> [$b->origin() !== 'manual', $b->getId()]);
+		usort($waiting, static fn (Run $a, Run $b): int => [$a->origin() !== 'manual', $a->origin() === 'reading', $a->getId()] <=> [$b->origin() !== 'manual', $b->origin() === 'reading', $b->getId()]);
 		foreach ($waiting as $run) {
 			// One that ended (failed, or published without the Model) leaves the turn to the next; one
 			// put back in line keeps it, so the oldest still starts first.
