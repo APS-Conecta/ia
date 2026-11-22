@@ -38,6 +38,7 @@ use OCP\IUserManager;
  * - **Each Reader's own part**, the Personal list: their meetings in the Edition's period (from its
  *   date to the next one's) and its documents whose Reading names one of their Cargo groups.
  *
+ * @psalm-import-type IaAppearance from ResponseDefinitions
  * @psalm-import-type IaEdition from ResponseDefinitions
  * @psalm-import-type IaEditionDocument from ResponseDefinitions
  * @psalm-import-type IaMeeting from ResponseDefinitions
@@ -46,7 +47,7 @@ use OCP\IUserManager;
  */
 class Editions {
 	/** «Protocolos por vencer»: expiring within this many days of the Edition's date. */
-	private const EXPIRING_DAYS = 30;
+	public const EXPIRING_DAYS = 30;
 
 	public function __construct(
 		private BulletinMapper $bulletins,
@@ -121,9 +122,9 @@ class Editions {
 		$documents = array_map(fn (array $document): array => $this->document($document, $cargos), $stored);
 		$personal = array_filter($documents, static fn (array $document, int $i): bool => $document['status'] === Reading::READ
 			&& array_intersect($stored[$i]['cargos'], $readerCargos) !== [], ARRAY_FILTER_USE_BOTH);
-		$limit = (new DateTimeImmutable($edition->getDate()))->modify('+' . self::EXPIRING_DAYS . ' days')->format('Y-m-d');
+		$limit = self::limit($edition);
 		$read = array_filter($documents, static fn (array $document): bool => $document['status'] === Reading::READ);
-		$expiring = array_filter($read, static fn (array $document): bool => $document['expires'] !== null && $document['expires'] <= $limit);
+		$expiring = array_filter($read, static fn (array $document): bool => self::expiresBy($document, $limit));
 		usort($expiring, static fn (array $a, array $b): int => $a['expires'] <=> $b['expires']);
 		return self::item($edition) + [
 			'bulletin' => ['id' => $bulletin->getId(), 'name' => $bulletin->getName()],
@@ -306,13 +307,57 @@ class Editions {
 			'summary' => $current?->getSummary(),
 			'readAt' => $current?->getReadAt(),
 			'expires' => $document['expires'],
-			'cargos' => array_values(array_intersect_key($cargos, array_flip($document['cargos']))),
+			'cargos' => array_values(Settings::listedCargos($cargos, $document['cargos'])),
 		];
 	}
 
 	/** @return IaEditionItem */
 	private static function item(Edition $edition): array {
 		return ['id' => $edition->getId(), 'date' => $edition->getDate(), 'late' => (bool)$edition->getLate(), 'withdrawn' => $edition->isWithdrawn()];
+	}
+
+	/**
+	 * Where $fileId appears: for each Bulletin $userId edits or reads, the latest published Edition
+	 * they see that lists it, as new or changed, expiring, undated or unreadable.
+	 *
+	 * @return list<IaAppearance>
+	 */
+	public function appearances(string $userId, int $fileId): array {
+		$opens = $this->opener($userId);
+		$found = [];
+		foreach ($this->bulletins->all() as $bulletin) {
+			if ($this->setUp->role($userId, $bulletin) === null) {
+				continue;
+			}
+			foreach ($this->editions->ofBulletin($bulletin->getId()) as $edition) {
+				if ($edition->getStatus() === Edition::PUBLISHED && self::seenBy($edition, $opens) && self::lists($edition, $fileId)) {
+					$found[] = ['bulletin' => ['id' => $bulletin->getId(), 'name' => $bulletin->getName()], 'edition' => ['id' => $edition->getId(), 'date' => $edition->getDate()]];
+					break;
+				}
+			}
+		}
+		return $found;
+	}
+
+	/** Whether the Edition lists $fileId, as one() shows it: new or changed, expiring, undated or unreadable. */
+	private static function lists(Edition $edition, int $fileId): bool {
+		$limit = self::limit($edition);
+		foreach (self::files($edition) as $document) {
+			if ($document['fileId'] === $fileId) {
+				return $document['new'] || $document['status'] !== Reading::READ || $document['expires'] === null || self::expiresBy($document, $limit);
+			}
+		}
+		return false;
+	}
+
+	/** The last expiry date the Edition lists as expiring: EXPIRING_DAYS after its date. */
+	private static function limit(Edition $edition): string {
+		return (new DateTimeImmutable($edition->getDate()))->modify('+' . self::EXPIRING_DAYS . ' days')->format('Y-m-d');
+	}
+
+	/** @param array{expires: ?string} $document */
+	private static function expiresBy(array $document, string $limit): bool {
+		return $document['expires'] !== null && $document['expires'] <= $limit;
 	}
 
 	/** @return list<array<string, mixed>> the documents the Edition read, as stored */

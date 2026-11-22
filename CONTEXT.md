@@ -58,6 +58,10 @@ The part of an Edition built for one Reader from their own calendar and Cargo, w
 Everyone's start page: what is ahead in the Personal lists of the Bulletins the person reads (the meetings not yet
 ended, the documents new or changed), merged.
 
+**«Documentos»**:
+An Editor's view of the documents their Editor group watches, in its Bulletins' Sources and its Automatic actions'
+folders, each with its Reading and latest Review.
+
 **Editor group** (grupo editor):
 A group whose members jointly own Bulletins and Automatic actions.
 

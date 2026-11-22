@@ -12,6 +12,7 @@ use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Bulletin\Bulletins;
 use OCA\Ia\Bulletin\Editions;
 use OCA\Ia\Bulletin\ParaTi;
+use OCA\Ia\Document\Documents;
 use OCA\Ia\Flow\FlowRules;
 use OCA\Ia\Forbidden;
 use OCA\Ia\Refused;
@@ -43,6 +44,8 @@ use OCP\IUserSession;
  * is delegated to (MetadataTest holds all of it).
  *
  * @psalm-import-type IaAction from ResponseDefinitions
+ * @psalm-import-type IaDocument from ResponseDefinitions
+ * @psalm-import-type IaDocuments from ResponseDefinitions
  * @psalm-import-type IaFlowRule from ResponseDefinitions
  * @psalm-import-type IaAdminSettings from ResponseDefinitions
  * @psalm-import-type IaBulletin from ResponseDefinitions
@@ -72,6 +75,7 @@ class ApiController extends OCSController {
 	private const NO_BULLETIN = 'No encontramos ese boletín.';
 	private const NO_ACTION = 'No encontramos esa acción automática.';
 	private const NO_EDITION = 'No encontramos esa edición, o ya no puedes leerla.';
+	private const NO_DOCUMENT = 'No encontramos ese documento entre los que vigilan tus grupos editores, o ya no puedes abrirlo.';
 	private const NO_RUN = 'No encontramos ese trabajo.';
 
 	public function __construct(
@@ -87,6 +91,7 @@ class ApiController extends OCSController {
 		private ParaTi $paraTi,
 		private Estado $estado,
 		private FlowRules $flowRules,
+		private Documents $documents,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -502,6 +507,41 @@ class ApiController extends OCSController {
 	#[ApiRoute(verb: 'DELETE', url: '/api/v1/editions/{id}/withdrawal')]
 	public function restoreEdition(int $id): DataResponse {
 		return $this->refusable(fn (): DataResponse => new DataResponse(['edition' => $this->editions->restore($this->user(), $id)]), self::NO_EDITION);
+	}
+
+	/**
+	 * «Documentos»: the documents the caller's Editor groups watch (their Bulletins' Sources and their
+	 * Automatic actions' folders) that the caller can open, each with its Reading and latest Review
+	 *
+	 * @param 'all'|'changed'|'expiring'|'findings'|'cargo' $filter Which: all, changed in the last week, expiring within 30 days or undated, with findings, or for the caller's Cargo
+	 * @return DataResponse<Http::STATUS_OK, IaDocuments, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_UNPROCESSABLE_ENTITY, array{message: string}, array{}>
+	 *
+	 * 200: The documents the filter keeps, by name, and how many each filter keeps
+	 * 403: The caller is no Editor
+	 * 422: No such filter
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/documents')]
+	public function documents(string $filter = 'all'): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse($this->documents->all($this->user(), $filter)));
+	}
+
+	/**
+	 * One watched document: its row, its Reading's summary, and the Bulletins it appears in
+	 *
+	 * @param int $fileId The document's file id
+	 * @return DataResponse<Http::STATUS_OK, array{document: IaDocument}, array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND, array{message: string}, array{}>
+	 *
+	 * 200: The document
+	 * 403: The caller is no Editor
+	 * 404: Not a document the caller's groups watch, or one they can't open
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/documents/{fileId}')]
+	public function document(int $fileId): DataResponse {
+		return $this->refusable(fn (): DataResponse => new DataResponse(['document' => $this->documents->one($this->user(), $fileId)]), self::NO_DOCUMENT);
 	}
 
 	/**

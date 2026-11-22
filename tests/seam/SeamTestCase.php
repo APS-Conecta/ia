@@ -179,6 +179,30 @@ abstract class SeamTestCase extends TestCase {
 		self::fail("$person did not see $count Editions of the Bulletin $bulletin after $seconds s");
 	}
 
+	/**
+	 * A daily Bulletin $person sets up for $editors and $readers, from the folder and document
+	 * Sources $sources, and its id.
+	 *
+	 * @param array<string, int> $sources by a name: «folder» for the folder, anything else for a document
+	 */
+	protected static function bulletin(string $person, string $name, string $editors, string $readers, array $sources): int {
+		$created = self::ocs($person, 'POST', '/apps/ia/api/v1/bulletins', [
+			'name' => $name,
+			'editorGroup' => $editors,
+			'sources' => array_map(static fn (string $key, int $id): array => ['type' => $key === 'folder' ? 'folder' : 'file', 'id' => (string)$id], array_keys($sources), $sources),
+			'readers' => [$readers],
+			'schedule' => ['kind' => 'daily'],
+		]);
+		self::assertSame(201, $created['status'], json_encode($created['data']));
+		return $created['data']['bulletin']['id'];
+	}
+
+	/** «12 de diciembre de 2026», as a document writes a date in Spanish. */
+	protected static function spanishDate(\DateTimeImmutable $date): string {
+		$months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+		return $date->format('j') . ' de ' . $months[(int)$date->format('n') - 1] . ' de ' . $date->format('Y');
+	}
+
 	/** Off hours that cover the test run: from an hour ago to three hours from now. */
 	protected static function offHoursNow(): array {
 		return self::offHours(-1, 3);
@@ -336,9 +360,12 @@ abstract class SeamTestCase extends TestCase {
 		return ['status' => $status, 'data' => is_array($json) ? ($json['ocs']['data'] ?? null) : null];
 	}
 
-	/** Puts $content in the person's Files as $name, as their client would, and answers its file id. */
-	protected static function upload(string $person, string $name, string $content): int {
-		[$status] = self::http($person, 'PUT', self::DAV . $person . '/' . self::path($name), [], $content);
+	/**
+	 * Puts $content in the person's Files as $name, as their client would, and answers its file id;
+	 * last modified at $modified (a Unix time) when given, as a client keeps a file's own time.
+	 */
+	protected static function upload(string $person, string $name, string $content, ?int $modified = null): int {
+		[$status] = self::http($person, 'PUT', self::DAV . $person . '/' . self::path($name), $modified === null ? [] : ["X-OC-Mtime: $modified"], $content);
 		self::assertContains($status, [201, 204], "PUT $name answered $status");
 		return self::file($person, $name)['fileId'];
 	}

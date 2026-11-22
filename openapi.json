@@ -82,6 +82,47 @@
                     }
                 }
             },
+            "Appearance": {
+                "type": "object",
+                "required": [
+                    "bulletin",
+                    "edition"
+                ],
+                "properties": {
+                    "bulletin": {
+                        "type": "object",
+                        "required": [
+                            "id",
+                            "name"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "name": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "edition": {
+                        "type": "object",
+                        "required": [
+                            "id",
+                            "date"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "date": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
             "Bulletin": {
                 "allOf": [
                     {
@@ -153,6 +194,160 @@
                             "editor",
                             "reader"
                         ]
+                    }
+                }
+            },
+            "Document": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/DocumentItem"
+                    },
+                    {
+                        "type": "object",
+                        "required": [
+                            "summary",
+                            "readAt",
+                            "latestReview",
+                            "appearsIn"
+                        ],
+                        "properties": {
+                            "summary": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "readAt": {
+                                "type": "integer",
+                                "format": "int64",
+                                "nullable": true
+                            },
+                            "latestReview": {
+                                "nullable": true,
+                                "allOf": [
+                                    {
+                                        "$ref": "#/components/schemas/Review"
+                                    }
+                                ]
+                            },
+                            "appearsIn": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/Appearance"
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            "DocumentItem": {
+                "type": "object",
+                "required": [
+                    "fileId",
+                    "name",
+                    "folder",
+                    "status",
+                    "expires",
+                    "cargos",
+                    "review",
+                    "modifiedAt"
+                ],
+                "properties": {
+                    "fileId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "folder": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "read",
+                            "scan",
+                            "failed",
+                            "unread"
+                        ]
+                    },
+                    "expires": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "cargos": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "review": {
+                        "type": "object",
+                        "nullable": true,
+                        "required": [
+                            "id",
+                            "findings"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "findings": {
+                                "type": "integer",
+                                "format": "int64"
+                            }
+                        }
+                    },
+                    "modifiedAt": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "Documents": {
+                "type": "object",
+                "required": [
+                    "documents",
+                    "counts"
+                ],
+                "properties": {
+                    "documents": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DocumentItem"
+                        }
+                    },
+                    "counts": {
+                        "type": "object",
+                        "required": [
+                            "all",
+                            "changed",
+                            "expiring",
+                            "findings",
+                            "cargo"
+                        ],
+                        "properties": {
+                            "all": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "changed": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "expiring": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "findings": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "cargo": {
+                                "type": "integer",
+                                "format": "int64"
+                            }
+                        }
                     }
                 }
             },
@@ -4589,6 +4784,370 @@
                     },
                     "404": {
                         "description": "No such Edition, it isn't published yet, or the caller can't see it",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "type": "object",
+                                                    "required": [
+                                                        "message"
+                                                    ],
+                                                    "properties": {
+                                                        "message": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Current user is not logged in",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": []
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ocs/v2.php/apps/ia/api/v1/documents": {
+            "get": {
+                "operationId": "api-documents",
+                "summary": "«Documentos»: the documents the caller's Editor groups watch (their Bulletins' Sources and their Automatic actions' folders) that the caller can open, each with its Reading and latest Review",
+                "tags": [
+                    "api"
+                ],
+                "security": [
+                    {
+                        "bearer_auth": []
+                    },
+                    {
+                        "basic_auth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "filter",
+                        "in": "query",
+                        "description": "Which: all, changed in the last week, expiring within 30 days or undated, with findings, or for the caller's Cargo",
+                        "schema": {
+                            "type": "string",
+                            "default": "all",
+                            "enum": [
+                                "all",
+                                "changed",
+                                "expiring",
+                                "findings",
+                                "cargo"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "OCS-APIRequest",
+                        "in": "header",
+                        "description": "Required to be true for the API request to pass",
+                        "required": true,
+                        "schema": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The documents the filter keeps, by name, and how many each filter keeps",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "$ref": "#/components/schemas/Documents"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The caller is no Editor",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "type": "object",
+                                                    "required": [
+                                                        "message"
+                                                    ],
+                                                    "properties": {
+                                                        "message": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "No such filter",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "type": "object",
+                                                    "required": [
+                                                        "message"
+                                                    ],
+                                                    "properties": {
+                                                        "message": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Current user is not logged in",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": []
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ocs/v2.php/apps/ia/api/v1/documents/{fileId}": {
+            "get": {
+                "operationId": "api-document",
+                "summary": "One watched document: its row, its Reading's summary, and the Bulletins it appears in",
+                "tags": [
+                    "api"
+                ],
+                "security": [
+                    {
+                        "bearer_auth": []
+                    },
+                    {
+                        "basic_auth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "fileId",
+                        "in": "path",
+                        "description": "The document's file id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "OCS-APIRequest",
+                        "in": "header",
+                        "description": "Required to be true for the API request to pass",
+                        "required": true,
+                        "schema": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The document",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "type": "object",
+                                                    "required": [
+                                                        "document"
+                                                    ],
+                                                    "properties": {
+                                                        "document": {
+                                                            "$ref": "#/components/schemas/Document"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The caller is no Editor",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "type": "object",
+                                                    "required": [
+                                                        "message"
+                                                    ],
+                                                    "properties": {
+                                                        "message": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not a document the caller's groups watch, or one they can't open",
                         "content": {
                             "application/json": {
                                 "schema": {

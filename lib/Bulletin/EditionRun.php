@@ -32,7 +32,6 @@ use OCP\AppFramework\Db\TTransactional;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\DB\Exception;
 use OCP\Files\File;
-use OCP\Files\Folder;
 use OCP\Files\Node;
 use OCP\IDBConnection;
 use OCP\IUser;
@@ -266,7 +265,7 @@ class EditionRun implements Kind {
 			} elseif ($source['type'] === 'file') {
 				$documentSources[$node->getId()] = true;
 			}
-			foreach (self::documents($node) as $file) {
+			foreach (TextReader::documents($node) as $file) {
 				$files[$file->getId()] = ['fileId' => $file->getId(), 'etag' => $file->getEtag(), 'name' => $file->getName()];
 				$found[$file->getId()] = $file;
 			}
@@ -574,24 +573,4 @@ class EditionRun implements Kind {
 		$state['parts'] = [];
 	}
 
-	/**
-	 * A Source's documents: a document Source itself, whatever its format; under a folder Source,
-	 * at any depth, those of the formats «IA» reads.
-	 *
-	 * @return list<File>
-	 */
-	private static function documents(?Node $node): array {
-		if ($node instanceof File) {
-			return [$node];
-		}
-		$found = [];
-		foreach ($node instanceof Folder ? $node->getDirectoryListing() : [] as $child) {
-			if ($child instanceof Folder) {
-				array_push($found, ...self::documents($child));
-			} elseif ($child instanceof File && TextReader::reads($child->getName())) {
-				$found[] = $child;
-			}
-		}
-		return $found;
-	}
 }
