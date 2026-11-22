@@ -207,6 +207,7 @@
                         "required": [
                             "summary",
                             "readAt",
+                            "latestReview",
                             "appearsIn"
                         ],
                         "properties": {
@@ -218,6 +219,14 @@
                                 "type": "integer",
                                 "format": "int64",
                                 "nullable": true
+                            },
+                            "latestReview": {
+                                "nullable": true,
+                                "allOf": [
+                                    {
+                                        "$ref": "#/components/schemas/Review"
+                                    }
+                                ]
                             },
                             "appearsIn": {
                                 "type": "array",

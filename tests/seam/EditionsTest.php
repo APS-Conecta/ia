@@ -21,7 +21,6 @@ final class EditionsTest extends SeamTestCase {
 	/** The server's timezone for the first Edition (UTC−11); the next is written at Kiritimati's. */
 	private const TIMEZONE = 'Pacific/Pago_Pago';
 	private const CARGOS = ['Enfermera', 'Médico', 'TENS'];
-	private const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 	/** Seconds an Edition may take: four Readings and the Resumen on the CPU, behind other Bulletins' Runs. */
 	private const WRITING = 900;
 
@@ -57,7 +56,7 @@ final class EditionsTest extends SeamTestCase {
 			. "Dirigido a: Enfermera y Kinesiólogo.\n"
 			. 'Objetivo: estandarizar la curación avanzada de heridas en el CESFAM (' . self::$sentinel . ").\n"
 			. "Procedimiento: lavado por arrastre con suero fisiológico, valoración de la herida y elección del apósito según el exudado.\n"
-			. 'Vigencia: este protocolo vence el ' . $expires->format('j') . ' de ' . self::MONTHS[(int)$expires->format('n') - 1] . ' de ' . $expires->format('Y') . ".\n");
+			. 'Vigencia: este protocolo vence el ' . self::spanishDate($expires) . ".\n");
 		self::upload(self::$ana, 'Protocolos/visitas.md', self::visits(''));
 		self::upload(self::$ana, 'Protocolos/escaneado.pdf', (string)file_get_contents(__DIR__ . '/fixtures/escaneado.pdf'));
 		self::upload(self::$ana, 'Protocolos/fotos.png', 'not a document');
@@ -72,8 +71,8 @@ final class EditionsTest extends SeamTestCase {
 		$shared = self::ocs(self::$ana, 'POST', '/apps/files_sharing/api/v1/shares', ['path' => '/reservado.txt', 'shareType' => 0, 'shareWith' => self::$carla, 'permissions' => 1]);
 		self::assertSame(200, $shared['status']);
 
-		self::$bulletin = self::bulletin('Boletín de protocolos', $editors, $readers, ['folder' => $folder, 'file' => $reserved, 'sheet' => $sheet]);
-		self::$sheets = self::bulletin('Boletín de turnos', $editors, $readers, ['sheet' => $sheet]);
+		self::$bulletin = self::bulletin(self::$ana, 'Boletín de protocolos', $editors, $readers, ['folder' => $folder, 'file' => $reserved, 'sheet' => $sheet]);
+		self::$sheets = self::bulletin(self::$ana, 'Boletín de turnos', $editors, $readers, ['sheet' => $sheet]);
 	}
 
 	public static function tearDownAfterClass(): void {
@@ -220,23 +219,6 @@ final class EditionsTest extends SeamTestCase {
 		$paraTi = self::names(self::ocs(self::$carla, 'GET', self::API . '/para-ti')['data']['documents']);
 		self::assertSame(array_values(array_intersect($forHer, ['visitas.md'])), $paraTi, '«Para ti» keeps, of her documents, only the one that changed (#28)');
 		self::assertNotContains('curaciones.txt', $paraTi);
-	}
-
-	/**
-	 * A daily Bulletin of $editors for $readers, from the folder and document Sources $sources, and its id.
-	 *
-	 * @param array<string, int> $sources by a name: «folder» for the folder, anything else for a document
-	 */
-	private static function bulletin(string $name, string $editors, string $readers, array $sources): int {
-		$created = self::ocs(self::$ana, 'POST', self::API . '/bulletins', [
-			'name' => $name,
-			'editorGroup' => $editors,
-			'sources' => array_map(static fn (string $key, int $id): array => ['type' => $key === 'folder' ? 'folder' : 'file', 'id' => (string)$id], array_keys($sources), $sources),
-			'readers' => [$readers],
-			'schedule' => ['kind' => 'daily'],
-		]);
-		self::assertSame(201, $created['status'], json_encode($created['data']));
-		return $created['data']['bulletin']['id'];
 	}
 
 	private function utc(\DateTimeImmutable $time): string {

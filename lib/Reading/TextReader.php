@@ -65,8 +65,8 @@ class TextReader {
 	}
 
 	/**
-	 * A Bulletin Source's documents: a document Source itself, whatever its format; under a folder
-	 * Source, at any depth, those of the formats «IA» reads.
+	 * A Source's or an Automatic action folder's documents: a document Source itself, whatever its
+	 * format; under a folder, at any depth, those of the formats «IA» reads.
 	 *
 	 * @return list<File>
 	 */

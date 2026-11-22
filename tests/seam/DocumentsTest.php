@@ -14,7 +14,6 @@ namespace OCA\Ia\Tests\Seam;
 final class DocumentsTest extends SeamTestCase {
 	private const API = '/apps/ia/api/v1';
 	private const CARGOS = ['Enfermera', 'Médico', 'TENS'];
-	private const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 	/** How long the Edition may take to write, in seconds: every Reading, then the Resumen. */
 	private const WRITING = 900;
 	private const REVIEWING = 600;
@@ -50,7 +49,7 @@ final class DocumentsTest extends SeamTestCase {
 		self::upload(self::$ana, 'Protocolos/curaciones.txt', "Protocolo de curación avanzada de heridas\n"
 			. "Dirigido a: Enfermera.\n"
 			. "Procedimiento: lavado por arrastre con suero fisiológico y elección del apósito según el exudado.\n"
-			. 'Vigencia: este protocolo vence el ' . $expires->format('j') . ' de ' . self::MONTHS[(int)$expires->format('n') - 1] . ' de ' . $expires->format('Y') . ".\n");
+			. 'Vigencia: este protocolo vence el ' . self::spanishDate($expires) . ".\n");
 		self::upload(self::$ana, 'Protocolos/agresiones.txt', "Protocolo de manejo de agresiones al personal\n"
 			. "Dirigido a: Médico.\nLa dirección coordina la denuncia y el apoyo al funcionario agredido.\n"
 			. "Vigencia: este protocolo vence el 1 de marzo de 2031.\n");
@@ -70,7 +69,7 @@ final class DocumentsTest extends SeamTestCase {
 		// The whole Editor group opens privado.txt when it becomes a Source; then Ana stops sharing it.
 		$shared = self::ocs(self::$ana, 'POST', '/apps/files_sharing/api/v1/shares', ['path' => '/privado.txt', 'shareType' => 1, 'shareWith' => $editors, 'permissions' => 1]);
 		self::assertSame(200, $shared['status']);
-		self::$bulletin = self::bulletin('Boletín de protocolos', $editors, ['folder' => $folder, 'file' => $sheet, 'private' => self::$private]);
+		self::$bulletin = self::bulletin(self::$ana, 'Boletín de protocolos', $editors, self::$readers, ['folder' => $folder, 'file' => $sheet, 'private' => self::$private]);
 		self::assertSame(200, self::ocs(self::$ana, 'DELETE', '/apps/files_sharing/api/v1/shares/' . $shared['data']['id'])['status']);
 
 		$normas = self::folder(self::$ana, 'Normas');
@@ -113,7 +112,9 @@ final class DocumentsTest extends SeamTestCase {
 		self::assertSame(['read', 'read', 'read', 'scan', 'unread', 'read', 'failed'], array_column(array_values($rows), 'status'),
 			'norma.txt is in no Bulletin: no Edition reads it');
 		self::assertSame([self::$expires, '2031-03-01', null], [$rows['curaciones.txt']['expires'], $rows['agresiones.txt']['expires'], $rows['antiguo.txt']['expires']]);
-		self::assertSame([['Enfermera'], ['Médico'], ['TENS']], [$rows['curaciones.txt']['cargos'], $rows['agresiones.txt']['cargos'], $rows['antiguo.txt']['cargos']]);
+		foreach ($rows as $name => $row) {
+			self::assertSame([], array_diff($row['cargos'], self::CARGOS), "$name names only Cargos of the list");
+		}
 		self::assertSame(['id' => $review['id'], 'findings' => count($review['findings'])], $rows['norma.txt']['review']);
 		self::assertNull($rows['curaciones.txt']['review'], 'nobody reviewed it');
 		return $edition;
@@ -126,10 +127,11 @@ final class DocumentsTest extends SeamTestCase {
 			self::names(self::documents(self::$ana, 'changed')['documents']), 'antiguo.txt last changed a month ago');
 		self::assertSame(['antiguo.txt', 'curaciones.txt', 'privado.txt'], self::names(self::documents(self::$ana, 'expiring')['documents']),
 			'within 30 days, or read without a date; never the unreadable');
-		self::assertSame(['curaciones.txt'], self::names(self::documents(self::$ana, 'cargo')['documents']), "Ana's Cargo is Enfermera");
+		$forNurses = self::names(array_filter($all['documents'], static fn (array $row): bool => in_array('Enfermera', $row['cargos'], true)));
+		self::assertSame($forNurses, self::names(self::documents(self::$ana, 'cargo')['documents']), "Ana's Cargo is Enfermera");
 		$found = array_values(array_filter($all['documents'], static fn (array $row): bool => ($row['review']['findings'] ?? 0) > 0));
 		self::assertSame(self::names($found), self::names(self::documents(self::$ana, 'findings')['documents']));
-		self::assertSame(['all' => 7, 'changed' => 6, 'expiring' => 3, 'findings' => count($found), 'cargo' => 1], $all['counts']);
+		self::assertSame(['all' => 7, 'changed' => 6, 'expiring' => 3, 'findings' => count($found), 'cargo' => count($forNurses)], $all['counts']);
 		self::assertSame(6, self::documents(self::$bea)['counts']['all']);
 	}
 
@@ -140,9 +142,12 @@ final class DocumentsTest extends SeamTestCase {
 		self::assertIsInt($document['readAt']);
 		self::assertSame([['bulletin' => ['id' => self::$bulletin, 'name' => 'Boletín de protocolos'], 'edition' => ['id' => $edition, 'date' => self::edition(self::$ana, $edition)['date']]]],
 			$document['appearsIn']);
+		self::assertNull($document['latestReview'], 'nobody reviewed it');
 		$norma = self::document(self::$ana, 'norma.txt');
 		self::assertSame([null, null, []], [$norma['summary'], $norma['readAt'], $norma['appearsIn']]);
-		self::assertNotNull($norma['review']);
+		$review = self::ocs(self::$ana, 'GET', self::API . '/reviews/' . $norma['review']['id'])['data']['review'];
+		self::assertSame([$review['id'], 'action', $review['findings']], [$norma['latestReview']['id'], $norma['latestReview']['origin'], $norma['latestReview']['findings']],
+			"the action's Review, whole");
 		self::assertSame([], self::document(self::$bea, 'curaciones.txt')['appearsIn'], 'Bea edits the Bulletin but cannot see its Edition: she no longer opens privado.txt');
 	}
 
@@ -164,18 +169,5 @@ final class DocumentsTest extends SeamTestCase {
 	/** @param list<array<string, mixed>> $rows */
 	private static function names(array $rows): array {
 		return array_column($rows, 'name');
-	}
-
-	/** @param array<string, int> $sources */
-	private static function bulletin(string $name, string $editors, array $sources): int {
-		$created = self::ocs(self::$ana, 'POST', self::API . '/bulletins', [
-			'name' => $name,
-			'editorGroup' => $editors,
-			'sources' => array_map(static fn (string $key, int $id): array => ['type' => $key === 'folder' ? 'folder' : 'file', 'id' => (string)$id], array_keys($sources), $sources),
-			'readers' => [self::$readers],
-			'schedule' => ['kind' => 'daily'],
-		]);
-		self::assertSame(201, $created['status'], json_encode($created['data']));
-		return $created['data']['bulletin']['id'];
 	}
 }

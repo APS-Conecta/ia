@@ -43,6 +43,11 @@ export function longDate(date) {
 	return new Date(`${date}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
+/** «12 de diciembre de 2026», from a date (Y-m-d): an expiry date, which may be years away. */
+export function fullDate(date) {
+	return new Date(`${date}T12:00:00`).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
 /** When the next Edition is due, in a sentence. */
 export function dueText(bulletin) {
 	if (bulletin.due === null) {

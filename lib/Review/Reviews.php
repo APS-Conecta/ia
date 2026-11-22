@@ -240,6 +240,23 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	}
 
 	/**
+	 * The latest done Review $userId sees of $file, which they opened: its automatic one, or their own.
+	 *
+	 * @return ?IaReview
+	 */
+	public function latest(string $userId, File $file): ?array {
+		$done = [];
+		foreach ([$this->reports->automaticOf($file->getId()), $this->reports->manualOf($userId, $file->getId())] as $report) {
+			$run = $report === null ? null : $this->runs->of(Run::REVIEW, (string)$report->getId());
+			if ($report !== null && $run?->getState() === Run::DONE) {
+				$done[] = $this->view($report, $run, $file, true);
+			}
+		}
+		usort($done, static fn (array $a, array $b): int => [$b['requestedAt'], $b['id']] <=> [$a['requestedAt'], $a['id']]);
+		return $done[0] ?? null;
+	}
+
+	/**
 	 * Asks a waiting Review Run's current step, as the run engine decides, from its last finished
 	 * step; a Run whose file changed since (an automatic one's first time, too) starts over from
 	 * its first step, sized anew. It is the Run's turn, so the step is asked now, unless the file

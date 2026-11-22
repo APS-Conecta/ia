@@ -2,11 +2,11 @@
 	<NcAppSidebar v-model:active="tab"
 		:name="document?.name ?? ''"
 		:subname="document === null ? '' : `${document.folder} · modificado el ${when(document.modifiedAt)}`"
-		:loading="document === null && !failed"
+		:loading="document === null && !failure"
 		@close="$emit('close')">
 		<template #description>
-			<NcNoteCard v-if="failed" type="error">
-				No encontramos este documento entre los que vigilan tus grupos editores, o ya no puedes abrirlo.
+			<NcNoteCard v-if="failure" type="error">
+				{{ failure }}
 			</NcNoteCard>
 			<div v-else-if="document" class="ia-chips">
 				<NcButton :href="fileLink" variant="secondary">
@@ -24,39 +24,32 @@
 			<p class="ia-hint">
 				Lo que «IA» sacó una vez de la versión actual. Se reutiliza hasta que el documento cambie.
 			</p>
-			<template v-if="document.status === 'read'">
-				<div class="ia-chips">
-					<NcChip text="Escrito por IA" variant="primary" :icon-path="mdiCreation" no-close />
-					<span class="ia-hint">Leído el {{ when(document.readAt) }}</span>
-				</div>
-				<h3>Resumen</h3>
-				<p>{{ document.summary }}</p>
-				<h3>Vigencia</h3>
-				<p>{{ document.expires === null ? 'No encontró fecha de vigencia.' : `Vence el ${fullDate(document.expires)}.` }}</p>
-				<h3>Le concierne a</h3>
-				<div v-if="document.cargos.length > 0" class="ia-chips">
-					<NcChip v-for="cargo in document.cargos" :key="cargo" :text="cargo" no-close />
-				</div>
-				<p v-else>
-					Ningún cargo de la lista.
-				</p>
-			</template>
-			<NcNoteCard v-else :type="document.status === 'unread' ? 'info' : 'warning'">
-				{{ NO_SUMMARY[document.status] }}
-			</NcNoteCard>
+			<ReadingSummary :document="document" />
 		</NcAppSidebarTab>
 		<NcAppSidebarTab v-if="document" id="revision" name="Revisión" :order="2">
 			<template #icon>
 				<NcIconSvgWrapper :path="mdiFileDocumentCheckOutline" />
 			</template>
-			<template v-if="document.review">
-				<p>{{ findingsText(document.review.findings) }} en su última revisión.</p>
-				<NcButton :href="`#revisiones/${document.review.id}`" variant="secondary">
+			<template v-if="document.latestReview">
+				<p class="ia-hint">
+					{{ askedText(document.latestReview) }}
+				</p>
+				<p v-if="document.latestReview.findings.length === 0">
+					La revisión no encontró qué corregir.
+				</p>
+				<div v-for="(finding, index) in document.latestReview.findings" :key="index" class="ia-finding">
+					<div class="ia-chips">
+						<NcChip :text="KINDS[finding.kind].label" :variant="KINDS[finding.kind].variant" no-close />
+						<span class="ia-hint">{{ finding.where }}</span>
+					</div>
+					<p>{{ finding.text }}</p>
+				</div>
+				<NcButton :href="`#revisiones/${document.latestReview.id}`" variant="secondary">
 					Ver la revisión completa
 				</NcButton>
 			</template>
 			<template v-else>
-				<NcEmptyContent name="Sin revisión" description="Nadie ha revisado todavía este documento, o su revisión sigue en curso.">
+				<NcEmptyContent name="Sin revisión" description="Nadie ha revisado todavía esta versión, o su revisión sigue en curso.">
 					<template #icon>
 						<NcIconSvgWrapper :path="mdiFileDocumentCheckOutline" />
 					</template>
@@ -102,23 +95,23 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
-import { ocsGet } from './api.js'
+import ReadingSummary from './ReadingSummary.vue'
+import { ocsGet, refusal } from './api.js'
 import { longDate } from './bulletins.js'
-import { findingsText, fullDate, NO_SUMMARY } from './documents.js'
 import { mdiCreation, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiOpenInNew } from './icons.js'
-import { when } from './reviews.js'
+import { askedText, KINDS, when } from './reviews.js'
 
 /** One watched document, for Editors: its Reading, its latest Review and the Bulletins it appears in. */
 export default {
 	name: 'DocumentSidebar',
-	components: { NcAppSidebar, NcAppSidebarTab, NcButton, NcChip, NcEmptyContent, NcIconSvgWrapper, NcListItem, NcNoteCard },
+	components: { NcAppSidebar, NcAppSidebarTab, NcButton, NcChip, NcEmptyContent, NcIconSvgWrapper, NcListItem, NcNoteCard, ReadingSummary },
 	props: {
 		/** The document's file id. */
 		id: { type: Number, required: true },
 	},
 	emits: ['close', 'review'],
-	setup: () => ({ NO_SUMMARY, findingsText, fullDate, longDate, mdiCreation, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiOpenInNew, when }),
-	data: () => ({ tab: 'lectura', document: null, failed: false }),
+	setup: () => ({ KINDS, askedText, longDate, mdiCreation, mdiFileDocumentCheckOutline, mdiNewspaperVariantOutline, mdiOpenInNew, when }),
+	data: () => ({ tab: 'lectura', document: null, failure: null }),
 	computed: {
 		fileLink() {
 			return generateUrl(`/f/${this.id}`)
@@ -129,7 +122,7 @@ export default {
 			this.document = (await ocsGet(`documents/${this.id}`)).document
 		} catch (error) {
 			console.error('ia: a document did not load', error)
-			this.failed = true
+			this.failure = refusal(error) ?? 'No se pudo cargar el documento. Recarga la página.'
 		}
 	},
 }

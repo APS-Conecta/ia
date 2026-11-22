@@ -91,6 +91,15 @@ class Settings {
 		return $cargos;
 	}
 
+	/**
+	 * @param array<string, string> $cargos the Cargo list (cargos())
+	 * @param list<string> $ids Cargo group ids, as a Reading or an Edition stored them
+	 * @return array<string, string> those still on the list, name by id
+	 */
+	public static function listedCargos(array $cargos, array $ids): array {
+		return array_intersect_key($cargos, array_flip($ids));
+	}
+
 	/** The timezone Off hours are read in: the server's, which the suite sets to the centre's. */
 	public function timezone(): string {
 		return $this->config->getSystemValueString('default_timezone', 'UTC') ?: 'UTC';

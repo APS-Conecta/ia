@@ -13,15 +13,13 @@ use OCA\Ia\Bulletin\Editions;
 use OCA\Ia\Bulletin\PersonalList;
 use OCA\Ia\Db\ActionMapper;
 use OCA\Ia\Db\BulletinMapper;
-use OCA\Ia\Db\EditionMapper;
 use OCA\Ia\Db\Reading;
-use OCA\Ia\Db\Report;
-use OCA\Ia\Db\ReportMapper;
 use OCA\Ia\Forbidden;
 use OCA\Ia\Reading\Readings;
 use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
+use OCA\Ia\Review\Reviews;
 use OCA\Ia\Settings\Settings;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -45,6 +43,7 @@ use OCP\Files\IRootFolder;
  * @psalm-import-type IaDocumentItem from ResponseDefinitions
  * @psalm-import-type IaDocument from ResponseDefinitions
  * @psalm-import-type IaDocuments from ResponseDefinitions
+ * @psalm-import-type IaReview from ResponseDefinitions
  */
 class Documents {
 	public const FILTERS = ['all', 'changed', 'expiring', 'findings', 'cargo'];
@@ -55,10 +54,9 @@ class Documents {
 		private BulletinMapper $bulletins,
 		private Bulletins $setUp,
 		private Editions $editions,
-		private EditionMapper $editionMapper,
 		private ActionMapper $actions,
 		private Readings $readings,
-		private ReportMapper $reports,
+		private Reviews $reviews,
 		private Settings $settings,
 		private PersonalList $personal,
 		private IRootFolder $root,
@@ -75,40 +73,48 @@ class Documents {
 		if (!in_array($filter, self::FILTERS, true)) {
 			throw new Refused('Ese filtro no existe.');
 		}
-		$items = array_map(fn (File $file): array => $this->item($userId, $file), array_values($this->watched($userId)));
-		usort($items, static fn (array $a, array $b): int => [mb_strtolower($a['name']), $a['fileId']] <=> [mb_strtolower($b['name']), $b['fileId']]);
-		$mine = $this->personal->cargosOf($userId, $this->settings->cargos());
+		$cargos = $this->settings->cargos();
+		$mine = array_flip($this->personal->cargosOf($userId, $cargos));
+		// Each row, and whether its Reading names one of the Editor's Cargos.
+		$rows = [];
+		foreach ($this->watched($userId) as $file) {
+			$reading = $this->readings->of($file->getId(), $file->getEtag());
+			$named = self::named($reading, $cargos);
+			$rows[] = [$this->item($userId, $file, $reading, $named, $this->reviews->latest($userId, $file)), array_intersect_key($named, $mine) !== []];
+		}
+		usort($rows, static fn (array $a, array $b): int => [mb_strtolower($a[0]['name']), $a[0]['fileId']] <=> [mb_strtolower($b[0]['name']), $b[0]['fileId']]);
 		$counts = [];
 		foreach (self::FILTERS as $name) {
-			$counts[$name] = count(array_filter($items, fn (array $item): bool => $this->keeps($name, $item, $mine)));
+			$counts[$name] = count(array_filter($rows, fn (array $row): bool => $this->keeps($name, ...$row)));
 		}
 		/** @var array{all: int, changed: int, expiring: int, findings: int, cargo: int} $counts */
 		return [
-			'documents' => array_values(array_map(static fn (array $item): array => array_diff_key($item, ['cargoIds' => 0]),
-				array_filter($items, fn (array $item): bool => $this->keeps($filter, $item, $mine)))),
+			'documents' => array_values(array_column(array_filter($rows, fn (array $row): bool => $this->keeps($filter, ...$row)), 0)),
 			'counts' => $counts,
 		];
 	}
 
 	/**
-	 * @return IaDocument one watched document: its row, its Reading's summary, and the latest
-	 *                    Edition of each Bulletin $userId sees that it appears in
+	 * @return IaDocument one watched document: its row, its Reading's summary, its latest Review,
+	 *                    and the Editions of the Bulletins $userId sees that list it
 	 * @throws Forbidden when $userId is no Editor
 	 * @throws DoesNotExistException when it isn't a document their groups watch that they can open
 	 */
 	public function one(string $userId, int $fileId): array {
 		$file = $this->watched($userId)[$fileId] ?? throw new DoesNotExistException('No such document');
 		$reading = $this->readings->of($file->getId(), $file->getEtag());
+		$review = $this->reviews->latest($userId, $file);
 		$read = $reading?->getStatus() === Reading::READ;
-		return array_diff_key($this->item($userId, $file), ['cargoIds' => 0]) + [
+		return $this->item($userId, $file, $reading, self::named($reading, $this->settings->cargos()), $review) + [
 			'summary' => $read ? $reading->getSummary() : null,
 			'readAt' => $reading?->getReadAt(),
-			'appearsIn' => $this->appearances($userId, $fileId),
+			'latestReview' => $review,
+			'appearsIn' => $this->editions->appearances($userId, $fileId),
 		];
 	}
 
 	/**
-	 * @return array<int, File> the documents «IA» reads that $userId's Editor groups watch and $userId
+	 * @return array<int, File> the documents $userId's Editor groups watch that $userId
 	 *                          can open now, by file id
 	 * @throws Forbidden when $userId is no Editor
 	 */
@@ -143,13 +149,13 @@ class Documents {
 		return array_combine(array_map(static fn (File $file): int => $file->getId(), $files), $files);
 	}
 
-	/** @return IaDocumentItem&array{cargoIds: list<string>} */
-	private function item(string $userId, File $file): array {
-		$reading = $this->readings->of($file->getId(), $file->getEtag());
+	/**
+	 * @param array<string, string> $named the Cargos its Reading names that are still on the list
+	 * @param ?IaReview $review its latest Review that $userId sees
+	 * @return IaDocumentItem
+	 */
+	private function item(string $userId, File $file, ?Reading $reading, array $named, ?array $review): array {
 		$read = $reading?->getStatus() === Reading::READ;
-		// The Cargos it names that are still on the list, as an Edition shows them.
-		$named = $read ? array_intersect_key($this->settings->cargos(), array_flip($reading->cargoList())) : [];
-		$review = $this->review($userId, $file->getId());
 		return [
 			'fileId' => $file->getId(),
 			'name' => $file->getName(),
@@ -157,51 +163,32 @@ class Documents {
 			'status' => $reading === null ? 'unread' : $reading->getStatus(),
 			'expires' => $read ? $reading->getExpires() : null,
 			'cargos' => array_values($named),
-			'cargoIds' => array_map(strval(...), array_keys($named)),
-			'review' => $review === null ? null : ['id' => $review->getId(), 'findings' => count(json_decode((string)$review->getFindings(), true) ?: [])],
+			'review' => $review === null ? null : ['id' => $review['id'], 'findings' => count($review['findings'] ?? [])],
 			'modifiedAt' => $file->getMTime(),
 		];
 	}
 
-	/** The latest done Review $userId sees of the file: its automatic one, or their own. */
-	private function review(string $userId, int $fileId): ?Report {
-		$done = array_filter([$this->reports->automaticOf($fileId), $this->reports->manualOf($userId, $fileId)],
-			static fn (?Report $report): bool => $report?->getFindings() !== null);
-		usort($done, static fn (Report $a, Report $b): int => $b->getCreatedAt() <=> $a->getCreatedAt());
-		return $done[0] ?? null;
+	/**
+	 * @param array<string, string> $cargos the Cargo list (Settings::cargos)
+	 * @return array<string, string> the Cargos a read Reading names that are still on the list, as an Edition shows them
+	 */
+	private static function named(?Reading $reading, array $cargos): array {
+		return $reading?->getStatus() === Reading::READ ? Settings::listedCargos($cargos, $reading->cargoList()) : [];
 	}
 
 	/**
-	 * @param array<string, mixed> $item
-	 * @param list<string> $mine the Editor's Cargo group ids
+	 * @param IaDocumentItem $item
+	 * @param bool $mine whether its Reading names one of the Editor's Cargos
 	 */
-	private function keeps(string $filter, array $item, array $mine): bool {
+	private function keeps(string $filter, array $item, bool $mine): bool {
 		$today = new DateTimeImmutable('@' . $this->time->getTime());
 		return match ($filter) {
 			'changed' => $item['modifiedAt'] >= $today->modify('-' . self::CHANGED_DAYS . ' days')->getTimestamp(),
 			'expiring' => $item['status'] === Reading::READ
 				&& ($item['expires'] === null || $item['expires'] <= $today->modify('+' . Editions::EXPIRING_DAYS . ' days')->format('Y-m-d')),
 			'findings' => ($item['review']['findings'] ?? 0) > 0,
-			'cargo' => array_intersect($item['cargoIds'], $mine) !== [],
+			'cargo' => $mine,
 			default => true,
 		};
-	}
-
-	/** @return list<array{bulletin: array{id: int, name: string}, edition: array{id: int, date: string}}> */
-	private function appearances(string $userId, int $fileId): array {
-		$found = [];
-		foreach ($this->bulletins->all() as $bulletin) {
-			if ($this->setUp->role($userId, $bulletin) === null) {
-				continue;
-			}
-			foreach ($this->editions->all($userId, $bulletin->getId()) as $item) {
-				$files = json_decode((string)$this->editionMapper->byId($item['id'])?->getFiles(), true) ?: [];
-				if (in_array($fileId, array_column($files, 'fileId'), true)) {
-					$found[] = ['bulletin' => ['id' => $bulletin->getId(), 'name' => $bulletin->getName()], 'edition' => ['id' => $item['id'], 'date' => $item['date']]];
-					break;
-				}
-			}
-		}
-		return $found;
 	}
 }

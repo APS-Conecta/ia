@@ -100,6 +100,7 @@ namespace OCA\Ia;
  * @psalm-type IaDocument = IaDocumentItem&array{
  *     summary: ?string,
  *     readAt: ?int,
+ *     latestReview: ?IaReview,
  *     appearsIn: list<IaAppearance>,
  * }
  *

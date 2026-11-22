@@ -83,7 +83,8 @@ import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { ocsGet, refusal } from './api.js'
-import { findingsText, fullDate, READING } from './documents.js'
+import { fullDate } from './bulletins.js'
+import { findingsText, READING } from './documents.js'
 import { mdiFileDocumentOutline } from './icons.js'
 
 const FILTERS = [['all', 'Todos'], ['changed', 'Nuevos y cambiados'], ['expiring', 'Por vencer'], ['findings', 'Con hallazgos'], ['cargo', 'Para mi cargo']]
