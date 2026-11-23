@@ -61,8 +61,11 @@ final class ReadingRunTest extends SeamTestCase {
 		self::assertSame(['escaneado.pdf' => 'unread', 'higiene.txt' => 'unread'], self::statuses(), 'the sweep only lines them up');
 		self::assertSame(2, self::estado()['waiting']['reading']);
 
-		$row = self::readUntil('higiene.txt', self::READING);
-		self::assertSame([self::$expires, 'scan'], [$row['expires'], self::statuses()['escaneado.pdf']], 'a scan without the Model');
+		$row = self::shownAs('higiene.txt', 'read', self::READING);
+		self::assertSame(self::$expires, $row['expires']);
+		// A scan's Reading, without the Model. The sweep lines the two up in the folder listing's
+		// order, which Nextcloud leaves to the database: the scan may wait for the other's Reading.
+		self::shownAs('escaneado.pdf', 'scan', self::READING);
 		self::assertSame([], array_diff($row['cargos'], self::CARGOS), 'it names only Cargos of the list');
 		self::assertContains('higiene.txt', self::names('expiring'), 'it expires within 30 days');
 		self::assertSame(in_array('Enfermera', $row['cargos'], true) ? ['higiene.txt'] : [], self::names('cargo'), "for Ana's Cargo when it names Enfermera");
@@ -87,7 +90,7 @@ final class ReadingRunTest extends SeamTestCase {
 
 		self::sweep();
 		self::assertSame(1, self::estado()['waiting']['reading'], 'only the new version');
-		$row = self::readUntil('higiene.txt', self::READING);
+		$row = self::shownAs('higiene.txt', 'read', self::READING);
 		self::assertNull($row['expires'], 'the new version says no date');
 	}
 
@@ -104,21 +107,22 @@ final class ReadingRunTest extends SeamTestCase {
 	}
 
 	/**
-	 * Ticks as the scheduler would until Ana's «Documentos» shows $name read, or fails after $seconds.
+	 * Ticks as the scheduler would until Ana's «Documentos» shows $name with the Reading status
+	 * $status, or fails after $seconds.
 	 *
 	 * @return array<string, mixed> its row
 	 */
-	private static function readUntil(string $name, int $seconds): array {
+	private static function shownAs(string $name, string $status, int $seconds): array {
 		$until = time() + $seconds;
 		do {
 			self::tick();
 			$row = array_column(self::ocs(self::$ana, 'GET', self::API . '/documents')['data']['documents'], null, 'name')[$name];
-			if ($row['status'] === 'read') {
+			if ($row['status'] === $status) {
 				return $row;
 			}
 			sleep(5);
 		} while (time() < $until);
-		self::fail("$name was not read after $seconds s: " . $row['status']);
+		self::fail("$name was not $status after $seconds s: " . $row['status']);
 	}
 
 	/** @return array<string, mixed> «Estado», as the admin sees it */
