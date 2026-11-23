@@ -6,11 +6,11 @@ declare(strict_types=1);
 
 namespace OCA\Ia\Flow;
 
+use OCA\Ia\Access\Access;
 use OCA\Ia\Action\Actions;
 use OCA\Ia\AppInfo\Application;
 use OCA\Ia\Db\Report;
 use OCA\Ia\Db\ReportMapper;
-use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
 use OCA\Ia\Review\Reviews;
 use OCP\EventDispatcher\Event;
@@ -42,6 +42,7 @@ class ReviewOperation implements ISpecificOperation {
 	private const FILE_ENTITY = 'OCA\WorkflowEngine\Entity\File';
 
 	public function __construct(
+		private Access $access,
 		private Reviews $reviews,
 		private Actions $actions,
 		private FlowRules $rules,
@@ -93,7 +94,7 @@ class ReviewOperation implements ISpecificOperation {
 			}
 			$changer = $this->session->getUser()?->getUID();
 			$lowest = min(array_map(static fn (array $rule): int => (int)$rule['id'], $matched));
-			foreach (TextReader::files($node) as $file) {
+			foreach ($this->access->files($node) as $file) {
 				if ($this->actions->of($file->getId()) !== null) {
 					continue;
 				}

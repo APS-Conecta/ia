@@ -1431,7 +1431,7 @@
                         }
                     },
                     "422": {
-                        "description": "«IA» can't read this document: its format, a scan, or a damaged or protected file",
+                        "description": "«IA» can't read this document: its format, a scan, a damaged or protected file, or the «Recursos Humanos» folder holds it",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -2971,7 +2971,7 @@
                         }
                     },
                     "422": {
-                        "description": "A field isn't one, or a member of the Editor group can't open a Source",
+                        "description": "A field isn't one, a Source is in the «Recursos Humanos» folder, or a member of the Editor group can't open a Source",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3178,7 +3178,7 @@
                         }
                     },
                     "422": {
-                        "description": "A field isn't one",
+                        "description": "A field isn't one, or a Source is in the «Recursos Humanos» folder",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3645,7 +3645,7 @@
                         }
                     },
                     "422": {
-                        "description": "A field isn't one, or a member of the Editor group can't open a Source",
+                        "description": "A field isn't one, a Source is in the «Recursos Humanos» folder, or a member of the Editor group can't open a Source",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -5503,7 +5503,7 @@
                         }
                     },
                     "422": {
-                        "description": "A field isn't one, or a member of the Editor group can't open the folder",
+                        "description": "A field isn't one, the folder is in the «Recursos Humanos» folder, or a member of the Editor group can't open it",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -5753,7 +5753,7 @@
                         }
                     },
                     "422": {
-                        "description": "A field isn't one, or a member of the Editor group can't open the folder",
+                        "description": "A field isn't one, the folder is in the «Recursos Humanos» folder, or a member of the Editor group can't open it",
                         "content": {
                             "application/json": {
                                 "schema": {

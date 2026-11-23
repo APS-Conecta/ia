@@ -106,10 +106,13 @@ En CITA copia las palabras exactas del documento, sin cambiarlas.';
 	 *
 	 * @return array{review: IaReview, start: 'now'|'offHours', created: bool}
 	 * @throws NotFoundException when they can't open it
-	 * @throws Refused when «IA» can't read its format yet
+	 * @throws Refused when «IA» can't read its format yet, or it is in the «Recursos Humanos» folder
 	 */
 	public function create(string $userId, int $fileId): array {
-		$file = $this->access->file($userId, $fileId) ?? throw new NotFoundException();
+		$file = $this->access->chosen($userId, $fileId, 'file');
+		if (!$file instanceof File) {
+			throw new NotFoundException();
+		}
 		$report = $this->reports->manualOf($userId, $fileId);
 		if ($report !== null) {
 			$run = $this->runs->of(Run::REVIEW, (string)$report->getId()) ?? throw new NotFoundException();

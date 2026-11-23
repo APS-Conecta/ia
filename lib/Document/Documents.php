@@ -16,7 +16,6 @@ use OCA\Ia\Db\BulletinMapper;
 use OCA\Ia\Db\Reading;
 use OCA\Ia\Forbidden;
 use OCA\Ia\Reading\Readings;
-use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
 use OCA\Ia\ResponseDefinitions;
 use OCA\Ia\Review\Reviews;
@@ -128,14 +127,14 @@ class Documents {
 			if (in_array($bulletin->getEditorGroup(), $groups, true)) {
 				foreach ($this->setUp->stored($bulletin) as $source) {
 					if ($source['type'] !== 'calendar') {
-						$files += self::byId(TextReader::documents($this->access->node($userId, (int)$source['id'], $source['type'])));
+						$files += self::byId($this->access->documents($this->access->node($userId, (int)$source['id'], $source['type'])));
 					}
 				}
 			}
 		}
 		foreach ($this->actions->all() as $action) {
 			if (in_array($action->getEditorGroup(), $groups, true)) {
-				$files += self::byId(TextReader::documents($this->access->node($userId, $action->getFolder(), 'folder')));
+				$files += self::byId($this->access->documents($this->access->node($userId, $action->getFolder(), 'folder')));
 			}
 		}
 		return $files;

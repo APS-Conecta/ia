@@ -9,7 +9,8 @@ Accepted, 2026-11-18 (grill for the «IA» app).
 
 «IA» lets the Model read whatever the person it works for can open, patient-data apps (Farmacia, Epidemiología)
 included. It keeps no read or view log: Reviews and Editions name the file versions they used, but nothing records
-who looked at what. Nextcloud's own permissions, checked live, are the only limit.
+who looked at what. Nextcloud's own permissions, checked live, are the only limit, but for the «Recursos Humanos»
+folder, which «IA» never reads (recursos-humanos ADR 0004).
 The Model runs on the suite server, so no data leaves the establishment.
 
 ## Considered Options

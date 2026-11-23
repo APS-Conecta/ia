@@ -138,7 +138,7 @@ class ApiController extends OCSController {
 	 * 201: A new Review, under way or waiting for Off hours
 	 * 200: The caller's Review of this document
 	 * 404: The caller can't open the document
-	 * 422: «IA» can't read this document: its format, a scan, or a damaged or protected file
+	 * 422: «IA» can't read this document: its format, a scan, a damaged or protected file, or the «Recursos Humanos» folder holds it
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::REVIEW_LIMIT, period: self::PERIOD)]
@@ -324,7 +324,7 @@ class ApiController extends OCSController {
 	 *
 	 * 201: The Bulletin
 	 * 403: The Editor group isn't one of the caller's
-	 * 422: A field isn't one, or a member of the Editor group can't open a Source
+	 * 422: A field isn't one, a Source is in the «Recursos Humanos» folder, or a member of the Editor group can't open a Source
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
@@ -344,7 +344,7 @@ class ApiController extends OCSController {
 	 *
 	 * 200: How many Readers it reaches, and who is left out because they can't open a Source
 	 * 403: The caller is no Editor
-	 * 422: A field isn't one
+	 * 422: A field isn't one, or a Source is in the «Recursos Humanos» folder
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::READ_LIMIT, period: self::PERIOD)]
@@ -383,7 +383,7 @@ class ApiController extends OCSController {
 	 * 200: The Bulletin, changed
 	 * 403: The caller isn't in its Editor group
 	 * 404: No such Bulletin
-	 * 422: A field isn't one, or a member of the Editor group can't open a Source
+	 * 422: A field isn't one, a Source is in the «Recursos Humanos» folder, or a member of the Editor group can't open a Source
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
@@ -571,7 +571,7 @@ class ApiController extends OCSController {
 	 *
 	 * 201: The action
 	 * 403: The caller isn't in that Editor group
-	 * 422: A field isn't one, or a member of the Editor group can't open the folder
+	 * 422: A field isn't one, the folder is in the «Recursos Humanos» folder, or a member of the Editor group can't open it
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
@@ -594,7 +594,7 @@ class ApiController extends OCSController {
 	 * 200: The action, changed
 	 * 403: The caller isn't in its Editor group
 	 * 404: No such action
-	 * 422: A field isn't one, or a member of the Editor group can't open the folder
+	 * 422: A field isn't one, the folder is in the «Recursos Humanos» folder, or a member of the Editor group can't open it
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: self::WRITE_LIMIT, period: self::PERIOD)]
