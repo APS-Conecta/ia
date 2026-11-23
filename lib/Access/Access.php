@@ -35,8 +35,8 @@ use OCP\Settings\IManager as ISettingsManager;
  */
 class Access {
 	/** The «Recursos Humanos» folder's mount, as it lands in each member's Files (gestion-aio#174). */
-	private const RECURSOS_HUMANOS = '#^/[^/]+/files/Unidades/Recursos Humanos/$#';
-	public const RECURSOS_HUMANOS_REFUSED = '«IA» no lee la carpeta Recursos Humanos ni nada de lo que contiene.';
+	private const RECURSOS_HUMANOS_MOUNT = '#^/[^/]+/files/Unidades/Recursos Humanos/$#';
+	private const RECURSOS_HUMANOS_REFUSED = '«IA» no lee la carpeta Recursos Humanos ni nada de lo que contiene.';
 
 	public function __construct(
 		private IRootFolder $root,
@@ -66,7 +66,7 @@ class Access {
 	 */
 	public function node(string $userId, int $fileId, string $type): ?Node {
 		$node = $this->reached($userId, $fileId, $type);
-		return $node === null || $this->recursosHumanos($node) ? null : $node;
+		return $node === null || $this->inRecursosHumanos($node) ? null : $node;
 	}
 
 	/**
@@ -76,7 +76,7 @@ class Access {
 	 */
 	public function chosen(string $userId, int $fileId, string $type): ?Node {
 		$node = $this->reached($userId, $fileId, $type);
-		if ($node !== null && $this->recursosHumanos($node)) {
+		if ($node !== null && $this->inRecursosHumanos($node)) {
 			throw new Refused(self::RECURSOS_HUMANOS_REFUSED);
 		}
 		return $node;
@@ -89,7 +89,7 @@ class Access {
 	 * @return list<File>
 	 */
 	public function documents(?Node $node): array {
-		return $node instanceof File && !$this->recursosHumanos($node) ? [$node] : ($node === null ? [] : $this->files($node));
+		return $node === null || $this->inRecursosHumanos($node) ? [] : ($node instanceof File ? [$node] : $this->under($node));
 	}
 
 	/**
@@ -99,7 +99,7 @@ class Access {
 	 * @return list<File>
 	 */
 	public function files(Node $node): array {
-		return $this->recursosHumanos($node) ? [] : $this->under($node);
+		return $this->inRecursosHumanos($node) ? [] : $this->under($node);
 	}
 
 	/** @return list<File> */
@@ -111,7 +111,7 @@ class Access {
 		foreach ($node instanceof Folder ? $node->getDirectoryListing() : [] as $child) {
 			// Only a mount's root can bring the «Recursos Humanos» folder in: a folder or a share.
 			$mounted = $child->getMountPoint()->getMountPoint() === $child->getPath() . '/';
-			if (!$mounted || !$this->recursosHumanos($child)) {
+			if (!$mounted || !$this->inRecursosHumanos($child)) {
 				array_push($found, ...$this->under($child));
 			}
 		}
@@ -119,9 +119,9 @@ class Access {
 	}
 
 	/** Whether $node is the «Recursos Humanos» folder or in it: some member's Files mount it there. */
-	private function recursosHumanos(Node $node): bool {
+	private function inRecursosHumanos(Node $node): bool {
 		foreach ($this->mounts->getMountsForFileId($node->getId()) as $mount) {
-			if (preg_match(self::RECURSOS_HUMANOS, $mount->getMountPoint()) === 1) {
+			if (preg_match(self::RECURSOS_HUMANOS_MOUNT, $mount->getMountPoint()) === 1) {
 				return true;
 			}
 		}

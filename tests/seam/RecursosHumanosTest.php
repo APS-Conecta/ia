@@ -85,6 +85,15 @@ final class RecursosHumanosTest extends SeamTestCase {
 		self::assertNotContains('licencia.txt', $bea, 'the share of Licencias is not read');
 	}
 
+	public function testABulletinWhoseSourceMovesIntoItStillOpensAndSaysWhy(): void {
+		$file = self::upload(self::$ana, 'movida.txt', "Turnos\nEnero.\n");
+		$id = self::bulletin(self::$ana, 'Boletín movido', self::$anaEditors, self::$readers, ['movida' => $file]);
+		self::transfer(self::$ana, 'MOVE', 'movida.txt', 'Unidades/Recursos Humanos/movida.txt');
+		$answer = self::ocs(self::$ana, 'GET', self::API . "/bulletins/$id");
+		self::assertSame(200, $answer['status'], json_encode($answer['data']));
+		self::assertStringContainsString('Recursos Humanos', $answer['data']['bulletin']['sources'][0]['name']);
+	}
+
 	/** @param array{status: int, data: array<string, mixed>} $answer */
 	private static function assertRefused(array $answer, string $what): void {
 		self::assertSame(422, $answer['status'], "$what: " . json_encode($answer['data']));

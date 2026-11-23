@@ -330,8 +330,12 @@ class Bulletins {
 	private function view(string $userId, Bulletin $bulletin, string $role): array {
 		$sources = [];
 		foreach ($role === 'editor' ? self::decode($bulletin->getSources()) : [] as $source) {
-			$sources[] = $this->named($userId, $source['type'], $source['id'])
-				?? ['type' => $source['type'], 'id' => (string)$source['id'], 'name' => 'Ya no puedes abrir esta fuente'];
+			try {
+				$name = $this->named($userId, $source['type'], $source['id'])['name'] ?? 'Ya no puedes abrir esta fuente';
+			} catch (Refused $refused) {
+				$name = $refused->getMessage();
+			}
+			$sources[] = ['type' => $source['type'], 'id' => (string)$source['id'], 'name' => $name];
 		}
 		$today = new DateTimeImmutable('today', new DateTimeZone($this->settings->timezone()));
 		$schedule = Schedule::parse($bulletin->getSchedule());
