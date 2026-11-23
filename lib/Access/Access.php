@@ -7,10 +7,13 @@ declare(strict_types=1);
 namespace OCA\Ia\Access;
 
 use OCA\Ia\AppInfo\Application;
+use OCA\Ia\Reading\TextReader;
+use OCA\Ia\Refused;
 use OCA\Ia\Settings\Settings;
 use OCP\Calendar\ICalendar;
 use OCP\Calendar\ICalendarIsPublic;
 use OCP\Calendar\IManager as ICalendarManager;
+use OCP\Files\Config\IUserMountCache;
 use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
@@ -26,8 +29,15 @@ use OCP\Settings\IManager as ISettingsManager;
  * is theirs to read only while their own Files reach it, through a share or a Team folder
  * included; a calendar only while it is among their calendars; they are an Editor only while one
  * of their groups is an Editor group.
+ *
+ * The «Recursos Humanos» folder is the one exception: «IA» opens it, or anything in it, for nobody,
+ * however they reach it, a share included (recursos-humanos ADR 0004).
  */
 class Access {
+	/** The «Recursos Humanos» folder's mount, as it lands in each member's Files (gestion-aio#174). */
+	private const RECURSOS_HUMANOS = '#^/[^/]+/files/Unidades/Recursos Humanos/$#';
+	public const RECURSOS_HUMANOS_REFUSED = '«IA» no lee la carpeta Recursos Humanos ni nada de lo que contiene.';
+
 	public function __construct(
 		private IRootFolder $root,
 		private IGroupManager $groups,
@@ -35,6 +45,7 @@ class Access {
 		private Settings $settings,
 		private ICalendarManager $calendars,
 		private ISettingsManager $adminSettings,
+		private IUserMountCache $mounts,
 	) {
 	}
 
@@ -51,9 +62,74 @@ class Access {
 
 	/**
 	 * The folder or file $fileId as $userId can open it now, of the $type asked for ('folder' or
-	 * 'file'), or null; a deleted account opens nothing.
+	 * 'file'), or null; a deleted account opens nothing, and nobody the «Recursos Humanos» folder.
 	 */
 	public function node(string $userId, int $fileId, string $type): ?Node {
+		$node = $this->reached($userId, $fileId, $type);
+		return $node === null || $this->recursosHumanos($node) ? null : $node;
+	}
+
+	/**
+	 * The folder or file $fileId that $userId chooses for «IA» to read, as node() opens it.
+	 *
+	 * @throws Refused when it is the «Recursos Humanos» folder or in it, which they can open
+	 */
+	public function chosen(string $userId, int $fileId, string $type): ?Node {
+		$node = $this->reached($userId, $fileId, $type);
+		if ($node !== null && $this->recursosHumanos($node)) {
+			throw new Refused(self::RECURSOS_HUMANOS_REFUSED);
+		}
+		return $node;
+	}
+
+	/**
+	 * A Source's or an Automatic action folder's documents: a document Source itself, whatever its
+	 * format; under a folder, at any depth, those of the formats «IA» reads.
+	 *
+	 * @return list<File>
+	 */
+	public function documents(?Node $node): array {
+		return $node instanceof File && !$this->recursosHumanos($node) ? [$node] : ($node === null ? [] : $this->files($node));
+	}
+
+	/**
+	 * The files «IA» reads at $node: the file itself, or those under a folder at any depth; none in
+	 * the «Recursos Humanos» folder, which a folder above it holds as one of its mounts.
+	 *
+	 * @return list<File>
+	 */
+	public function files(Node $node): array {
+		return $this->recursosHumanos($node) ? [] : $this->under($node);
+	}
+
+	/** @return list<File> */
+	private function under(Node $node): array {
+		if ($node instanceof File) {
+			return TextReader::reads($node->getName()) ? [$node] : [];
+		}
+		$found = [];
+		foreach ($node instanceof Folder ? $node->getDirectoryListing() : [] as $child) {
+			// Only a mount's root can bring the «Recursos Humanos» folder in: a folder or a share.
+			$mounted = $child->getMountPoint()->getMountPoint() === $child->getPath() . '/';
+			if (!$mounted || !$this->recursosHumanos($child)) {
+				array_push($found, ...$this->under($child));
+			}
+		}
+		return $found;
+	}
+
+	/** Whether $node is the «Recursos Humanos» folder or in it: some member's Files mount it there. */
+	private function recursosHumanos(Node $node): bool {
+		foreach ($this->mounts->getMountsForFileId($node->getId()) as $mount) {
+			if (preg_match(self::RECURSOS_HUMANOS, $mount->getMountPoint()) === 1) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** The folder or file $fileId of the $type asked for, as $userId's Files reach it now, or null. */
+	private function reached(string $userId, int $fileId, string $type): ?Node {
 		if (!$this->users->userExists($userId)) {
 			return null;
 		}

@@ -75,7 +75,7 @@ class ReadingRun implements Kind {
 			try {
 				$actor = $this->actions->actor($action, $action->getFolder(), 'folder');
 				$folder = $actor === null ? null : $this->access->node($actor, $action->getFolder(), 'folder');
-				foreach (TextReader::documents($folder) as $file) {
+				foreach ($this->access->documents($folder) as $file) {
 					if ($this->readings->of($file->getId(), $file->getEtag()) === null) {
 						$this->open($file, $action);
 					}

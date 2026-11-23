@@ -94,3 +94,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
   an active member of the action's Editor group who can open it; a scan or a file it can't read is marked without
   the Model. «Documentos» shows their Reading, and «Estado» counts the Readings in line and names a failed one by
   its action.
+- «IA» never reads the «Recursos Humanos» folder (#32), the suite's team folder Unidades/Recursos Humanos, or
+  anything in it, whoever can open it, a share included: choosing it or what it holds as a Bulletin's Source, an
+  Automatic action's folder or a document to review is refused with the reason, and a folder above it never brings
+  its documents into an Edition, a Reading, an automatic Review or «Documentos».

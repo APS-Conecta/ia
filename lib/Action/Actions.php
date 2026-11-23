@@ -160,7 +160,7 @@ class Actions {
 	private function fill(string $userId, Action $action, array $input): void {
 		$name = self::name($input['name'] ?? '', 'la acción automática');
 		$id = $input['folder'] ?? null;
-		$folder = (is_string($id) || is_int($id)) && ctype_digit((string)$id) ? $this->access->node($userId, (int)$id, 'folder') : null;
+		$folder = (is_string($id) || is_int($id)) && ctype_digit((string)$id) ? $this->access->chosen($userId, (int)$id, 'folder') : null;
 		if ($folder === null) {
 			throw new Refused('Elige una carpeta que puedas abrir.');
 		}

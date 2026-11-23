@@ -286,6 +286,7 @@ class Bulletins {
 	 * The Source as $userId sees it, with its name, or null when they can't open it.
 	 *
 	 * @return IaSource|null
+	 * @throws Refused when it is the «Recursos Humanos» folder or in it
 	 */
 	private function named(string $userId, mixed $type, mixed $id): ?array {
 		if (!in_array($type, self::TYPES, true) || (!is_string($id) && !is_int($id)) || (string)$id === ''
@@ -295,7 +296,7 @@ class Bulletins {
 		$calendar = $type === 'calendar' ? $this->access->calendar($userId, (string)$id) : null;
 		$name = $type === 'calendar'
 			? ($calendar === null ? null : Access::calendarName($calendar))
-			: $this->access->node($userId, (int)$id, $type)?->getName();
+			: $this->access->chosen($userId, (int)$id, $type)?->getName();
 		return $name === null ? null : ['type' => $type, 'id' => (string)$id, 'name' => $name];
 	}
 

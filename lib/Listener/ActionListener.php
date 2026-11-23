@@ -6,9 +6,9 @@ declare(strict_types=1);
 
 namespace OCA\Ia\Listener;
 
+use OCA\Ia\Access\Access;
 use OCA\Ia\Action\Actions;
 use OCA\Ia\Db\Report;
-use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Review\Reviews;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
@@ -25,13 +25,14 @@ use Throwable;
 /**
  * A file created, written, moved or copied under an Automatic action's folder (a folder brings its
  * files) puts its automatic Review in line, for whoever did it (gestion-aio#162,
- * AutomaticActions); a rename that stays under the same action doesn't. Files «IA» doesn't read
- * are left alone.
+ * AutomaticActions); a rename that stays under the same action doesn't. Files «IA» doesn't read,
+ * and those in the «Recursos Humanos» folder, are left alone.
  *
  * @template-implements IEventListener<NodeCreatedEvent|NodeWrittenEvent|NodeRenamedEvent|NodeCopiedEvent>
  */
 class ActionListener implements IEventListener {
 	public function __construct(
+		private Access $access,
 		private Actions $actions,
 		private Reviews $reviews,
 		private IUserSession $session,
@@ -48,7 +49,7 @@ class ActionListener implements IEventListener {
 		try {
 			// A rename within one action's folder (the folder's own, too) brings nothing new to it.
 			$before = $event instanceof NodeRenamedEvent ? $this->actions->of(self::parentId($event->getSource())) : null;
-			foreach ($node === null ? [] : TextReader::files($node) as $file) {
+			foreach ($node === null ? [] : $this->access->files($node) as $file) {
 				$action = $this->actions->of($file->getId());
 				if ($action !== null && $action->getId() !== $before?->getId()) {
 					$this->reviews->automatic($file, Report::ACTION, $action->getId(), (string)$action->getInstructions(), $this->session->getUser()?->getUID());

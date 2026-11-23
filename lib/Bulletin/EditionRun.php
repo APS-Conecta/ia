@@ -23,7 +23,6 @@ use OCA\Ia\Model\ModelGateway;
 use OCA\Ia\Reading\Document;
 use OCA\Ia\Reading\Readings;
 use OCA\Ia\Reading\Taken;
-use OCA\Ia\Reading\TextReader;
 use OCA\Ia\Refused;
 use OCA\Ia\Run\Kind;
 use OCA\Ia\Run\Steps;
@@ -263,7 +262,7 @@ class EditionRun implements Kind {
 			} elseif ($source['type'] === 'file') {
 				$documentSources[$node->getId()] = true;
 			}
-			foreach (TextReader::documents($node) as $file) {
+			foreach ($this->access->documents($node) as $file) {
 				$files[$file->getId()] = ['fileId' => $file->getId(), 'etag' => $file->getEtag(), 'name' => $file->getName()];
 				$found[$file->getId()] = $file;
 			}

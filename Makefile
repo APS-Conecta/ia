@@ -61,6 +61,8 @@ instance-up:
 	$(OCC) app:enable $(CONNECTOR) 2>/dev/null || $(OCC) app:install $(CONNECTOR)
 	# Assistant, as on the suite: it loads its own smalot/pdfparser, which «IA»'s prefixed copy must not meet.
 	$(OCC) app:enable assistant 2>/dev/null || $(OCC) app:install assistant
+	# Team folders, as on the suite: «IA» never reads the «Recursos Humanos» one.
+	$(OCC) app:enable groupfolders 2>/dev/null || $(OCC) app:install groupfolders
 	echo '$(SETTINGS)' | $(COMPOSE) exec -T --user www-data nextcloud php occ config:import
 	$(OCC) app:enable ia
 	# Restart AFTER enabling: the web workers cache the route collection and the enabled apps

@@ -12,6 +12,11 @@ _Avoid_: Asistente, assistant, copiloto, chat
 Nextcloud's own AI app.
 _Avoid_: using it for «IA»
 
+**«Recursos Humanos» folder** (carpeta Recursos Humanos):
+The suite's team folder Unidades/Recursos Humanos, where the «Recursos Humanos» app keeps personnel records. «IA»
+never reads it or anything in it, whoever can open it: it is no Source, no Automatic action's folder and no Review's
+document.
+
 ### Reviews
 
 **Review** (revisión):
