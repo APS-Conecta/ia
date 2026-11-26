@@ -5,6 +5,7 @@ with the suite's local Model. The spec is APS-Conecta/gestion-aio#162; its ticke
 
 ## Working rules
 
+- **Standards:** the org's code rules are the docs site's [«Estándares de código»](https://aps-conecta.github.io/documentation/desarrollo/estandares-de-codigo.html) page.
 - **Names:** code is English, but a domain term keeps the meaning and spelling `CONTEXT.md` gives it (Review,
   Bulletin, Edition, Reading, «Para ti»). Never rename a table, column, route, controller action (an OpenAPI
   operation id) or API field once it ships.
@@ -12,7 +13,8 @@ with the suite's local Model. The spec is APS-Conecta/gestion-aio#162; its ticke
   the model server (gestion-aio ADR 0003). Never `runTask` inside a web request.
 - **Tests at the one seam** (gestion-aio#162, Testing Decisions): `tests/seam/` reaches the app only through its OCS
   API and occ, against the throwaway instance with the real Model. Assert only what doesn't depend on the
-  Model's wording. `tests/unit/` holds the static gates, nothing else.
+  Model's wording. `tests/unit/` holds the static gates, nothing else. A PR names the seam its test lives at; a test
+  at any other seam is a review finding.
 - **Gate before opening a PR**, what `ci.yml` and `release.yml` run: `npm ci`; `npm run lint-js`; `make bundles`;
   `make test`; `make deps && make instance-up && make test-seam`; `make openapi` with no drift in `openapi.json`;
   then `make instance-clean`. A step you could not run is named in the PR, never reported as passed.
